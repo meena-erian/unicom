@@ -1,7 +1,7 @@
 from django.http import HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
-from unicom.models import Update, BotCredentials
+from unicom.models import Update, Bot
 from unicom.services.telegram.save_telegram_message import save_telegram_message
 from django.db import transaction
 import json
@@ -13,8 +13,8 @@ def telegram_webhook(request, bot_id: int):
     if request.method != 'POST':
         return HttpResponse('Invalid request method.', status=405)
 
-    # Lookup the BotCredentials for this webhook
-    bot = get_object_or_404(BotCredentials, pk=bot_id, platform='Telegram')
+    # Lookup the Bot for this webhook
+    bot = get_object_or_404(Bot, pk=bot_id, platform='Telegram')
 
     # Verify the request using the optional secret token
     secret_token = bot.config.get('TELEGRAM_SECRET_TOKEN')

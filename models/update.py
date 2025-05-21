@@ -3,7 +3,7 @@ from .constants import channels
 
 
 class Update(models.Model):
-    bot = models.ForeignKey('unicom.BotCredentials', on_delete=models.CASCADE)
+    bot = models.ForeignKey('unicom.Bot', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
     id = models.CharField(max_length=100, primary_key=True)
     payload = models.JSONField()
