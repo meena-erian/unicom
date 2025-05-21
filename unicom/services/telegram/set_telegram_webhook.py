@@ -1,6 +1,6 @@
 import requests
 from uuid import uuid4
-from bot_template.credentials_loader import DJANGO_PUBLIC_PROTOCOL, DJANGO_PUBLIC_HOST, DJANGO_PUBLIC_PORT
+from unicom.services.get_public_origin import get_public_origin
 
 
 def set_telegram_webhook(bot_credentials, allowed_updates=None):
@@ -11,9 +11,12 @@ def set_telegram_webhook(bot_credentials, allowed_updates=None):
     TELEGRAM_API_TOKEN = TelegramCredentials["TELEGRAM_API_TOKEN"]
     if "TELEGRAM_SECRET_TOKEN" not in TelegramCredentials:
         TelegramCredentials["TELEGRAM_SECRET_TOKEN"] = uuid4().hex
+        bot_credentials.config["TELEGRAM_SECRET_TOKEN"] = TelegramCredentials["TELEGRAM_SECRET_TOKEN"]
     TELEGRAM_SECRET_TOKEN = TelegramCredentials["TELEGRAM_SECRET_TOKEN"]
-    origin = f'{DJANGO_PUBLIC_PROTOCOL}://{DJANGO_PUBLIC_HOST}:{DJANGO_PUBLIC_PORT}' if DJANGO_PUBLIC_PORT is not None else  f'{DJANGO_PUBLIC_PROTOCOL}://{DJANGO_PUBLIC_HOST}'
-    webhook_url = f"{origin}/chatbot/telegram/{bot_credentials.id}"
+    origin = get_public_origin()
+    if not origin:
+        raise ValueError("DJANGO_PUBLIC_ORIGIN is not set")
+    webhook_url = f"{origin}/unicom/telegram/{bot_credentials.id}"
     print(f"Updating Telegram Webhook to {webhook_url}")
     url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/setWebhook"
 

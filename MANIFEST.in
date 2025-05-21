@@ -2,3 +2,5 @@ include README.md
 include LICENSE
 recursive-include unicom/static *
 recursive-include unicom/templates *
+exclude unicom_project/*
+exclude tests/*

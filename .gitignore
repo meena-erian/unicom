@@ -3,3 +3,6 @@ __pycache__
 *.pyc
 *.pyo
 build
+.pytest_cache
+db.env
+telegram_credentials.py

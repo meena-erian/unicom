@@ -1,0 +1,30 @@
+version: '3.3'
+
+services:
+  db:
+    image: postgres:13.4
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - db.env
+    ports:
+      - "5432:5432"
+    restart: always
+  web:
+    build: .
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["python", "manage.py", "runserver", "0.0.0.0:80"]
+    env_file:
+      - db.env
+    environment:
+      - DOCKER=true
+    ports:
+      - "80:80"
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - db
+volumes:
+  postgres_data:
+

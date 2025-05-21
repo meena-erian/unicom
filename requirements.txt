@@ -1,0 +1,9 @@
+django>=4.2
+psycopg2-binary
+requests
+Pillow
+IMAPClient
+fa2svg==0.1.6
+
+# Only required by unicom_project not unicom app
+python-dotenv

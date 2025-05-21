@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='BotCredentials',
+            name='Bot',
             fields=[
                 ('id', models.BigAutoField(primary_key=True, serialize=False)),
                 ('name', models.CharField(max_length=100)),
@@ -85,7 +85,7 @@ class Migration(migrations.Migration):
                 ('platform', models.CharField(choices=[('Telegram', 'Telegram'), ('WhatsApp', 'WhatsApp'), ('Internal', 'Internal'), ('Email', 'Email')], max_length=100)),
                 ('id', models.CharField(max_length=100, primary_key=True, serialize=False)),
                 ('payload', models.JSONField()),
-                ('bot', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='unicom.botcredentials')),
+                ('bot', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='unicom.bot')),
                 ('message', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='unicom.message')),
             ],
         ),

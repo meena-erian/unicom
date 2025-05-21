@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from unicom.services.telegram.set_telegram_webhook import set_telegram_webhook
 
 
-class BotCredentials(models.Model):
+class Bot(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=100)
     platform = models.CharField(max_length=100, choices=channels)
@@ -20,9 +20,10 @@ class BotCredentials(models.Model):
 
     def validate(self):
         print(f"Validating {self.name} ({self.platform})")
+        attributes_monitored_for_change = ('active', 'error', 'confirmed_webhook_url', 'config')
         # Snapshot old values for comparison
         old = type(self).objects.filter(pk=self.pk).values(
-            'active', 'error', 'confirmed_webhook_url'
+            *attributes_monitored_for_change
         ).first() or {}
 
         # Reset status
@@ -48,7 +49,7 @@ class BotCredentials(models.Model):
 
         # Determine changed fields and update via QuerySet.update() to avoid signals
         changes = {}
-        for field in ('confirmed_webhook_url', 'active', 'error'):
+        for field in attributes_monitored_for_change:
             old_value = old.get(field)
             new_value = getattr(self, field)
             if old_value != new_value:
