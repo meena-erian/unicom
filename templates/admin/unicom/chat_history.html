@@ -1,0 +1,228 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}
+<style>
+  :root {
+    --message-bg-user: #e1f5fe;
+    --message-bg-bot: #e8f5e9;
+    --message-text-user: #01579b;
+    --message-text-bot: #1b5e20;
+    --reply-bg: rgba(0, 0, 0, 0.05);
+    --audio-bg: #f8f9fa;
+    --audio-border: #dee2e6;
+  }
+
+  [data-theme="dark"] {
+    --message-bg-user: #01579b;
+    --message-bg-bot: #1b5e20;
+    --message-text-user: #e1f5fe;
+    --message-text-bot: #e8f5e9;
+    --reply-bg: rgba(255, 255, 255, 0.1);
+    --audio-bg: #2c2c2c;
+    --audio-border: #444;
+  }
+
+  body {
+    background-color: var(--body-bg);
+    color: var(--body-fg);
+  }
+
+  .chat-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 10px;
+  }
+
+  .chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    position: relative;
+  }
+
+  .message-bot {
+    align-self: flex-end;
+    background-color: var(--message-bg-bot);
+    color: var(--message-text-bot);
+    border-bottom-right-radius: 0;
+  }
+
+  .message-bot::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: -10px;
+    width: 0;
+    height: 0;
+    border: 10px solid transparent;
+    border-left-color: var(--message-bg-bot);
+    border-bottom: 0;
+    border-right: 0;
+  }
+
+  .message-user {
+    align-self: flex-start;
+    background-color: var(--message-bg-user);
+    color: var(--message-text-user);
+    border-bottom-left-radius: 0;
+  }
+
+  .message-user::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -10px;
+    width: 0;
+    height: 0;
+    border: 10px solid transparent;
+    border-right-color: var(--message-bg-user);
+    border-bottom: 0;
+    border-left: 0;
+  }
+
+  .reply-to {
+    background-color: var(--reply-bg);
+    border-radius: 12px;
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+
+  .message img, .message audio {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .message pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+    font-family: inherit;
+    margin: 0;
+  }
+
+  .timestamp {
+    font-size: 0.75rem;
+    color: var(--body-quiet-color);
+    text-align: right;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .chat-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .chat-input {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    background-color: var(--body-bg);
+    color: var(--body-fg);
+  }
+
+  .chat-button {
+    padding: 10px 20px;
+    background-color: var(--button-bg);
+    color: var(--button-fg);
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 600px) {
+    .chat-container {
+      padding: 5px;
+    }
+
+    .message {
+      max-width: 90%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+  <h1>Chat with: {{ chat.name }} ({{ chat.id }})</h1>
+  
+  <div class="chat-messages">
+    {% for message in chat_messages_list %}
+    <div id="message_{{ message.id }}" class="message {% if message.is_bot %}message-bot{% else %}message-user{% endif %}">
+      {% if message.reply_to_message %}
+      <a href="#message_{{ message.reply_to_message.id }}">
+        <div class="reply-to">
+          {% if message.reply_to_message.media_type == "image" and message.reply_to_message.media %}
+            <img src="{{ message.reply_to_message.media.url }}" alt="Image message">
+          {% elif message.reply_to_message.media_type == "image" %}
+            <div style="color: red;">Image file is missing.</div>
+          {% endif %}
+          <pre>{{ message.reply_to_message.text }}</pre>
+        </div>
+      </a>
+      {% endif %}
+
+      {% if message.media_type == "image" and message.media %}
+        <img src="{{ message.media.url }}" alt="Image message">
+      {% elif message.media_type == "image" %}
+        <div style="color: red;">Image file is missing.</div>
+      {% elif message.media_type == "audio" %}
+      {% if message.media %}
+        <audio controls>
+          <source src="{{ message.media.url }}" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+      {% else %}
+      <p>File not found</p>
+      {% endif %}
+      {% endif %}
+
+      <pre>{{ message.text }}</pre>
+
+      <div class="timestamp">
+        {% if message.user.username %}
+        {{ message.user.username }}
+        {% else %}
+        {{ message.sender_name }}
+        {% endif %}
+        : {{ message.timestamp|date:"h:i A" }} - {{ message.timestamp|timesince }} ago
+        {% if message.is_bot %}
+        <span style="margin-left: 10px;">
+          {% if message.seen %}
+          seen <span style="color: lightskyblue">✓✓</span>
+          {% elif message.delivered %}
+          delivered ✓✓
+          {% elif message.sent %}
+          sent ✓
+          {% else %}
+          pending &#x1F551;
+          {% endif %}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="" class="chat-form">
+    {% csrf_token %}
+    <input type="text" name="message_text" placeholder="Type your message here..." class="chat-input">
+    <button type="submit" class="chat-button">Send</button>
+  </form>
+</div>
+{% endblock %}
