@@ -99,7 +99,7 @@ DATABASES = {
         'USER': os.environ.get('POSTGRES_USER', 'unicom'),
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'password'),
         'HOST': os.environ.get('POSTGRES_HOST', 'db' if IS_DOCKER else 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432') if IS_DOCKER else '6432',
     }
 }
 

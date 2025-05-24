@@ -8,7 +8,7 @@ services:
     env_file:
       - db.env
     ports:
-      - "5432:5432"
+      - "6432:5432"
     restart: always
   web:
     build: .
@@ -19,7 +19,7 @@ services:
     environment:
       - DOCKER=true
     ports:
-      - "80:80"
+      - "800:80"
     volumes:
       - .:/app
     restart: always
