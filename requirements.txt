@@ -4,6 +4,7 @@ requests
 Pillow
 IMAPClient
 fa2svg==0.1.6
+dnspython
 
 # Only required by unicom_project not unicom app
 python-dotenv
