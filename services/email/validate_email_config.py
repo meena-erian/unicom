@@ -16,7 +16,7 @@ def get_srv_candidates(service: str, domain: str):
     except Exception:
         return []
 
-def validate_imap(config: dict):
+def validate_imap(config: dict, email_address: str, password: str):
     try:
         if config['use_ssl']:
             conn = imaplib.IMAP4_SSL(config['host'], config['port'], timeout=10)
@@ -29,7 +29,7 @@ def validate_imap(config: dict):
         print(f"IMAP connection failed: {e}")
         return False
 
-def validate_smtp(config: dict):
+def validate_smtp(config: dict, email_address: str, password: str):
     try:
         if config['use_ssl']:
             smtp = smtplib.SMTP_SSL(config['host'], config['port'], timeout=10)
@@ -88,7 +88,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
     config = get_config_using_mozilla(domain)
     if config:
         print(f"Found Mozilla ISPDB config for {domain}: {config} now validating")
-        if validate_imap(config['IMAP']) and validate_smtp(config['SMTP']):
+        if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
             print(f"Validated ISPDB config for {domain}")
             return config
         else:
@@ -119,7 +119,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
         config = get_config_using_mozilla(mx)  # try ISPDB for MX host
         if config:
             print(f"Found Mozilla ISPDB config for MX {mx}: {config} now validating")
-            if validate_imap(config['IMAP']) and validate_smtp(config['SMTP']):
+            if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
                 print(f"Validated ISPDB config for MX {mx}")
                 return config
             else:
@@ -144,7 +144,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
         config = get_config_using_mozilla(base)  # try ISPDB for base domain
         if config:
             print(f"Found Mozilla ISPDB config for base {base}: {config} now validating")
-            if validate_imap(config['IMAP']) and validate_smtp(config['SMTP']):
+            if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
                 print(f"Validated ISPDB config for base {base}")
                 return config
             else:
