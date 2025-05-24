@@ -6,6 +6,7 @@ build
 .pytest_cache
 db.env
 telegram_credentials.py
+email_credentials.py
 dist
 .pypirc
 *.pypirc

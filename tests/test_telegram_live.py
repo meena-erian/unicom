@@ -9,7 +9,6 @@ from tests.telegram_credentials import TELEGRAM_API_TOKEN, TELEGRAM_SECRET_TOKEN
 from django.db import connections
 
 
-
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
 class TestTelegramLive:

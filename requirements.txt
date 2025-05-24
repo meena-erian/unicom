@@ -1,10 +1,12 @@
 django>=4.2
-psycopg2-binary
-requests
-Pillow
-IMAPClient
+psycopg2-binary>=2.9,<3.0
+requests>=2.31.0,<3.0
+urllib3>=2.4.0,<3.0
+Pillow>=10.4.0
+IMAPClient>=3.0.1
 fa2svg==0.1.6
-dnspython
+dnspython>=2.7.0,<3.0
 
 # Only required by unicom_project not unicom app
-python-dotenv
+python-dotenv>=1.0,<2.0
+charset-normalizer>=3.1.0,<4.0
