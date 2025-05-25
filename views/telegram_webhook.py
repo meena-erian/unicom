@@ -14,10 +14,10 @@ def telegram_webhook(request, bot_id: int):
         return HttpResponse('Invalid request method.', status=405)
 
     # Lookup the Channel for this webhook
-    bot = get_object_or_404(Channel, pk=bot_id, platform='Telegram')
+    channel = get_object_or_404(Channel, pk=bot_id, platform='Telegram')
 
     # Verify the request using the optional secret token
-    secret_token = bot.config.get('TELEGRAM_SECRET_TOKEN')
+    secret_token = channel.config.get('TELEGRAM_SECRET_TOKEN')
     if secret_token:
         header_token = request.META.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
         if header_token != secret_token:
@@ -31,7 +31,7 @@ def telegram_webhook(request, bot_id: int):
 
     # Save the raw update
     update = Update(
-        channel=bot,
+        channel=channel,
         platform='Telegram',
         id=f'Telegram.{data_dict.get("update_id")}',
         payload=data_dict
@@ -47,7 +47,7 @@ def telegram_webhook(request, bot_id: int):
     # Handle incoming messages
     if 'message' in data_dict:
         with transaction.atomic():
-            msg = save_telegram_message(data_dict['message'])
+            msg = save_telegram_message(channel, data_dict['message'])
             update.message = msg
             update.save()
         return HttpResponse('Message received and saved.', status=200)
