@@ -7,7 +7,7 @@ from django.core.files.base import ContentFile
 import mimetypes
 
 
-def save_telegram_message(message_data: dict, user:User=None):
+def save_telegram_message(channel, message_data: dict, user:User=None):
     platform = 'Telegram'  # Set the platform name
     sender_id = message_data.get('from')['id']
     sender_name = message_data.get('from')['first_name']
@@ -108,6 +108,7 @@ def save_telegram_message(message_data: dict, user:User=None):
         defaults={
             'sender_id': sender_id,
             'is_bot': is_bot,
+            'channel': channel,
             'sender_name': sender_name,
             'user':user,
             'text': text,

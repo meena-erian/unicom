@@ -14,6 +14,7 @@ class Message(models.Model):
         ('audio', 'Audio'),
     ]
     id = models.CharField(max_length=500, primary_key=True)
+    channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
     sender = models.ForeignKey('unicom.Account', on_delete=models.RESTRICT)
     user = models.ForeignKey(User, on_delete=models.RESTRICT, null=True, blank=True)
