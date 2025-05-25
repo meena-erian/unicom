@@ -1,6 +1,7 @@
 from unicom.models import Message, AccountChat, Channel
 from django.db import transaction
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_save, post_delete
+from unicom.services.email.IMAP_thread_manager import imap_manager
 from django.db import transaction
 from django.dispatch import receiver
 import threading
@@ -33,7 +34,15 @@ def channel_pre_save(sender, instance, **kwargs):
 @receiver(post_save, sender=Channel)
 def run_channel_after_insert(sender, instance, created, **kwargs):
     # Check if created or config changed
+    def validate_and_then_start():
+        instance.validate()
+        imap_manager.restart(instance)
     config_changed = not created and getattr(instance, '_old_config', None) != instance.config
     if created or config_changed:
-        transaction.on_commit(lambda: threading.Thread(target=instance.validate).start())
+        transaction.on_commit(lambda: threading.Thread(target=validate_and_then_start).start())
  
+@receiver(post_delete, sender=Channel)
+def run_channel_after_delete(sender, instance, **kwargs):
+    # Stop the IMAP listener thread for the channel
+    imap_manager.stop(instance)
+    print(f"Channel {instance.pk} deleted, IMAP listener stopped.")
