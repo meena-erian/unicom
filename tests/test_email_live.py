@@ -1,7 +1,7 @@
 import time
 import pytest
 from django.test import Client
-from unicom.models import Bot
+from unicom.models import Channel
 from tests.utils import wait_for_condition
 from tests.email_credentials import EMAIL_CONFIG
 from django.db import connections
@@ -21,7 +21,7 @@ class TestEmailLive:
 
     def _wait_bot(self, pk, *, cond, timeout=10):
         return wait_for_condition(
-            lambda: cond(Bot.objects.get(pk=pk)),
+            lambda: cond(Channel.objects.get(pk=pk)),
             timeout=timeout
         )
 
@@ -29,16 +29,16 @@ class TestEmailLive:
         """
         Provide full EMAIL_CONFIG (IMAP + SMTP + ADDRESS + PASSWORD) -> expect active=True
         """
-        bot = Bot(
+        channel = Channel(
             name="EmailBotExplicitValid",
             platform="Email",
             config=EMAIL_CONFIG
         )
-        bot.save()
-        self._wait_bot(bot.pk, cond=lambda b: b.active is True)
-        bot.refresh_from_db()
-        assert bot.active is True
-        assert bot.error is None
+        channel.save()
+        self._wait_bot(channel.pk, cond=lambda b: b.active is True)
+        channel.refresh_from_db()
+        assert channel.active is True
+        assert channel.error is None
         connections.close_all()
 
     def test_without_explicit_config_valid(self):
@@ -49,16 +49,16 @@ class TestEmailLive:
             "EMAIL_ADDRESS": EMAIL_CONFIG["EMAIL_ADDRESS"],
             "EMAIL_PASSWORD": EMAIL_CONFIG["EMAIL_PASSWORD"],
         }
-        bot = Bot(
+        channel = Channel(
             name="EmailBotAutoValid",
             platform="Email",
             config=partial
         )
-        bot.save()
-        self._wait_bot(bot.pk, cond=lambda b: b.active is True)
-        bot.refresh_from_db()
-        assert bot.active is True
-        assert bot.error is None
+        channel.save()
+        self._wait_bot(channel.pk, cond=lambda b: b.active is True)
+        channel.refresh_from_db()
+        assert channel.active is True
+        assert channel.error is None
         connections.close_all()
 
     def test_with_explicit_invalid_password(self):
@@ -67,7 +67,7 @@ class TestEmailLive:
         """
         bad = dict(EMAIL_CONFIG)
         bad["EMAIL_PASSWORD"] = "wrong-password"
-        bot = Bot(
+        bot = Channel(
             name="EmailBotExplicitInvalid",
             platform="Email",
             config=bad
@@ -87,7 +87,7 @@ class TestEmailLive:
             "EMAIL_ADDRESS": EMAIL_CONFIG["EMAIL_ADDRESS"],
             "EMAIL_PASSWORD": "wrong-password",
         }
-        bot = Bot(
+        bot = Channel(
             name="EmailBotAutoInvalid",
             platform="Email",
             config=bad_auto

@@ -3,7 +3,7 @@ import time
 import json
 import pytest
 from django.test import Client
-from unicom.models import Bot
+from unicom.models import Channel
 from tests.utils import wait_for_condition
 from tests.telegram_credentials import TELEGRAM_API_TOKEN, TELEGRAM_SECRET_TOKEN
 from django.db import connections
@@ -23,7 +23,7 @@ class TestTelegramLive:
     
     def _wait_bot(self, pk, *, cond, timeout=5):
         return wait_for_condition(
-            lambda: cond(Bot.objects.get(pk=pk)),
+            lambda: cond(Channel.objects.get(pk=pk)),
             timeout=timeout
         )
 
@@ -32,7 +32,7 @@ class TestTelegramLive:
         Valid token but no secret -> expect automatic generation of secret token
         and successful webhook set
         """
-        bot = Bot(
+        bot = Channel(
             name="NoSecretBot",
             platform="Telegram",
             config={
@@ -54,7 +54,7 @@ class TestTelegramLive:
         """
         Both token and secret provided -> expect successful webhook set
         """
-        bot = Bot(
+        bot = Channel(
             name="ValidBot",
             platform="Telegram",
             config={
@@ -74,7 +74,7 @@ class TestTelegramLive:
         Submit invalid token via admin -> page should render with error message
         """
         assert self.client.login(username='admin', password='password')
-        url = '/admin/unicom/bot/add/'
+        url = '/admin/unicom/channel/add/'
         data = {
             'name': 'InvalidBot',
             'platform': 'Telegram',
@@ -85,7 +85,7 @@ class TestTelegramLive:
         }
         response = self.client.post(url, data, follow=True)
         content = response.content.decode().lower()
-        bot = Bot.objects.get(name="InvalidBot")
+        bot = Channel.objects.get(name="InvalidBot")
         self._wait_bot(bot.pk, cond=lambda b: b.error is not None)
         bot.refresh_from_db()
         assert response.status_code == 200

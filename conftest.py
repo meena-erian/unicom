@@ -19,7 +19,7 @@ def run_validations_inline(monkeypatch):
     Everywhere in tests, swap out:
       - Django’s transaction.on_commit => call immediately
       - threading.Thread       => InlineThread
-    This makes your Bot.validate() fire synchronously
+    This makes your Channel.validate() fire synchronously
     on save(), so there are no background threads holding DB connections.
     """
     # 1) Make on_commit callbacks run immediately
