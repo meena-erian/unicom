@@ -1,5 +1,5 @@
 from django.contrib import admin
-from unicom.models import Message, Update, Chat, Account, AccountChat, Bot
+from unicom.models import Message, Update, Chat, Account, AccountChat, Channel
 from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
 from django.urls import path
@@ -35,7 +35,7 @@ class AccountAdmin(admin.ModelAdmin):
     list_filter = ('platform', )
     search_fields = ('name', )
 
-class BotAdmin(admin.ModelAdmin):
+class ChannelAdmin(admin.ModelAdmin):
     list_filter = ('platform', )
     search_fields = ('name', )
     list_display = ('id', 'name', 'platform', 'active', 'confirmed_webhook_url', 'error')
@@ -45,7 +45,7 @@ class BotAdmin(admin.ModelAdmin):
             return ['active', 'confirmed_webhook_url', 'error']
         return super().get_readonly_fields(request, obj)
 
-admin.site.register(Bot)
+admin.site.register(Channel)
 admin.site.register(Message)
 admin.site.register(Update)
 admin.site.register(Chat, ChatAdmin)

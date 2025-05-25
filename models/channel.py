@@ -5,7 +5,7 @@ from unicom.services.telegram.set_telegram_webhook import set_telegram_webhook
 from unicom.services.email.validate_email_config import validate_email_config
 
 
-class Bot(models.Model):
+class Channel(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=100)
     platform = models.CharField(max_length=100, choices=channels)

@@ -1,4 +1,4 @@
-from unicom.models import Message, AccountChat, Bot
+from unicom.models import Message, AccountChat, Channel
 from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.db import transaction
@@ -19,8 +19,8 @@ def run_message_after_insert(sender, instance, created, **kwargs):
         transaction.on_commit(lambda: threading.Thread(target=handle_new_message, args=(instance,)).start())
 
 
-@receiver(pre_save, sender=Bot)
-def bot_pre_save(sender, instance, **kwargs):
+@receiver(pre_save, sender=Channel)
+def channel_pre_save(sender, instance, **kwargs):
     # Save old config for comparison in post_save
     if instance.pk:
         try:
@@ -30,8 +30,8 @@ def bot_pre_save(sender, instance, **kwargs):
             instance._old_config = None
 
 
-@receiver(post_save, sender=Bot)
-def run_bot_after_insert(sender, instance, created, **kwargs):
+@receiver(post_save, sender=Channel)
+def run_channel_after_insert(sender, instance, created, **kwargs):
     # Check if created or config changed
     config_changed = not created and getattr(instance, '_old_config', None) != instance.config
     if created or config_changed:
