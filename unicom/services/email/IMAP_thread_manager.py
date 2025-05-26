@@ -30,7 +30,7 @@ class IMAPThreadManager:
         """Start listener threads for all active channels."""
         try:
             Channel = apps.get_model('unicom', 'Channel')
-            for channel in Channel.objects.all():
+            for channel in Channel.objects.filter(active=True, platform='Email'):
                 self.start(channel)
         except (psycopg2.errors.UndefinedTable, ProgrammingError, OperationalError):
             # Database not ready (e.g., during initial migrations)
@@ -38,6 +38,8 @@ class IMAPThreadManager:
 
     def start(self, channel):
         """Start a thread for a channel if not already running."""
+        if not channel.active or channel.platform != 'Email':
+            return
         if channel.pk in self.threads and self.threads[channel.pk].is_alive():
             return
         thread = Thread(target=self._run_listener, args=(channel,), daemon=True)
