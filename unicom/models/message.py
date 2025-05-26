@@ -63,6 +63,14 @@ class Message(models.Model):
     )
     # Add any additional fields as needed for specific platforms
 
+    def reply_with(self, dict):
+        """
+        Reply to this message with a dictionary containing the response.
+        The dictionary can contain 'text', 'html', 'file_path', etc.
+        """
+        from unicom.services.crossplatform.reply_to_message import reply_to_message
+        return reply_to_message(self.channel, self, dict)
+
     @property
     def original_content(self):
         return revert_to_original_fa(self.html) if self.platform == 'Email' else self.text

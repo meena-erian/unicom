@@ -3,7 +3,7 @@ from unicom.services.whatsapp.send_whatsapp_message import send_whatsapp_message
 from unicom.services.internal.send_internal_message import send_internal_message
 from unicom.services.email.send_email_message import send_email_message
 from unicom.services.decode_base64_image import decode_base64_image
-from unicom.models import Message
+from unicom.models import Message, Channel
 import uuid
 import os
 
@@ -11,7 +11,7 @@ def speak_text(text, audio_file):
     pass # TODO: Remove or add implementation for speak text
 
 
-def reply_to_message(message: Message, response: dict):
+def reply_to_message(channel:Channel , message: Message, response: dict):
     """
     response can contain:
       - "type": 'text', 'audio', or 'image'
@@ -38,7 +38,7 @@ def reply_to_message(message: Message, response: dict):
     # Dispatch by platform
     platform = message.platform
     if platform == 'Telegram':
-        return send_telegram_message({
+        return send_telegram_message(channel, {
             "chat_id": message.chat_id,
             "reply_to_message_id": message.id,
             "parse_mode": "Markdown",

@@ -61,6 +61,19 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
             text = message_data.get('caption')
         else:
             text = "**Image**"
+    elif message_data.get('audio'):
+        m_type = 'audio'
+        audio = message_data['audio']
+        file_id        = audio['file_id']
+        file_name      = audio.get('file_name', f"{audio['file_unique_id']}")
+        mime_type      = audio.get('mime_type')
+        extension      = mimetypes.guess_extension(mime_type) or ''
+        file_unique_id = audio['file_unique_id']
+        media_file_name    = f"{file_unique_id}{extension}"
+        file_path       = get_file_path(file_id)
+        file_bytes      = download_file(file_path)
+        media_file_content = ContentFile(file_bytes)
+        text = f"**Audio File**: {file_name}"
     elif text == None:
         text = "[[[[Unknown User Action!]]]]"
     timestamp = datetime.fromtimestamp(message_data.get('date'))
@@ -122,6 +135,9 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
         print("Duplicate message discarded")
     else:
         if media_file_name:
-            print("Media file being saved as ", media_file_name)
-            message.media.save(media_file_name, media_file_content, save=True)
+            print("Attachment being saved as ", media_file_name)
+            if m_type == 'audio':
+                message.attachment.save(media_file_name, media_file_content, save=True)
+            else:
+                message.media.save(media_file_name, media_file_content, save=True)
     return message

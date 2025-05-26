@@ -1,6 +1,7 @@
 # robopower.services.telegram.send_telegram_message.py
 from unicom.services.telegram.save_telegram_message import save_telegram_message
 from unicom.services.telegram.escape_markdown import escape_markdown
+from unicom.models import Channel
 from django.contrib.auth.models import User
 from django.conf import settings
 import requests
@@ -8,12 +9,13 @@ import time
 import os
 
 
-def send_telegram_message(TelegramCredentials, params: dict, user: User=None, retry_interval=60, max_retries=7):
+def send_telegram_message(channel: Channel, params: dict, user: User=None, retry_interval=60, max_retries=7):
     """
     Params must include at least chat_id and text (if sending a text message or caption).
     If 'type' == 'audio', we send an audio file.
     If 'type' == 'image', we send a photo, with optional caption in 'text'.
     """
+    TelegramCredentials = channel.config
     TELEGRAM_API_TOKEN = TelegramCredentials["TELEGRAM_API_TOKEN"]
     if TELEGRAM_API_TOKEN is None:
         raise Exception("send_telegram_message failed as no TELEGRAM_API_TOKEN was defined")
@@ -54,6 +56,7 @@ def send_telegram_message(TelegramCredentials, params: dict, user: User=None, re
     else:
         # If 'type' not present, treat it like a standard text message
         url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/sendMessage"
+        msg_type = 'text'
 
     retries = 0
     while retries <= max_retries:
@@ -62,7 +65,7 @@ def send_telegram_message(TelegramCredentials, params: dict, user: User=None, re
         ret = response.json()
 
         if ret.get('ok'):
-            return save_telegram_message(ret.get('result'), user)
+            return save_telegram_message(channel, ret.get('result'), user)
         elif 'error_code' in ret and ret['error_code'] == 429:  # Rate limit
             time.sleep(retry_interval)
             retries += 1
