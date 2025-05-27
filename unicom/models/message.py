@@ -63,13 +63,13 @@ class Message(models.Model):
     )
     # Add any additional fields as needed for specific platforms
 
-    def reply_with(self, dict):
+    def reply_with(self, msg_dict):
         """
         Reply to this message with a dictionary containing the response.
         The dictionary can contain 'text', 'html', 'file_path', etc.
         """
         from unicom.services.crossplatform.reply_to_message import reply_to_message
-        return reply_to_message(self.channel, self, dict)
+        return reply_to_message(self.channel, self, msg_dict)
 
     @property
     def original_content(self):
@@ -79,4 +79,4 @@ class Message(models.Model):
         ordering = ['-timestamp']
 
     def __str__(self) -> str:
-        return f"{self.platform}:{self.chat_id}:{self.id}->{self.sender_id}({self.sender_name}): {self.text}"
+        return f"{self.platform}:{self.chat.name}->{self.sender_name}: {self.text}"

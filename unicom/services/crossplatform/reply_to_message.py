@@ -57,11 +57,11 @@ def reply_to_message(channel:Channel , message: Message, response: dict):
             **response
         }, source_function_call=source_function_call)
     elif platform == 'Email':
-        return send_email_message({
+        return send_email_message(channel, {
             'chat_id'             : message.sender_id,
             'reply_to_message_id' : message.id,
-            'text'                : response.get('text', ''),
-            'html'                : response.get('html', ''),
+            'text'                : response.get('text', None),
+            'html'                : response.get('html', None),
             'cc'                  : getattr(message, 'cc', []),
             'bcc'                 : getattr(message, 'bcc', []),
             'attachments'         : ([response['file_path']]
