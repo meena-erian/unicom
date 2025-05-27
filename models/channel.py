@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from django.db import models
 from .constants import channels
 from django.core.exceptions import ValidationError
@@ -5,6 +7,9 @@ from unicom.services.telegram.set_telegram_webhook import set_telegram_webhook
 from unicom.services.email.validate_email_config import validate_email_config
 from unicom.services.email.listen_to_IMAP import listen_to_IMAP
 from unicom.services.crossplatform.send_message import send_message
+
+if TYPE_CHECKING:
+    from unicom.models import Message
 
 
 class Channel(models.Model):
@@ -17,7 +22,7 @@ class Channel(models.Model):
     confirmed_webhook_url = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
     error = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
 
-    def send_message(self, msg: dict, user=None):
+    def send_message(self, msg: dict, user=None) -> Message:
         """
         Send a message using the channel's platform.
         The msg dict must include at least the chat_id and text.

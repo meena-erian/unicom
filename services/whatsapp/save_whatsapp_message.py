@@ -1,7 +1,7 @@
-from unicom.models import Message, Chat, Account, AccountChat
 from datetime import datetime
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
+from django.apps import apps
 import requests
 import mimetypes
 import json
@@ -9,6 +9,10 @@ import uuid
 
 
 def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=None):
+    Message = apps.get_model('unicom', 'Message')
+    Chat = apps.get_model('unicom', 'Chat')
+    Account = apps.get_model('unicom', 'Account')
+    AccountChat = apps.get_model('unicom', 'AccountChat')
     WHATSAPP_ACCESS_TOKEN = WhatsAppCredentials["WHATSAPP_ACCESS_TOKEN"]
     with open("debug_out.json", 'w') as file:
         json.dump(messages_data, file, indent=4)
