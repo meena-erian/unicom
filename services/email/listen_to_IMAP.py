@@ -1,5 +1,6 @@
 from unicom.services.email.save_email_message import save_email_message
 from imapclient import IMAPClient, SEEN
+import imaplib
 import time
 import logging
 
@@ -29,17 +30,22 @@ def listen_to_IMAP(channel):
                 logger.info(f"Channel {channel.pk}: Connected to {host}:{port}, entering IDLE…")
 
                 while True:
+                    idle_tag = None
                     try:
-                        server.idle()
-                        responses = server.idle_check(timeout=300)
-                    except (ConnectionResetError, OSError) as e:
+                        # server.idle()
+                        idle_tag = server.idle()
+                        # check every 240s; will let us gracefully send DONE before timeout
+                        responses = server.idle_check(timeout=60)
+                    except (imaplib.IMAP4.abort, ConnectionResetError, OSError) as e:
                         logger.warning(f"Channel {channel.pk}: IMAP idle lost: {e}")
                         break
                     finally:
-                        try:
-                            server.idle_done()
-                        except Exception:
-                            pass
+                        # only send DONE if IDLE was entered
+                        if idle_tag:
+                            try:
+                                server.idle_done()
+                            except Exception:
+                                pass
 
                     if not responses:
                         continue
