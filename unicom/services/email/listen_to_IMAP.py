@@ -41,7 +41,7 @@ def listen_to_IMAP(channel):
                             IMAPClientError,
                             ConnectionResetError, 
                             OSError) as e:
-                        if 'Unexpected IDLE response' in str(e):
+                        if 'Unexpected IDLE response' in str(e) or 'Broken pipe' in str(e):
                             break # ignore repeated IDLE errors for now TODO: prevent the error from occuring alltogether
                         logger.warning(f"Channel {channel.pk}: IMAP idle lost: {e}, reconnecting…")
                         break

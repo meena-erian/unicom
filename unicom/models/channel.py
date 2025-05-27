@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from unicom.services.telegram.set_telegram_webhook import set_telegram_webhook
 from unicom.services.email.validate_email_config import validate_email_config
 from unicom.services.email.listen_to_IMAP import listen_to_IMAP
+from unicom.services.crossplatform.send_message import send_message
 
 
 class Channel(models.Model):
@@ -15,6 +16,19 @@ class Channel(models.Model):
     active = models.BooleanField(default=False, editable=False)
     confirmed_webhook_url = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
     error = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
+
+    def send_message(self, msg: dict, user=None):
+        """
+        Send a message using the channel's platform.
+        The msg dict must include at least the chat_id and text.
+        """
+        if not self.active:
+            raise ValidationError("Channel must be active to send messages.")
+        
+        try:
+            return send_message(self, msg, user)
+        except Exception as e:
+            raise ValidationError(f"Failed to send message: {str(e)}")
 
     def listen_to_IMAP(self):
         """
