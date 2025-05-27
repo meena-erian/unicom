@@ -62,19 +62,19 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             chat_obj, _ = Chat.objects.get_or_create(
                 platform=platform,
                 id=hdr_id,
-                defaults={'is_private': True, 'name': hdr_subject}
+                defaults={'channel': channel, 'is_private': True, 'name': hdr_subject}
             )
     else:
         chat_obj, _ = Chat.objects.get_or_create(
             platform=platform,
             id=hdr_id,
-            defaults={'is_private': True, 'name': hdr_subject}
+            defaults={'channel': channel, 'is_private': True, 'name': hdr_subject}
         )
 
     account_obj, _ = Account.objects.get_or_create(
         platform=platform,
         id=sender_email,
-        defaults={'name': sender_name, 'is_bot': outgoing, 'raw': dict(msg.items())}
+        defaults={'channel': channel, 'name': sender_name, 'is_bot': outgoing, 'raw': dict(msg.items())}
     )
     AccountChat.objects.get_or_create(account=account_obj, chat=chat_obj)
 
