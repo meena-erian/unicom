@@ -1,12 +1,16 @@
 # robopower.services.telegram.send_telegram_message.py
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from unicom.services.telegram.save_telegram_message import save_telegram_message
 from unicom.services.telegram.escape_markdown import escape_markdown
-from unicom.models import Channel
 from django.contrib.auth.models import User
 from django.conf import settings
 import requests
 import time
 import os
+
+if TYPE_CHECKING:
+    from unicom.models import Channel
 
 
 def send_telegram_message(channel: Channel, params: dict, user: User=None, retry_interval=60, max_retries=7):
@@ -15,6 +19,8 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
     If 'type' == 'audio', we send an audio file.
     If 'type' == 'image', we send a photo, with optional caption in 'text'.
     """
+    if not "parse_mode" in params:
+        params["parse_mode"] = "Markdown"
     TelegramCredentials = channel.config
     TELEGRAM_API_TOKEN = TelegramCredentials["TELEGRAM_API_TOKEN"]
     if TELEGRAM_API_TOKEN is None:

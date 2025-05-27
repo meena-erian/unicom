@@ -1,10 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from django.conf import settings
 from django.core.mail import get_connection
 from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img
 from unicom.services.email.save_email_message import save_email_message
-from unicom.models import Channel, Message
+from django.apps import apps
+
+if TYPE_CHECKING:
+    from unicom.models import Channel
 
 
 def send_email_message(channel: Channel, params: dict, user: User=None):
@@ -18,7 +23,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
       - attachments          : list of local file paths
       - subject              : optional override for subject
     """
-
+    Message = apps.get_model('unicom', 'Message')
     from_addr = channel.config['EMAIL_ADDRESS']
     smtp_conf = channel.config['SMTP']
     connection = get_connection(
