@@ -35,12 +35,14 @@ def listen_to_IMAP(channel):
                     idle_tag = None
                     try:
                         idle_tag = server.idle()
-                        responses = server.idle_check(timeout=60)
+                        responses = server.idle_check(timeout=300)
                     except (imaplib.IMAP4.abort, 
                             imaplib.IMAP4.error, 
                             IMAPClientError,
                             ConnectionResetError, 
                             OSError) as e:
+                        if 'Unexpected IDLE response' in str(e):
+                            break # ignore repeated IDLE errors for now TODO: prevent the error from occuring alltogether
                         logger.warning(f"Channel {channel.pk}: IMAP idle lost: {e}, reconnecting…")
                         break
                     finally:
