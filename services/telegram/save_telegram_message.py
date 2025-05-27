@@ -80,12 +80,13 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     chat = Chat.objects.filter(platform='Telegram', id=chat_id)
     account = Account.objects.filter(platform='Telegram', id=sender_id)
     if not chat.exists():
-        chat = Chat(platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)
+        chat = Chat(channel=channel, platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)
         chat.save()
     else:
         chat = chat.get()
     if not account.exists():
         account = Account(
+            channel=channel,
             platform=platform,
             id=sender_id,
             name=sender_name,

@@ -4,6 +4,7 @@ from .constants import channels
 
 class Chat(models.Model):
     id = models.CharField(max_length=500, primary_key=True)
+    channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
     is_private = models.BooleanField(default=True)
     name = models.CharField(max_length=100, null=True, blank=True)

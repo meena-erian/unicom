@@ -4,6 +4,7 @@ from .constants import channels
 
 class Account(models.Model):
     id = models.CharField(max_length=500, primary_key=True)
+    channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
     is_bot = models.BooleanField(default=False)
     name = models.CharField(max_length=100, null=True, blank=True)
