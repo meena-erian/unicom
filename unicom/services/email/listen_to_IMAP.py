@@ -1,5 +1,6 @@
 from unicom.services.email.save_email_message import save_email_message
 from imapclient import IMAPClient, SEEN
+from imapclient.exceptions import IMAPClientError
 import imaplib
 import time
 import logging
@@ -27,25 +28,28 @@ def listen_to_IMAP(channel):
             with IMAPClient(host, port=port, ssl=use_ssl) as server:
                 server.login(email_address, password)
                 server.select_folder('INBOX')
+                caps = server.capabilities()
                 logger.info(f"Channel {channel.pk}: Connected to {host}:{port}, entering IDLE…")
 
                 while True:
                     idle_tag = None
                     try:
-                        # server.idle()
                         idle_tag = server.idle()
-                        # check every 240s; will let us gracefully send DONE before timeout
                         responses = server.idle_check(timeout=60)
-                    except (imaplib.IMAP4.abort, ConnectionResetError, OSError) as e:
-                        logger.warning(f"Channel {channel.pk}: IMAP idle lost: {e}")
+                    except (imaplib.IMAP4.abort, 
+                            imaplib.IMAP4.error, 
+                            IMAPClientError,
+                            ConnectionResetError, 
+                            OSError) as e:
+                        logger.warning(f"Channel {channel.pk}: IMAP idle lost: {e}, reconnecting…")
                         break
                     finally:
-                        # only send DONE if IDLE was entered
                         if idle_tag:
                             try:
                                 server.idle_done()
-                            except Exception:
-                                pass
+                                time.sleep(1)
+                            except Exception as e:
+                                logger.warning(f"Channel {channel.pk}: Failed to end IDLE: {e}")
 
                     if not responses:
                         continue
@@ -61,6 +65,6 @@ def listen_to_IMAP(channel):
                         except Exception:
                             logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}")
 
-        except Exception:
-            logger.exception(f"Channel {channel.pk}: Fatal IMAP error, reconnecting in 30s…")
+        except Exception as e:
+            logger.exception(f"Channel {channel.pk}: Fatal IMAP error: {e}, reconnecting in 30s…")
             time.sleep(30)
