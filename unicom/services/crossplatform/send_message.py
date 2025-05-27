@@ -6,10 +6,10 @@ from unicom.services.email.send_email_message import send_email_message
 from django.contrib.auth.models import User
 
 if TYPE_CHECKING:
-    from unicom.models import Channel
+    from unicom.models import Channel, Message
 
 
-def send_message(channel: Channel, msg:dict, user:User=None):
+def send_message(channel: Channel, msg:dict, user:User=None) -> Message:
     """
     The msg dict must include at least the chat_id, and text
     """

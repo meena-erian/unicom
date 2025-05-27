@@ -1,13 +1,17 @@
 from datetime import datetime
-from unicom.models import Message, Chat, Account, AccountChat
 from django.contrib.auth.models import User
 from unicom.services.telegram.get_file_path import get_file_path
 from unicom.services.telegram.download_file import download_file
 from django.core.files.base import ContentFile
+from django.apps import apps
 import mimetypes
 
 
 def save_telegram_message(channel, message_data: dict, user:User=None):
+    Message = apps.get_model('unicom', 'Message')
+    Chat = apps.get_model('unicom', 'Chat')
+    Account = apps.get_model('unicom', 'Account')
+    AccountChat = apps.get_model('unicom', 'AccountChat')
     platform = 'Telegram'  # Set the platform name
     sender_id = message_data.get('from')['id']
     sender_name = message_data.get('from')['first_name']

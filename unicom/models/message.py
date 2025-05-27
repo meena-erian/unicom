@@ -1,9 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from django.db import models
 from django.contrib.auth.models import User
 from unicom.models.constants import channels
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import validate_email
 from fa2svg.converter import revert_to_original_fa
+
+if TYPE_CHECKING:
+    from unicom.models import Channel
 
 
 class Message(models.Model):
@@ -63,7 +68,7 @@ class Message(models.Model):
     )
     # Add any additional fields as needed for specific platforms
 
-    def reply_with(self, msg_dict):
+    def reply_with(self, msg_dict:dict) -> Message:
         """
         Reply to this message with a dictionary containing the response.
         The dictionary can contain 'text', 'html', 'file_path', etc.

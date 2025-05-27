@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from unicom.services.telegram.send_telegram_message import send_telegram_message
 from unicom.services.whatsapp.send_whatsapp_message import send_whatsapp_message
 from unicom.services.internal.send_internal_message import send_internal_message
@@ -7,11 +9,15 @@ from unicom.models import Message, Channel
 import uuid
 import os
 
+if TYPE_CHECKING:
+    from unicom.models import Message, Channel
+
+
 def speak_text(text, audio_file):
     pass # TODO: Remove or add implementation for speak text
 
 
-def reply_to_message(channel:Channel , message: Message, response: dict):
+def reply_to_message(channel:Channel , message: Message, response: dict) -> Message:
     """
     response can contain:
       - "type": 'text', 'audio', or 'image'
