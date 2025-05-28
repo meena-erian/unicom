@@ -11,11 +11,28 @@ from django.apps import apps
 import logging
 from email.utils import make_msgid
 import uuid
+import html
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from unicom.models import Channel
+
+
+def convert_text_to_html(text: str) -> str:
+    """
+    Convert plain text to HTML while preserving formatting.
+    Uses <pre> tag to maintain whitespace and newlines.
+    Only escapes HTML special characters for security.
+    """
+    if not text:
+        return ""
+    
+    # Escape HTML special characters
+    escaped_text = html.escape(text)
+    
+    # Wrap in pre tag to preserve formatting
+    return f'<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">{escaped_text}</pre>'
 
 
 def send_email_message(channel: Channel, params: dict, user: User=None):
@@ -65,22 +82,30 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     tracking_id = uuid.uuid4()
     logger.info(f"Generated Message-ID: {message_id}, Tracking-ID: {tracking_id}")
 
+    # Handle HTML content
+    text_content = params.get('text', '')
+    html_content = params.get('html')
+    
+    # If HTML is not provided but text is, convert text to HTML
+    if not html_content and text_content:
+        html_content = convert_text_to_html(text_content)
+        logger.debug("Converted plain text to HTML")
+
     # Store original HTML content before adding tracking
-    original_html = params.get('html')
+    original_html = html_content
     if original_html:
         original_html = to_inline_png_img(original_html)  # Convert FontAwesome to inline images
 
-    # Prepare HTML content with tracking if available
-    html_content = original_html
+    # Prepare HTML content with tracking
     original_urls = []
-    
     if html_content:
         html_content, original_urls = prepare_email_for_tracking(html_content, tracking_id)
+        logger.debug("Added tracking elements to HTML content")
 
     # 1) construct the EmailMultiAlternatives
     email_msg = EmailMultiAlternatives(
         subject=subject,
-        body=params.get('text', ''),
+        body=text_content,
         from_email=from_addr,
         to=to_addrs,
         cc=cc_addrs,
@@ -109,7 +134,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         email_msg.extra_headers['References'] = ' '.join(references)
         logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}, References={references}")
 
-    # HTML alternative
+    # Always attach HTML alternative since we either have original HTML or converted text
     if html_content:
         email_msg.attach_alternative(html_content, "text/html")
         logger.debug("Added HTML alternative content with tracking")

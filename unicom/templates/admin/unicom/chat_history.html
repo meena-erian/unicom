@@ -112,6 +112,15 @@
     margin: 0;
   }
 
+  .message-content {
+    margin: 0;
+  }
+
+  .message-content img {
+    max-width: 100%;
+    height: auto;
+  }
+
   .timestamp {
     font-size: 0.75rem;
     color: var(--body-quiet-color);
@@ -172,7 +181,11 @@
           {% elif message.reply_to_message.media_type == "image" %}
             <div style="color: red;">Image file is missing.</div>
           {% endif %}
-          <pre>{{ message.reply_to_message.text }}</pre>
+          {% if message.reply_to_message.html %}
+            <div class="message-content">{{ message.reply_to_message.html|safe }}</div>
+          {% else %}
+            <pre>{{ message.reply_to_message.text }}</pre>
+          {% endif %}
         </div>
       </a>
       {% endif %}
@@ -192,7 +205,11 @@
       {% endif %}
       {% endif %}
 
-      <pre>{{ message.text }}</pre>
+      {% if message.html %}
+        <div class="message-content">{{ message.html|safe }}</div>
+      {% else %}
+        <pre>{{ message.text }}</pre>
+      {% endif %}
 
       <div class="timestamp">
         {% if message.user.username %}
