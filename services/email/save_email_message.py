@@ -25,7 +25,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     # Determine if this is an outgoing message (sent by our bot)
     from_name, from_email = parseaddr(msg.get('From', ''))
     bot_email = channel.config['EMAIL_ADDRESS'].lower()
-    outgoing = (from_email.lower() == bot_email)
+    is_outgoing = (from_email.lower() == bot_email)
 
     # headers
     hdr_id        = msg.get('Message-ID')            # primary key
@@ -93,7 +93,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     account_obj, _ = Account.objects.get_or_create(
         platform=platform,
         id=sender_email,
-        defaults={'channel': channel, 'name': sender_name, 'is_bot': outgoing, 'raw': dict(msg.items())}
+        defaults={'channel': channel, 'name': sender_name, 'is_bot': is_outgoing, 'raw': dict(msg.items())}
     )
     AccountChat.objects.get_or_create(account=account_obj, chat=chat_obj)
 
@@ -121,25 +121,25 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
 
     # --- save into your Message model ---
     msg_obj, created = Message.objects.get_or_create(
-        platform       = platform,
-        chat_id        = chat_obj.id,
-        id             = hdr_id,
-        defaults       = {
-            'sender_id'        : account_obj.id,
-            'sender_name'      : sender_name,
-            'is_outgoing'      : outgoing,
-            'user'             : user,
-            'text'             : body_text,
-            'html'             : body_html,
-            'subject'          : hdr_subject,
-            'timestamp'        : timestamp,
-            'reply_to_message' : parent_msg,
-            'raw'              : dict(msg.items()),
-            'to'               : to_list,
-            'cc'               : cc_list,
-            'bcc'              : bcc_list,
-            'media_type'       : 'html',
-            'channel'          : channel,      # newly mandatory field
+        platform=platform,
+        chat=chat_obj,
+        id=hdr_id,
+        defaults={
+            'sender': account_obj,
+            'sender_name': sender_name,
+            'is_outgoing': is_outgoing,
+            'user': user,
+            'text': body_text,
+            'html': body_html,
+            'subject': hdr_subject,
+            'timestamp': timestamp,
+            'reply_to_message': parent_msg,
+            'raw': dict(msg.items()),
+            'to': to_list,
+            'cc': cc_list,
+            'bcc': bcc_list,
+            'media_type': 'html',
+            'channel': channel,
         }
     )
 

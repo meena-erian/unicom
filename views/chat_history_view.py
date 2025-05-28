@@ -1,7 +1,6 @@
 from django.http import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from unicom.models import Message, Chat
-from unicom.services.crossplatform.send_message import send_message as send_message_generic
 from django.contrib.auth.decorators import login_required
 
 
@@ -17,9 +16,7 @@ def chat_history_view(request, chat_id):
     if request.method == 'POST':
         message_text = request.POST.get('message_text', '')
         if message_text.strip():
-            send_message_generic({
-                'platform': chat.platform,
-                'chat_id': chat.id,
+            chat.send_message({
                 'text': message_text,
             }, user=request.user)
             return HttpResponseRedirect(request.path_info)

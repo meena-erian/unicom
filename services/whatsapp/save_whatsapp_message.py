@@ -25,7 +25,8 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
     m_type = 'text'
     media_file_name = None
     media_file_content = None
-    is_outgoing = True if "is_bot" in messages_data and messages_data.get("is_bot") == True else False
+    # For backwards compatibility, we check both is_bot and is_outgoing
+    is_outgoing = messages_data.get("is_outgoing", False) or (messages_data.get("is_bot", False))
     if contact_profile:
         sender_name = contact_profile.get('name')
     elif is_outgoing:
@@ -34,7 +35,7 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
         sender_name = "[[[[Unknown]]]]"
     chat_id = contact.get("wa_id")
     chat_is_private = True # message_data.get('chat')["type"] == "private"
-    chat_name = sender_name # if chat_is_private else message_data.get('chat')["title"]
+    chat_name = sender_name
     for message_data in messages_data.get("messages"):
         message_id = f"whatsapp.{message_data.get('id')}"
         sender_id = message_data.get('from')
@@ -122,7 +123,7 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
                 platform=platform,
                 id=sender_id,
                 name=sender_name,
-                is_outgoing=is_outgoing,
+                is_bot=is_outgoing,  # Keep is_bot for Account model
                 raw=messages_data.get('contacts')[0]
             )
             account.save()

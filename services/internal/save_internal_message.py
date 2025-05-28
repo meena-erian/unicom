@@ -6,7 +6,7 @@ def save_internal_message(message_data: dict, user: User=None,):
     platform = 'Internal'
     sender_id = message_data.get('from')['id']
     sender_name = message_data.get('from')['first_name']
-    is_bot = message_data.get('from')['is_bot']
+    is_outgoing = message_data.get('from')['is_bot']
     chat_id = message_data.get('chat')['id']
     chat_is_private = message_data.get('chat')["type"] == "private"
     chat_name = message_data.get('chat')["title"]
@@ -28,7 +28,7 @@ def save_internal_message(message_data: dict, user: User=None,):
             platform=platform,
             id=sender_id,
             name=sender_name,
-            is_bot=is_bot,
+            is_bot=is_outgoing,
             raw=message_data.get('from')
         )
         account.save()
@@ -56,17 +56,17 @@ def save_internal_message(message_data: dict, user: User=None,):
         chat_id=chat_id,
         id=message_id,
         defaults={
-            'sender_id': sender_id,
-            'is_bot': is_bot,
+            'sender': account,
+            'channel': chat.channel,
             'sender_name': sender_name,
             'user': user,
             'text': text,
             'reply_to_message': reply_to_message,
             'timestamp': timestamp,
             'raw': message_data,
-            # Add these two to store image or audio:
             'media_type': media_type,
             'media': media_file,
+            'is_outgoing': is_outgoing,
         }
     )
     if not created:

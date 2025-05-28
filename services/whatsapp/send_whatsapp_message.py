@@ -65,34 +65,22 @@ def send_whatsapp_message(WhatsAppCredentials, params: dict, user: User=None, re
         raise Exception("WhatsApp send_message failed due to missing credentials.")
 
     retries = 0
-    while retries <= max_retries:
-        print(f"Attempt {retries} to send WhatsApp message")
-        print(data)
-        response = requests.post(url, headers=headers, json=data)
-        status_code = response.status_code
-        ret = response.json()
-
-        print(status_code, ret)
-
-        if status_code == 200 and 'messages' in ret:
-            message = ret['messages'][0]
-            contacts = ret.get('contacts', [])
-            # Build the structure expected by save_whatsapp_message
-            if "context" in data:
-                data["context"] = {"id": data["context"]["message_id"]}
-            data["from"] = WHATSAPP_PHONE_NUMBER
-            data["timestamp"] = round(time.time())
-            ret['messages'] = [{**data, **message}]
-            ret["is_bot"] = True
-
-            return save_whatsapp_message(ret, user)
-
-        elif 'error_code' in ret and ret['error_code'] == 429:  # Rate limit
-            time.sleep(retry_interval)
+    while retries < max_retries:
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            ret = response.json()
+            # Mark this as an outgoing message
+            ret["is_outgoing"] = True
+            # Add contacts array to match incoming message format
+            ret["contacts"] = [{
+                "profile": {"name": "Bot"},
+                "wa_id": WHATSAPP_PHONE_NUMBER
+            }]
+            return save_whatsapp_message(WhatsAppCredentials, ret, user)
+        except requests.exceptions.RequestException as e:
             retries += 1
-        else:
-            print(params)
-            print(ret)
-            raise Exception("Failed to send WhatsApp message")
-
-    raise Exception("Failed to send WhatsApp message after maximum retries")
+            if retries == max_retries:
+                raise Exception(f"Failed to send WhatsApp message after {max_retries} retries: {str(e)}")
+            print(f"Retry {retries}/{max_retries} after {retry_interval}s...")
+            time.sleep(retry_interval)
