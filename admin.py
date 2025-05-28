@@ -1,8 +1,10 @@
 from django.contrib import admin
+from django.db import models
 from unicom.models import Message, Update, Chat, Account, AccountChat, Channel
 from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
 from django.urls import path
+from django_ace import AceWidget
 
 
 class ChatAdmin(admin.ModelAdmin):
@@ -39,13 +41,20 @@ class ChannelAdmin(admin.ModelAdmin):
     list_filter = ('platform', )
     search_fields = ('name', )
     list_display = ('id', 'name', 'platform', 'active', 'confirmed_webhook_url', 'error')
+    
+    formfield_overrides = {
+        models.JSONField: {'widget': AceWidget(mode='json', theme='twilight', width="100%", height="300px")},
+    }
+
+    class Media:
+        js = ('unicom/js/channel_config.js',)
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
             return ['active', 'confirmed_webhook_url', 'error']
         return super().get_readonly_fields(request, obj)
 
-admin.site.register(Channel)
+admin.site.register(Channel, ChannelAdmin)
 admin.site.register(Message)
 admin.site.register(Update)
 admin.site.register(Chat, ChatAdmin)
