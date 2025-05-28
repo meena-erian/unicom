@@ -26,8 +26,10 @@ def send_internal_message(params: dict, user: User=None):
                 print(f"send_internal_message failed to retrieve chat_name. "
                       f"Chat object with id {params['chat_id']} not found")
 
-    if "is_bot" not in params:
-        params["is_bot"] = True
+    # For backwards compatibility, we set is_bot in the from data
+    # but the save_internal_message will use it as is_outgoing
+    if "is_outgoing" not in params:
+        params["is_outgoing"] = True
 
     msg_data = generate_text_message_data(**params)
 

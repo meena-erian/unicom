@@ -48,13 +48,11 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     if not subject and params.get('reply_to_message_id'):
         parent = Message.objects.filter(id=params['reply_to_message_id']).first()
         if parent:
-            # count existing "Re: " prefixes, then add exactly one more
+            # Remove any existing "Re: " prefixes and add just one
             base = parent.subject or ""
-            count = 0
             while base.lower().startswith("re: "):
-                count += 1
                 base = base[4:]
-            subject = "Re: " * (count + 1) + base
+            subject = "Re: " + base
             logger.debug(f"Created reply subject: {subject} (based on parent: {parent.subject})")
         else:
             subject = ""
