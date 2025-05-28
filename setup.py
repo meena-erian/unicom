@@ -16,7 +16,8 @@ setup(
         'requests>=2.31.0,<3.0',
         'IMAPClient>=3.0.1',
         'dnspython>=2.7.0,<3.0',
-        'Pillow>=10.4.0'
+        'Pillow>=10.4.0',
+        'django-ace>=1.39.2'
     ],
     extras_require={
         'dev': [

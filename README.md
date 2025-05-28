@@ -11,16 +11,17 @@
    pip install django-unicom
    ```
 
-2. **Add `unicom` to your Django settings:**
+2. **Add required apps to your Django settings:**
 
    ```python
    INSTALLED_APPS = [
        ...
+       'django_ace',  # Required for the JSON configuration editor
        'unicom',
    ]
    ```
 
-3. **Include `unicom` URLs in your project’s `urls.py`:**
+3. **Include `unicom` URLs in your project's `urls.py`:**
 
    > This is required so that webhook URLs can be constructed correctly.
 
@@ -46,7 +47,7 @@
    DJANGO_PUBLIC_ORIGIN=https://yourdomain.com
    ```
 
-That’s it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL.
+That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL.
 
 ---
 

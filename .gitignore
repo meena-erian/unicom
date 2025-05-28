@@ -10,3 +10,6 @@ email_credentials.py
 dist
 .pypirc
 *.pypirc
+staticfiles/
+unicom/staticfiles/
+unicom/media/
