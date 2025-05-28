@@ -24,7 +24,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
 
     # Determine if this is an outgoing message (sent by our bot)
     from_name, from_email = parseaddr(msg.get('From', ''))
-    bot_email = settings.EMAIL_HOST_USER.lower()
+    bot_email = channel.config['EMAIL_ADDRESS'].lower()
     outgoing = (from_email.lower() == bot_email)
 
     # headers
@@ -127,7 +127,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
         defaults       = {
             'sender_id'        : account_obj.id,
             'sender_name'      : sender_name,
-            'is_bot'           : outgoing,
+            'is_outgoing'      : outgoing,
             'user'             : user,
             'text'             : body_text,
             'html'             : body_html,
