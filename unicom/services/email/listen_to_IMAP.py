@@ -64,6 +64,8 @@ def listen_to_IMAP(channel):
                             msg = save_email_message(channel, raw)
                             logger.info(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
                             server.add_flags(uid, [SEEN])
+                            logger.debug(f"Incoming email - Message-ID: {msg.id}, In-Reply-To: {msg.raw.get('In-Reply-To') if msg.raw else 'None'}")
+                            logger.debug(f"Associated with chat: {msg.chat_id}")
                         except Exception:
                             logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}")
 
