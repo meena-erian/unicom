@@ -3,11 +3,13 @@ import re
 from email import policy, message_from_bytes
 from email.utils import parseaddr, parsedate_to_datetime, getaddresses
 from django.utils import timezone
+import logging
 
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.contrib.auth.models import User
 
+logger = logging.getLogger(__name__)
 
 def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     """
@@ -28,8 +30,11 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     # headers
     hdr_id        = msg.get('Message-ID')            # primary key
     hdr_in_reply  = msg.get('In-Reply-To')           # parent Message-ID
+    hdr_references = msg.get('References', '').split()  # all referenced messages
     hdr_subject   = msg.get('Subject', '')
     date_hdr      = msg.get('Date')
+
+    logger.debug(f"Processing email - Message-ID: {hdr_id}, In-Reply-To: {hdr_in_reply}, References: {hdr_references}")
 
     # timestamp → make UTC-aware, fallback to timezone.now()
     try:
@@ -53,34 +58,44 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     cc_list  = [email for name, email in getaddresses(raw_cc)]
     bcc_list = [email for name, email in getaddresses(raw_bcc)]
 
-    # --- ensure Chat & Account exist ---
+    # --- Find parent message and associated chat ---
+    parent_msg = None
+    chat_obj = None
+    
+    # First try In-Reply-To
     if hdr_in_reply:
         parent_msg = Message.objects.filter(platform=platform, id=hdr_in_reply).first()
         if parent_msg:
-            chat_obj = Chat.objects.get(platform=platform, id=parent_msg.chat_id)
-        else:
-            chat_obj, _ = Chat.objects.get_or_create(
-                platform=platform,
-                id=hdr_id,
-                defaults={'channel': channel, 'is_private': True, 'name': hdr_subject}
-            )
-    else:
-        chat_obj, _ = Chat.objects.get_or_create(
+            chat_obj = parent_msg.chat
+            logger.debug(f"Found parent message {parent_msg.id} in chat {chat_obj.id} via In-Reply-To")
+    
+    # If no parent found, try References header
+    if not parent_msg and hdr_references:
+        # Try each reference in reverse order (most recent first)
+        for ref in reversed(hdr_references):
+            parent_msg = Message.objects.filter(platform=platform, id=ref).first()
+            if parent_msg:
+                chat_obj = parent_msg.chat
+                logger.debug(f"Found parent message {parent_msg.id} in chat {chat_obj.id} via References")
+                break
+    
+    # If still no chat found, create new one
+    if not chat_obj:
+        chat_obj, created = Chat.objects.get_or_create(
             platform=platform,
-            id=hdr_id,
+            id=hdr_id,  # Use current message ID as chat ID for new threads
             defaults={'channel': channel, 'is_private': True, 'name': hdr_subject}
         )
+        if created:
+            logger.debug(f"Created new chat {chat_obj.id} for message {hdr_id}")
 
+    # --- ensure Account exists ---
     account_obj, _ = Account.objects.get_or_create(
         platform=platform,
         id=sender_email,
         defaults={'channel': channel, 'name': sender_name, 'is_bot': outgoing, 'raw': dict(msg.items())}
     )
     AccountChat.objects.get_or_create(account=account_obj, chat=chat_obj)
-
-    parent = None
-    if hdr_in_reply:
-        parent = Message.objects.filter(platform=platform, id=hdr_in_reply).first()
 
     # --- bodies ---
     text_parts = []
@@ -118,7 +133,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             'html'             : body_html,
             'subject'          : hdr_subject,
             'timestamp'        : timestamp,
-            'reply_to_message' : parent,
+            'reply_to_message' : parent_msg,
             'raw'              : dict(msg.items()),
             'to'               : to_list,
             'cc'               : cc_list,
@@ -129,7 +144,10 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     )
 
     if not created:
+        logger.debug(f"Message {msg_obj.id} already exists in chat {chat_obj.id}")
         return msg_obj
+
+    logger.debug(f"Created new message {msg_obj.id} in chat {chat_obj.id}")
 
     # handle first attachment only
     attachments = [part for part in msg.iter_attachments() if part.get_content_disposition() == 'attachment' and not part.get('Content-ID')]

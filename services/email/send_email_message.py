@@ -7,6 +7,10 @@ from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img
 from unicom.services.email.save_email_message import save_email_message
 from django.apps import apps
+import logging
+from email.utils import make_msgid
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -37,7 +41,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     cc_addrs  = params.get('cc', [])
     bcc_addrs = params.get('bcc', [])
 
-    # Build subject (fall back to “Re: <original>”)
+    logger.info(f"Preparing to send email: to={to_addrs}, cc={cc_addrs}, bcc={bcc_addrs}")
+
+    # Build subject (fall back to "Re: <original>")
     subject = params.get('subject')
     if not subject and params.get('reply_to_message_id'):
         from unicom.models import Message
@@ -50,8 +56,14 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
                 count += 1
                 base = base[4:]
             subject = "Re: " * (count + 1) + base
+            logger.debug(f"Created reply subject: {subject} (based on parent: {parent.subject})")
         else:
             subject = ""
+            logger.warning(f"Reply-to message not found: {params['reply_to_message_id']}")
+
+    # Generate a message ID before constructing the message
+    message_id = make_msgid(domain="insightifyr.portacode.com")
+    logger.info(f"Generated Message-ID: {message_id}")
 
     # 1) construct the EmailMultiAlternatives
     email_msg = EmailMultiAlternatives(
@@ -62,6 +74,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         cc=cc_addrs,
         bcc=bcc_addrs,
         connection=connection,
+        headers={'Message-ID': message_id}  # Set the Message-ID explicitly
     )
 
     # threading headers
@@ -70,39 +83,81 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         email_msg.extra_headers['References']   = params.get(
             'references', params['reply_to_message_id']
         )
+        logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}")
 
     # HTML alternative
     if params.get('html'):
         email_msg.attach_alternative(to_inline_png_img(params['html']), "text/html")
+        logger.debug("Added HTML alternative content")
 
     # Attach files
     for fp in params.get('attachments', []):
         email_msg.attach_file(fp)
+        logger.debug(f"Attached file: {fp}")
+
+    # Get the message object and verify the Message-ID BEFORE sending
+    msg_before_send = email_msg.message()
+    msg_id_before_send = msg_before_send.get('Message-ID', '').strip()
+    logger.info(f"Message-ID before send: {msg_id_before_send}")
+    if msg_id_before_send != message_id:
+        logger.warning(f"Message-ID changed unexpectedly before send. Original: {message_id}, Current: {msg_id_before_send}")
 
     # 2) send via the connection we passed in above
-    email_msg.send(fail_silently=False)
+    try:
+        email_msg.send(fail_silently=False)
+        logger.info(f"Email sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        raise
 
-    # 3) grab the true, rendered MIME bytes (with real Message-ID)
-    mime_bytes = email_msg.message().as_bytes()
+    # Get message bytes using the final message to maintain ID consistency
+    final_msg = email_msg.message()
+    final_msg_id = final_msg.get('Message-ID', '').strip()
+    logger.info(f"Final Message-ID after send: {final_msg_id}")
+    if final_msg_id != message_id:
+        logger.warning(f"Message-ID changed after send! Original: {message_id}, Final: {final_msg_id}")
 
-    # 4) save a copy in the IMAP “Sent” folder
+    mime_bytes = final_msg.as_bytes()
+
+    # 4) save a copy in the IMAP "Sent" folder
     imap_conf = channel.config['IMAP']
     import imaplib, time
-    if imap_conf['use_ssl']:
-        imap_conn = imaplib.IMAP4_SSL(imap_conf['host'], imap_conf['port'])
-    else:
-        imap_conn = imaplib.IMAP4(imap_conf['host'], imap_conf['port'])
-    imap_conn.login(from_addr, channel.config['EMAIL_PASSWORD'])
-    # adjust mailbox name if your server uses e.g. "Sent Items"
-    imap_conn.append('Sent', '\\Seen', imaplib.Time2Internaldate(time.time()), mime_bytes)
-    imap_conn.logout()
+    try:
+        if imap_conf['use_ssl']:
+            imap_conn = imaplib.IMAP4_SSL(imap_conf['host'], imap_conf['port'])
+        else:
+            imap_conn = imaplib.IMAP4(imap_conf['host'], imap_conf['port'])
+        
+        imap_conn.login(from_addr, channel.config['EMAIL_PASSWORD'])
+        timestamp = imaplib.Time2Internaldate(time.time())
+        
+        # Verify Message-ID in IMAP copy
+        from email import message_from_bytes
+        imap_msg = message_from_bytes(mime_bytes)
+        imap_msg_id = imap_msg.get('Message-ID', '').strip()
+        logger.info(f"IMAP copy Message-ID: {imap_msg_id}")
+        if imap_msg_id != message_id:
+            logger.warning(f"Message-ID changed in IMAP copy! Original: {message_id}, IMAP: {imap_msg_id}")
+        
+        imap_conn.append('Sent', '\\Seen', timestamp, mime_bytes)
+        logger.info("Saved copy to IMAP Sent folder")
+        imap_conn.logout()
+    except Exception as e:
+        logger.error(f"Failed to save to IMAP Sent folder: {e}")
+        raise
 
     # 5) delegate to save_email_message (now takes channel first)
-    return save_email_message(channel, mime_bytes, user)
+    saved_msg = save_email_message(channel, mime_bytes, user)
+    logger.info(f"Message saved to database with ID: {saved_msg.id}")
+    
+    # Log final confirmation of successful message sending
+    logger.info(f"Successfully sent and saved message with Message-ID: {message_id}")
+    
+    return saved_msg
 
 """
 from unicom.models import Message
-email_messsage = Message.objects.filter(platform='Email').order_by('-timestamp').first()
-email_messsage.reply_with({"html": "<h1>I hear you in H1</h1>"})
+email_messsage = Message.objects.filter(platform='Email').order_by('timestamp').first()
+email_messsage.reply_with({"html": "<h1>First outgoing email</h1>"})
 email_messsage.reply_with({"text": "I hear you in plain text"})
 """
