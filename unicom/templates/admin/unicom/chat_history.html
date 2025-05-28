@@ -203,6 +203,9 @@
         : {{ message.timestamp|date:"h:i A" }} - {{ message.timestamp|timesince }} ago
         {% if message.is_outgoing %}
         <span style="margin-left: 10px;">
+          {% if message.platform == 'Telegram' %}
+          sent ✓
+          {% else %}
           {% if message.seen %}
           seen <span style="color: lightskyblue">✓✓</span>
           {% elif message.delivered %}
@@ -211,6 +214,7 @@
           sent ✓
           {% else %}
           pending &#x1F551;
+          {% endif %}
           {% endif %}
         </span>
         {% endif %}
