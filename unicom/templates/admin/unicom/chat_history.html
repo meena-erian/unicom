@@ -163,7 +163,7 @@
   
   <div class="chat-messages">
     {% for message in chat_messages_list %}
-    <div id="message_{{ message.id }}" class="message {% if message.is_bot %}message-bot{% else %}message-user{% endif %}">
+    <div id="message_{{ message.id }}" class="message {% if message.is_outgoing %}message-bot{% else %}message-user{% endif %}">
       {% if message.reply_to_message %}
       <a href="#message_{{ message.reply_to_message.id }}">
         <div class="reply-to">
@@ -201,7 +201,7 @@
         {{ message.sender_name }}
         {% endif %}
         : {{ message.timestamp|date:"h:i A" }} - {{ message.timestamp|timesince }} ago
-        {% if message.is_bot %}
+        {% if message.is_outgoing %}
         <span style="margin-left: 10px;">
           {% if message.seen %}
           seen <span style="color: lightskyblue">✓✓</span>

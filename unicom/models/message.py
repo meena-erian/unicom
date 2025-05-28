@@ -24,7 +24,7 @@ class Message(models.Model):
     sender = models.ForeignKey('unicom.Account', on_delete=models.RESTRICT)
     user = models.ForeignKey(User, on_delete=models.RESTRICT, null=True, blank=True)
     chat = models.ForeignKey('unicom.Chat', on_delete=models.CASCADE, related_name='messages')
-    is_bot = models.BooleanField(default=False)
+    is_outgoing = models.BooleanField(null=True, default=None, help_text="True for outgoing messages, False for incoming, None for internal")
     sender_name = models.CharField(max_length=100)
     subject = models.CharField(max_length=512, blank=True, null=True, help_text="Subject of the message (only for email messages)")
     text = models.TextField()

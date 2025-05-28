@@ -25,10 +25,10 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
     m_type = 'text'
     media_file_name = None
     media_file_content = None
-    is_bot = True if "is_bot" in messages_data and messages_data.get("is_bot") == True else False # message_data.get('from')['is_bot']
+    is_outgoing = True if "is_bot" in messages_data and messages_data.get("is_bot") == True else False
     if contact_profile:
         sender_name = contact_profile.get('name')
-    elif is_bot:
+    elif is_outgoing:
         sender_name = "Bot"
     else:
         sender_name = "[[[[Unknown]]]]"
@@ -114,7 +114,7 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
             chat.save()
         else:
             chat = chat.get()
-            if sender_name != chat.name and not is_bot:
+            if sender_name != chat.name and not is_outgoing:
                 chat.name = sender_name
                 chat.save()
         if not account.exists():
@@ -122,7 +122,7 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
                 platform=platform,
                 id=sender_id,
                 name=sender_name,
-                is_bot=is_bot,
+                is_outgoing=is_outgoing,
                 raw=messages_data.get('contacts')[0]
             )
             account.save()
@@ -145,15 +145,15 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
                 reply_to_message = None
         else:
             reply_to_message = None
-        message, created = Message.objects.get_or_create(
+        msg_obj, created = Message.objects.get_or_create(
             platform=platform,
             chat_id=chat_id,
             id=message_id,
             defaults={
                 'sender_id': sender_id,
-                'is_bot': is_bot,
                 'sender_name': sender_name,
-                'user':user,
+                'is_outgoing': is_outgoing,
+                'user': user,
                 'text': text,
                 'media_type': m_type,
                 'reply_to_message': reply_to_message,
@@ -165,9 +165,9 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
             print("Duplicate message discarded")
         else:
             if media_file_name:
-                message.media.save(media_file_name, media_file_content, save=True)
+                msg_obj.media.save(media_file_name, media_file_content, save=True)
             if image is not None:
                 # TODO: Fix bug: image_content not defined
                 pass
-                # message.image.save(image, image_content, save=True)
-    return message
+                # msg_obj.image.save(image, image_content, save=True)
+    return msg_obj
