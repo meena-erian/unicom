@@ -6,6 +6,7 @@ from unicom.models.constants import channels
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import validate_email
 from fa2svg.converter import revert_to_original_fa
+import uuid
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -66,7 +67,18 @@ class Message(models.Model):
         choices=TYPE_CHOICES,
         default='text'
     )
-    # Add any additional fields as needed for specific platforms
+    # Email tracking fields
+    tracking_id = models.UUIDField(default=uuid.uuid4, null=True, blank=True, help_text="Unique ID for tracking email opens and clicks")
+    time_opened = models.DateTimeField(null=True, blank=True, help_text="When the email was first opened")
+    opened = models.BooleanField(default=False, help_text="Whether the email has been opened")
+    time_link_clicked = models.DateTimeField(null=True, blank=True, help_text="When a link in the email was first clicked")
+    link_clicked = models.BooleanField(default=False, help_text="Whether any link in the email has been clicked")
+    clicked_links = ArrayField(
+        base_field=models.URLField(),
+        blank=True,
+        default=list,
+        help_text="List of links that have been clicked"
+    )
 
     def reply_with(self, msg_dict:dict) -> Message:
         """

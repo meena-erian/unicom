@@ -6,9 +6,11 @@ from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img
 from unicom.services.email.save_email_message import save_email_message
+from unicom.services.email.email_tracking import prepare_email_for_tracking
 from django.apps import apps
 import logging
 from email.utils import make_msgid
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,22 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
             subject = ""
             logger.warning(f"Reply-to message not found: {params['reply_to_message_id']}")
 
-    # Generate a message ID before constructing the message
+    # Generate a message ID and tracking ID before constructing the message
     message_id = make_msgid(domain="insightifyr.portacode.com")
-    logger.info(f"Generated Message-ID: {message_id}")
+    tracking_id = uuid.uuid4()
+    logger.info(f"Generated Message-ID: {message_id}, Tracking-ID: {tracking_id}")
+
+    # Store original HTML content before adding tracking
+    original_html = params.get('html')
+    if original_html:
+        original_html = to_inline_png_img(original_html)  # Convert FontAwesome to inline images
+
+    # Prepare HTML content with tracking if available
+    html_content = original_html
+    original_urls = []
+    
+    if html_content:
+        html_content, original_urls = prepare_email_for_tracking(html_content, tracking_id)
 
     # 1) construct the EmailMultiAlternatives
     email_msg = EmailMultiAlternatives(
@@ -95,9 +110,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}, References={references}")
 
     # HTML alternative
-    if params.get('html'):
-        email_msg.attach_alternative(to_inline_png_img(params['html']), "text/html")
-        logger.debug("Added HTML alternative content")
+    if html_content:
+        email_msg.attach_alternative(html_content, "text/html")
+        logger.debug("Added HTML alternative content with tracking")
 
     # Attach files
     for fp in params.get('attachments', []):
@@ -120,13 +135,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         raise
 
     # Get message bytes using the final message to maintain ID consistency
-    final_msg = email_msg.message()
-    final_msg_id = final_msg.get('Message-ID', '').strip()
-    logger.info(f"Final Message-ID after send: {final_msg_id}")
-    if final_msg_id != message_id:
-        logger.warning(f"Message-ID changed after send! Original: {message_id}, Final: {final_msg_id}")
-
-    mime_bytes = final_msg.as_bytes()
+    mime_bytes = email_msg.message().as_bytes()
 
     # 4) save a copy in the IMAP "Sent" folder
     imap_conf = channel.config['IMAP']
@@ -140,14 +149,6 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         imap_conn.login(from_addr, channel.config['EMAIL_PASSWORD'])
         timestamp = imaplib.Time2Internaldate(time.time())
         
-        # Verify Message-ID in IMAP copy
-        from email import message_from_bytes
-        imap_msg = message_from_bytes(mime_bytes)
-        imap_msg_id = imap_msg.get('Message-ID', '').strip()
-        logger.info(f"IMAP copy Message-ID: {imap_msg_id}")
-        if imap_msg_id != message_id:
-            logger.warning(f"Message-ID changed in IMAP copy! Original: {message_id}, IMAP: {imap_msg_id}")
-        
         imap_conn.append('Sent', '\\Seen', timestamp, mime_bytes)
         logger.info("Saved copy to IMAP Sent folder")
         imap_conn.logout()
@@ -157,10 +158,15 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # 5) delegate to save_email_message (now takes channel first)
     saved_msg = save_email_message(channel, mime_bytes, user)
-    logger.info(f"Message saved to database with ID: {saved_msg.id}")
     
-    # Log final confirmation of successful message sending
-    logger.info(f"Successfully sent and saved message with Message-ID: {message_id}")
+    # Add tracking info and original content to the saved message
+    saved_msg.tracking_id = tracking_id
+    saved_msg.raw['original_urls'] = original_urls  # Store original URLs in raw field
+    saved_msg.html = original_html  # Store the original HTML without tracking
+    saved_msg.sent = True  # Mark as sent since we successfully sent it
+    saved_msg.save(update_fields=['tracking_id', 'raw', 'html', 'sent'])
+    
+    logger.info(f"Message saved to database with ID: {saved_msg.id} and tracking ID: {tracking_id}")
     
     return saved_msg
 
