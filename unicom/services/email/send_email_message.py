@@ -46,7 +46,6 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     # Build subject (fall back to "Re: <original>")
     subject = params.get('subject')
     if not subject and params.get('reply_to_message_id'):
-        from unicom.models import Message
         parent = Message.objects.filter(id=params['reply_to_message_id']).first()
         if parent:
             # count existing "Re: " prefixes, then add exactly one more
@@ -79,11 +78,23 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # threading headers
     if params.get('reply_to_message_id'):
-        email_msg.extra_headers['In-Reply-To']  = params['reply_to_message_id']
-        email_msg.extra_headers['References']   = params.get(
-            'references', params['reply_to_message_id']
-        )
-        logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}")
+        # Get the parent message to build the References header
+        parent = Message.objects.filter(id=params['reply_to_message_id']).first()
+        references = []
+        
+        if parent:
+            # First add any existing References from parent
+            if parent.raw and 'References' in parent.raw:
+                references.extend(parent.raw['References'].split())
+            # Then add the parent's Message-ID
+            references.append(params['reply_to_message_id'])
+        else:
+            # If parent not found, just use reply_to_message_id
+            references = [params['reply_to_message_id']]
+            
+        email_msg.extra_headers['In-Reply-To'] = params['reply_to_message_id']
+        email_msg.extra_headers['References'] = ' '.join(references)
+        logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}, References={references}")
 
     # HTML alternative
     if params.get('html'):
