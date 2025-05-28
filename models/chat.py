@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from django.db import models
 from .constants import channels
-from unicom.services.crossplatform.send_message import send_message
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 if TYPE_CHECKING:
     from unicom.models import Message
@@ -21,12 +21,31 @@ class Chat(models.Model):
         """
         Send a message to this chat using the channel's platform.
         The msg_dict must include at least the text or media to send.
+        
+        For email channels, this will find the last incoming message and reply to it,
+        ensuring proper email threading and recipient handling.
+        For other platforms (Telegram, WhatsApp), it sends the message directly to the chat.
         """
         if not self.channel.active:
             raise ValueError("Channel must be active to send messages.")
         
         try:
-            return send_message(self.channel, {**msg_dict, "chat_id": self.id}, user)
+            if self.platform == 'Email':
+                # For email, find the last incoming message and reply to it
+                last_incoming = self.messages.filter(
+                    is_outgoing=False
+                ).order_by('-timestamp').first()
+                
+                if not last_incoming:
+                    raise ValidationError("No incoming messages found in this email chat to reply to")
+                
+                # Use Message.reply_with which handles all email threading and recipient logic
+                return last_incoming.reply_with(msg_dict)
+            else:
+                # For other platforms, just send to the chat directly
+                from unicom.services.crossplatform.send_message import send_message
+                return send_message(self.channel, {**msg_dict, "chat_id": self.id}, user)
+                
         except Exception as e:
             raise ValueError(f"Failed to send message: {str(e)}")
 
