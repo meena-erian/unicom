@@ -8,6 +8,7 @@ import logging
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.contrib.auth.models import User
+from unicom.services.email.email_tracking import remove_tracking
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +117,19 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
 
     body_text = "\n".join(text_parts).strip()
     body_html = "\n".join(html_parts).strip() or None
+
+    # If this is an outgoing message with tracking, remove tracking elements
+    if is_outgoing and body_html:
+        original_urls = []
+        if parent_msg and parent_msg.raw.get('original_urls'):
+            original_urls = parent_msg.raw['original_urls']
+        body_html = remove_tracking(body_html, original_urls)
+
+    # Extract plain text from HTML if no text version available
     if not body_text and body_html:
-        body_text = re.sub(r'<[^>]+>', '', body_html)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(body_html, 'html.parser')
+        body_text = soup.get_text()
 
     # --- save into your Message model ---
     msg_obj, created = Message.objects.get_or_create(

@@ -205,6 +205,17 @@
         <span style="margin-left: 10px;">
           {% if message.platform == 'Telegram' %}
           sent ✓
+          {% elif message.platform == 'Email' %}
+          {% if message.opened %}
+          opened <span style="color: lightskyblue">✓✓</span>
+          {% if message.link_clicked %}
+          links clicked <span style="color: #4CAF50">✓✓✓</span>
+          {% endif %}
+          {% elif message.sent %}
+          delivered ✓✓
+          {% else %}
+          pending &#x1F551;
+          {% endif %}
           {% else %}
           {% if message.seen %}
           seen <span style="color: lightskyblue">✓✓</span>
