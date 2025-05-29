@@ -240,22 +240,27 @@ class Request(models.Model):
         Attempt to categorize the request by running through category functions.
         Updates status based on results.
         """
+        print(f"\nStarting categorization for request {self.id}")
         self.status = 'CATEGORIZING'
         self.error = None  # Clear any previous errors
         self.save()
 
         try:
             # Start categorization from top level (no parent)
+            print(f"Attempting to categorize request {self.id} from top level")
             if self._try_categorize_with_children(None):
+                print(f"Successfully categorized request {self.id}")
                 return True
             
             # If no category matched, that's fine - treat null as a valid state
+            print(f"No category matched for request {self.id}, setting to QUEUED")
             self.category = None
             self.status = 'QUEUED'
             self.save()
             return True
             
         except Exception as e:
+            print(f"Error during categorization of request {self.id}: {str(e)}")
             self.status = 'FAILED'
             self.error = f"Error during categorization: {str(e)}"
             self.save()
@@ -269,38 +274,67 @@ class Request(models.Model):
         try:
             # Get permitted categories at current level
             categories = self.get_available_categories(parent_category)
+            print(f"\nChecking categories at level {parent_category.name if parent_category else 'root'} for request {self.id}")
+            print(f"Found {categories.count()} available categories")
             
             # If exactly one category is available, use it without processing
             if categories.count() == 1:
                 category = categories.first()
+                print(f"Single category available: {category.name}")
                 self.category = category
-                self.status = 'QUEUED' if not category.subcategories.filter(is_active=True).exists() else 'CATEGORIZING'
-                self.save()
+                
+                # Check for subcategories
+                has_subcategories = category.subcategories.filter(is_active=True).exists()
+                if has_subcategories:
+                    print(f"Category {category.name} has subcategories, trying to match them")
+                    subcategory_result = self._try_categorize_with_children(category)
+                    if not subcategory_result:
+                        print(f"No subcategories matched, setting status to QUEUED with category {category.name}")
+                        self.status = 'QUEUED'
+                        self.save()
+                else:
+                    print(f"No subcategories exist, setting status to QUEUED with category {category.name}")
+                    self.status = 'QUEUED'
+                    self.save()
                 return True
 
             # Otherwise process each category
             for category in categories:
                 try:
+                    print(f"\nProcessing category {category.name} for request {self.id}")
                     # Run category's processing function
                     result = category.process_request(self)
+                    print(f"Category {category.name} processing result: {result}")
                     
                     # If category matched (returned True in metadata)
                     if result.get('category_match', False):
+                        print(f"Category {category.name} matched")
                         self.category = category
                         self.metadata.update(result)
                         self.save()
 
                         # Check if category has subcategories
-                        if category.subcategories.filter(is_active=True).exists():
+                        has_subcategories = category.subcategories.filter(is_active=True).exists()
+                        print(f"Category {category.name} has subcategories: {has_subcategories}")
+                        
+                        if has_subcategories:
                             # Continue categorizing with subcategories
-                            return self._try_categorize_with_children(category)
+                            print(f"Continuing categorization with subcategories of {category.name}")
+                            subcategory_result = self._try_categorize_with_children(category)
+                            if not subcategory_result:
+                                # If no subcategory matched, mark as queued with current category
+                                print(f"No subcategories matched, setting status to QUEUED with category {category.name}")
+                                self.status = 'QUEUED'
+                                self.save()
                         else:
                             # No subcategories, mark as queued
+                            print(f"No subcategories exist, setting status to QUEUED with category {category.name}")
                             self.status = 'QUEUED'
                             self.save()
-                            return True
+                        return True
                 except Exception as e:
                     # Log error in metadata but continue with next category
+                    print(f"Error processing category {category.name}: {str(e)}")
                     self.metadata['categorization_errors'] = self.metadata.get('categorization_errors', [])
                     self.metadata['categorization_errors'].append({
                         'category': category.name,
@@ -310,9 +344,11 @@ class Request(models.Model):
                     continue
 
             # No matching category found at this level - that's okay
+            print(f"No matching category found at level {parent_category.name if parent_category else 'root'}")
             return False
 
         except Exception as e:
+            print(f"Error during category processing: {str(e)}")
             self.error = f"Error during category processing: {str(e)}"
             self.save(update_fields=['error'])
             return False
