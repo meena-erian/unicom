@@ -2,7 +2,7 @@ import time
 import logging
 from threading import Lock, Thread
 from imapclient import IMAPClient, SEEN
-from django.db import transaction
+from django.db import transaction, connections
 
 from unicom.services.email.save_email_message import save_email_message
 from django.db.utils import ProgrammingError, OperationalError
@@ -67,6 +67,9 @@ class IMAPThreadManager:
             except Exception as e:
                 logger.exception(f"Listener for Channel {channel.pk} crashed: {e}")
                 time.sleep(10)
+            finally:
+                # ensure no DB connections are leaked by this thread
+                connections.close_all()
 
 # module-level singleton
 imap_manager = IMAPThreadManager()
