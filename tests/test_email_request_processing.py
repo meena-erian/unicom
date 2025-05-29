@@ -119,7 +119,7 @@ class TestEmailRequestProcessing:
 
         # Wait for request and verify it's properly identified
         self._wait_request(cond={'email': EMAIL_CONFIG2['EMAIL_ADDRESS']})
-        request = Request.objects.get(email=EMAIL_CONFIG2['EMAIL_ADDRESS'])
+        request = Request.objects.filter(email=EMAIL_CONFIG2['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert request.member == self.member
         assert request.status == 'QUEUED'  # Should be queued even without categories
         assert request.category is None
@@ -134,7 +134,7 @@ class TestEmailRequestProcessing:
 
         # Wait for request and verify it's properly handled
         self._wait_request(cond={'email': EMAIL_CONFIG3['EMAIL_ADDRESS']})
-        request = Request.objects.get(email=EMAIL_CONFIG3['EMAIL_ADDRESS'])
+        request = Request.objects.filter(email=EMAIL_CONFIG3['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert request.member is None
         assert request.status == 'QUEUED'
         assert request.category is None

@@ -1,6 +1,7 @@
 from unicom.services.email.save_email_message import save_email_message
 from imapclient import IMAPClient, SEEN
 from imapclient.exceptions import IMAPClientError
+from django.db import connections
 import imaplib
 import time
 import logging
@@ -68,7 +69,12 @@ def listen_to_IMAP(channel):
                             logger.debug(f"Associated with chat: {msg.chat_id}")
                         except Exception:
                             logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}")
+                        finally:
+                            connections.close_all()
 
         except Exception as e:
             logger.exception(f"Channel {channel.pk}: Fatal IMAP error: {e}, reconnecting in 30s…")
             time.sleep(30)
+        finally:
+            # Ensure we close all connections to avoid leaks
+            connections.close_all()

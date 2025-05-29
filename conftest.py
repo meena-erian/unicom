@@ -6,12 +6,14 @@ class InlineThread:
     """
     A fake Thread that just invokes its target immediately.
     """
-    def __init__(self, target, *args, **kwargs):
+    def __init__(self, target, args=(), kwargs=None, **_ignored):
         self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
 
     def start(self):
         # run in-band instead of spawning a new thread
-        self._target()
+        self._target(*self._args, **self._kwargs)
 
 @pytest.fixture(autouse=True)
 def run_validations_inline(monkeypatch):
