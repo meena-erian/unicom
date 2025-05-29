@@ -1,23 +1,14 @@
-from unicom.models import Message, AccountChat, Channel
+from unicom.models import Message, AccountChat, Channel, Request
 from django.db import transaction
 from django.db.models.signals import post_save, pre_save, post_delete
 from unicom.services.email.IMAP_thread_manager import imap_manager
 from django.db import transaction
 from django.dispatch import receiver
 import threading
+from django.utils import timezone
+import logging
 
 
-def handle_new_message(message):
-    sender = message.sender
-    # chat = message.chat
-    # account_chat = AccountChat.objects.get(chat=chat, account=sender)
-    print(f"New Message Received: {sender.name}: {message.text}")
-
-
-@receiver(post_save, sender=Message)
-def run_message_after_insert(sender, instance, created, **kwargs):
-    if created:
-        transaction.on_commit(lambda: threading.Thread(target=handle_new_message, args=(instance,)).start())
 
 
 @receiver(pre_save, sender=Channel)
@@ -46,3 +37,54 @@ def run_channel_after_delete(sender, instance, **kwargs):
     # Stop the IMAP listener thread for the channel
     imap_manager.stop(instance)
     print(f"Channel {instance.pk} deleted, IMAP listener stopped.")
+
+
+@receiver(post_save, sender=Message)
+def create_request_from_message(sender, instance, created, **kwargs):
+    """
+    Signal handler to create a Request object when a new Message is created.
+    Only creates a Request for incoming messages (is_outgoing=False).
+    """
+    # Skip if this is not a new message or if it's an outgoing message
+    if not created or instance.is_outgoing != False:
+        return
+
+    # Extract contact information based on platform
+    email = None
+    phone = None
+    
+    if instance.sender:
+        if instance.platform == 'Email':
+            email = instance.sender.id
+        elif instance.platform == 'WhatsApp':
+            phone = instance.sender.id
+
+    try:
+        with transaction.atomic():
+            # Create the request object using the instance directly
+            request = Request.objects.create(
+                message=instance,
+                account=instance.sender,
+                channel=instance.channel,
+                email=email,
+                phone=phone,
+                status='PENDING',
+                metadata={
+                    'created_from': 'message_signal',
+                    'message_platform': instance.platform,
+                    'creation_time': timezone.now().isoformat(),
+                }
+            )
+
+            # Try to identify member
+            request.identify_member()
+            
+            # Always proceed to categorization regardless of member identification
+            request.categorize()
+
+    except Exception as e:
+        # Log the error but don't re-raise to avoid affecting message creation
+        error_msg = f"Error creating request from message {instance.id}: {str(e)}"
+        print(error_msg)
+        logger = logging.getLogger(__name__)
+        logger.error(error_msg, exc_info=True)

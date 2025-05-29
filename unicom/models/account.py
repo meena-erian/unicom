@@ -8,8 +8,10 @@ class Account(models.Model):
     platform = models.CharField(max_length=100, choices=channels)
     is_bot = models.BooleanField(default=False)
     name = models.CharField(max_length=100, null=True, blank=True)
-    # member = models.ForeignKey(
-    #     'Member', on_delete=models.DO_NOTHING, null=True, blank=True)
+    member = models.ForeignKey(
+        'unicom.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='accounts',
+        help_text="Associated CRM member if matched"
+    )
     raw = models.JSONField()
 
     def __str__(self) -> str:

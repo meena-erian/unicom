@@ -5,6 +5,12 @@ from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
 from django.urls import path
 from django_ace import AceWidget
+from .models import (
+    Member,
+    MemberGroup,
+    RequestCategory,
+    Request,
+)
 
 
 class ChatAdmin(admin.ModelAdmin):
@@ -53,6 +59,117 @@ class ChannelAdmin(admin.ModelAdmin):
         if obj:
             return ['active', 'confirmed_webhook_url', 'error']
         return super().get_readonly_fields(request, obj)
+
+@admin.register(Member)
+class MemberAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'phone', 'group_list', 'created_at')
+    list_filter = ('groups', 'created_at')
+    search_fields = ('name', 'email', 'phone')
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('allowed_categories',)
+    
+    def group_list(self, obj):
+        return ", ".join([g.name for g in obj.groups.all()])
+    group_list.short_description = "Groups"
+
+
+@admin.register(MemberGroup)
+class MemberGroupAdmin(admin.ModelAdmin):
+    list_display = ('name', 'member_count', 'created_at')
+    search_fields = ('name', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('members',)
+
+    def member_count(self, obj):
+        return obj.members.count()
+    member_count.short_description = "Number of Members"
+
+
+@admin.register(RequestCategory)
+class RequestCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'parent', 'sequence', 'is_active', 'is_public')
+    list_filter = ('is_active', 'is_public', 'parent')
+    search_fields = ('name', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('allowed_channels', 'authorized_members', 'authorized_groups')
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Prevent a category from being its own parent
+        if obj:
+            form.base_fields['parent'].queryset = RequestCategory.objects.exclude(pk=obj.pk)
+        return form
+
+
+@admin.register(Request)
+class RequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'status', 'member_link', 'category', 'channel', 'created_at')
+    list_filter = (
+        'status',
+        'channel',
+        'category',
+        'created_at',
+        ('member', admin.RelatedOnlyFieldListFilter),
+    )
+    search_fields = (
+        'id',
+        'email',
+        'phone',
+        'member__name',
+        'member__email',
+        'member__phone',
+        'metadata',
+    )
+    readonly_fields = (
+        'created_at',
+        'updated_at',
+        'pending_at',
+        'identifying_at',
+        'categorizing_at',
+        'queued_at',
+        'processing_at',
+        'completed_at',
+        'failed_at',
+        'error',
+    )
+    raw_id_fields = ('message', 'account', 'member', 'category')
+
+    def member_link(self, obj):
+        if obj.member:
+            url = f"/admin/unicom/member/{obj.member.id}/change/"
+            return format_html('<a href="{}">{}</a>', url, obj.member.name)
+        return "-"
+    member_link.short_description = "Member"
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('status', 'error', 'message', 'account', 'channel', 'member')
+        }),
+        ('Contact Information', {
+            'fields': ('email', 'phone')
+        }),
+        ('Categorization', {
+            'fields': ('category',)
+        }),
+        ('Metadata', {
+            'fields': ('metadata',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': (
+                'created_at',
+                'updated_at',
+                'pending_at',
+                'identifying_at',
+                'categorizing_at',
+                'queued_at',
+                'processing_at',
+                'completed_at',
+                'failed_at',
+            ),
+            'classes': ('collapse',)
+        }),
+    )
 
 admin.site.register(Channel, ChannelAdmin)
 admin.site.register(Message)
