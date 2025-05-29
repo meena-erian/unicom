@@ -151,7 +151,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             'cc': cc_list,
             'bcc': bcc_list,
             'media_type': 'html',
-            'channel': channel,
+            'channel': channel
         }
     )
 
@@ -179,5 +179,4 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
                 msg_obj.media_type = 'file'
             msg_obj.save(update_fields=['media', 'media_type'])
 
-    msg_obj.save()
     return msg_obj

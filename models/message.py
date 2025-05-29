@@ -76,6 +76,7 @@ class Message(models.Model):
     clicked_links = ArrayField(
         base_field=models.URLField(),
         blank=True,
+        null=True,
         default=list,
         help_text="List of links that have been clicked"
     )

@@ -17,7 +17,7 @@ function initializeTemplates() {
 
     const templates = {
         'Telegram': {
-            "BOT_TOKEN": "your-bot-token-here"
+            "TELEGRAM_API_TOKEN": "your-bot-token-here"
         },
         'WhatsApp': {
             "PHONE_NUMBER": "your-whatsapp-number",
