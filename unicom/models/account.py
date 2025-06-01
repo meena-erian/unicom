@@ -12,7 +12,14 @@ class Account(models.Model):
         'unicom.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name='accounts',
         help_text="Associated CRM member if matched"
     )
-    raw = models.JSONField()
+    default_category = models.ForeignKey(
+        'unicom.RequestCategory',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Default category for messages from this account"
+    )
+    raw = models.JSONField(default=dict)
 
     def __str__(self) -> str:
         return f"{self.platform}:{self.id} ({self.name})"
