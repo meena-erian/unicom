@@ -124,16 +124,18 @@ class RequestCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Request)
 class RequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'status', 'member_link', 'category', 'channel', 'created_at')
+    list_display = ('__str__', 'status', 'member_link', 'category', 'channel', 'created_at')
+    list_display_links = ('__str__',)
     list_filter = (
         'status',
         'channel',
         'category',
-        'created_at',
         ('member', admin.RelatedOnlyFieldListFilter),
+        ('created_at', admin.DateFieldListFilter),
     )
     search_fields = (
-        'id',
+        'display_text',
+        'message__text',
         'email',
         'phone',
         'member__name',
@@ -154,6 +156,7 @@ class RequestAdmin(admin.ModelAdmin):
         'error',
     )
     raw_id_fields = ('message', 'account', 'member', 'category')
+    date_hierarchy = 'created_at'
 
     def member_link(self, obj):
         if obj.member:
@@ -163,8 +166,11 @@ class RequestAdmin(admin.ModelAdmin):
     member_link.short_description = "Member"
 
     fieldsets = (
+        ('Message', {
+            'fields': ('message', 'display_text')
+        }),
         ('Basic Information', {
-            'fields': ('status', 'error', 'message', 'account', 'channel', 'member')
+            'fields': ('status', 'error', 'account', 'channel', 'member')
         }),
         ('Contact Information', {
             'fields': ('email', 'phone')

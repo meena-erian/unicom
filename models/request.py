@@ -23,6 +23,11 @@ class Request(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     message = models.ForeignKey('unicom.Message', on_delete=models.CASCADE)
+    display_text = models.TextField(
+        help_text="Display version of the message text",
+        null=True,
+        blank=True
+    )
     account = models.ForeignKey('unicom.Account', on_delete=models.CASCADE)
     channel = models.ForeignKey(
         'unicom.Channel',
@@ -96,9 +101,14 @@ class Request(models.Model):
             # Index for channel-based lookups
             models.Index(fields=['channel', 'status'], name='request_channel_status_idx'),
         ]
+        ordering = ['-created_at']  # Most recent first
 
     def __str__(self):
-        return f"Request {self.id} - {self.status}"
+        text = self.display_text or self.message.text
+        preview = text[:50] + "..." if len(text) > 50 else text
+        category_name = self.category.name if self.category else "Uncategorized"
+        member_name = self.member.name if self.member else "No Member"
+        return f"{preview} ({category_name} - {member_name})"
 
     def save(self, *args, **kwargs):
         # Set channel from message if not set
