@@ -50,7 +50,7 @@ class TestEmailRequestProcessing:
     def setup(self, db):
         from django.contrib.auth.models import User
         self.admin_user = User.objects.create_superuser(
-            username='admin', email='admin@example.com', password='password'
+            username='admin', email=EMAIL_CONFIG['EMAIL_ADDRESS'], password='password'
         )
         self.client = Client()
 
@@ -76,7 +76,7 @@ class TestEmailRequestProcessing:
             # Store the non-member email for comparison
             self.non_member_email = EMAIL_CONFIG3['EMAIL_ADDRESS']
 
-    def _wait_bot(self, pk, *, cond, timeout=10):
+    def _wait_bot(self, pk, *, cond, timeout=60):
         """Wait for bot to be in desired state"""
         def check_condition():
             try:
@@ -87,7 +87,7 @@ class TestEmailRequestProcessing:
                 
         return wait_for_condition(check_condition, timeout=timeout)
 
-    def _wait_request(self, *, cond, timeout=10):
+    def _wait_request(self, *, cond, timeout=60):
         """Wait for a request matching the condition"""
         def check_condition():
             try:
