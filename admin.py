@@ -93,12 +93,33 @@ class RequestCategoryAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     filter_horizontal = ('allowed_channels', 'authorized_members', 'authorized_groups')
     
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'processing_function':
+            kwargs['widget'] = AceWidget(
+                mode='python',
+                theme='twilight',
+                width="100%",
+                height="300px"
+            )
+        return super().formfield_for_dbfield(db_field, **kwargs)
+    
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         # Prevent a category from being its own parent
         if obj:
             form.base_fields['parent'].queryset = RequestCategory.objects.exclude(pk=obj.pk)
+        
+        # Set template code as initial value for new categories
+        if not obj and 'processing_function' in form.base_fields:
+            form.base_fields['processing_function'].initial = obj.get_template_code() if obj else RequestCategory().get_template_code()
+        
         return form
+
+    class Media:
+        css = {
+            'all': ('admin/css/forms.css',)
+        }
+        js = ('admin/js/jquery.init.js', 'admin/js/core.js',)
 
 
 @admin.register(Request)

@@ -14,6 +14,7 @@ class Request(models.Model):
         ('PENDING', 'Pending'),
         ('IDENTIFYING', 'Identifying'),
         ('CATEGORIZING', 'Categorizing'),
+        ('CATEGORY_LIST_SENT', 'Category List Sent'),
         ('QUEUED', 'Queued'),
         ('PROCESSING', 'Processing'),
         ('COMPLETED', 'Completed'),
@@ -246,13 +247,65 @@ class Request(models.Model):
         self.save()
 
         try:
-            # Start categorization from top level (no parent)
+            # Get top level categories (no parent)
+            top_level_categories = self.get_available_categories(parent=None)
+            multiple_categories = top_level_categories.count() > 1
+
+            if multiple_categories:
+                # Check for explicit category selection in message text
+                message_text = self.message.text.lower()
+                
+                # Check for list-categories or category-menu request
+                if 'list-categories' in message_text or 'category-menu' in message_text:
+                    self._send_category_list()
+                    return True
+
+                # Convert categories to list for indexed access
+                categories_list = list(top_level_categories)
+                
+                # Check for explicit category selection by number
+                for i, category in enumerate(categories_list, 1):
+                    # Look for number-request pattern (e.g., "1-request", "category 1 request", etc.)
+                    if f"{i}-request" in message_text or f"category {i} request" in message_text:
+                        self.category = category
+                        self.status = 'QUEUED'
+                        self.save()
+                        return True
+                    
+                    # Check for default category setting by number
+                    if f"default-to-{i}" in message_text or f"set default {i}" in message_text:
+                        self.category = category
+                        self.account.default_category = category
+                        self.account.save()
+                        self.status = 'QUEUED'
+                        self.save()
+                        return True
+
+                # Check for default category if no explicit selection
+                if self.account.default_category:
+                    # Verify user still has access to the default category
+                    if self.account.default_category in top_level_categories:
+                        self.category = self.account.default_category
+                        self.status = 'QUEUED'
+                        self.save()
+                        return True
+                    else:
+                        # Clear default category if user no longer has access
+                        self.account.default_category = None
+                        self.account.save()
+
+            # Start automated categorization from top level (no parent)
             print(f"Attempting to categorize request {self.id} from top level")
             if self._try_categorize_with_children(None):
                 print(f"Successfully categorized request {self.id}")
                 return True
             
-            # If no category matched, that's fine - treat null as a valid state
+            # If no category matched and user has multiple categories, send category list
+            if multiple_categories:
+                self._send_category_list()
+                return True
+            
+            # If no category matched and single category access, that's fine
             print(f"No category matched for request {self.id}, setting to QUEUED")
             self.category = None
             self.status = 'QUEUED'
@@ -265,6 +318,27 @@ class Request(models.Model):
             self.error = f"Error during categorization: {str(e)}"
             self.save()
             return False
+
+    def _send_category_list(self):
+        """Helper method to send category list to user"""
+        categories = self.get_available_categories(parent=None)
+        category_list = "\n".join([f"- Category {i}: {cat.name}" for i, cat in enumerate(categories, 1)])
+        
+        message = (
+            "You have access to multiple categories. You can:\n\n"
+            f"{category_list}\n\n"
+            "To select a category, include either:\n"
+            "- '[number]-request' (e.g., '1-request')\n"
+            "- 'category [number] request' (e.g., 'category 1 request')\n\n"
+            "To set a default category, include either:\n"
+            "- 'default-to-[number]' (e.g., 'default-to-1')\n"
+            "- 'set default [number]' (e.g., 'set default 1')\n\n"
+            "You can view this list anytime by including 'list-categories' or 'category-menu' in your message."
+        )
+        
+        self.message.reply_with({"text": message})
+        self.status = 'CATEGORY_LIST_SENT'
+        self.save()
 
     def _try_categorize_with_children(self, parent_category=None):
         """
@@ -303,14 +377,13 @@ class Request(models.Model):
                 try:
                     print(f"\nProcessing category {category.name} for request {self.id}")
                     # Run category's processing function
-                    result = category.process_request(self)
-                    print(f"Category {category.name} processing result: {result}")
+                    matches = category.process_request(self)
+                    print(f"Category {category.name} processing result: {matches}")
                     
-                    # If category matched (returned True in metadata)
-                    if result.get('category_match', False):
+                    # If category matched
+                    if matches:
                         print(f"Category {category.name} matched")
                         self.category = category
-                        self.metadata.update(result)
                         self.save()
 
                         # Check if category has subcategories
@@ -333,7 +406,7 @@ class Request(models.Model):
                             self.save()
                         return True
                 except Exception as e:
-                    # Log error in metadata but continue with next category
+                    # Log error but continue with next category
                     print(f"Error processing category {category.name}: {str(e)}")
                     self.metadata['categorization_errors'] = self.metadata.get('categorization_errors', [])
                     self.metadata['categorization_errors'].append({
