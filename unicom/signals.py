@@ -68,6 +68,7 @@ def create_request_from_message(sender, instance, created, **kwargs):
                 channel=instance.channel,
                 email=email,
                 phone=phone,
+                display_text=instance.text,
                 status='PENDING',
                 metadata={
                     'created_from': 'message_signal',
