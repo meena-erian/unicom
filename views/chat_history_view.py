@@ -15,10 +15,14 @@ def chat_history_view(request, chat_id):
 
     if request.method == 'POST':
         message_text = request.POST.get('message_text', '')
+        reply_to_id = request.POST.get('reply_to_id')
+        
         if message_text.strip():
-            chat.send_message({
-                'text': message_text,
-            }, user=request.user)
+            msg_dict = {'text': message_text}
+            if reply_to_id:
+                msg_dict['reply_to_message_id'] = reply_to_id
+                
+            chat.send_message(msg_dict, user=request.user)
             return HttpResponseRedirect(request.path_info)
 
     return render(request, 'admin/unicom/chat_history.html', {
