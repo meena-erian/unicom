@@ -85,7 +85,7 @@ def listen_to_IMAP(channel):
 
         except Exception as e:
             logger.exception(f"Channel {channel.pk}: Fatal IMAP error: {e}, reconnecting in 30s…")
-            time.sleep(30)
+            time.sleep(3)
         finally:
             # Ensure we close all connections to avoid leaks
             connections.close_all()
