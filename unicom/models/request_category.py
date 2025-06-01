@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.conf import settings
+import os
 
 
 class RequestCategory(models.Model):
@@ -19,7 +21,13 @@ class RequestCategory(models.Model):
         help_text="Order in which category processing functions are executed"
     )
     processing_function = models.TextField(
-        help_text="Python function code that should return dict with 'category_match' boolean",
+        help_text=(
+            "Python function that determines if a request matches this category.\n"
+            "Must be named 'process' and take a single 'request' argument.\n"
+            "Must return True if the request matches, False otherwise.\n"
+            "Example: def process(request) -> bool:\n"
+            "    return 'help' in request.message.text.lower()"
+        ),
         null=True,
         blank=True
     )
@@ -70,46 +78,39 @@ class RequestCategory(models.Model):
                 'Sequence must be unique for categories with the same parent'
             )
 
+    @property
+    def template_path(self):
+        """Get the path to the category processor template file."""
+        return os.path.join(settings.BASE_DIR, 'unicom', 'templates', 'code_templates', 'category_processor.py')
+
+    def get_template_code(self):
+        """Get the template code for the category processor."""
+        try:
+            with open(self.template_path, 'r') as f:
+                return f.read()
+        except Exception:
+            return "def process(request) -> bool:\n    return False"
+
     def process_request(self, request):
         """
         Execute the category's processing function on a request.
-        The function should return a dict with at least a 'category_match' boolean
-        indicating whether this category matches the request.
-        
-        Example processing function:
-        ```python
-        def process(request, metadata):
-            # Check if request matches this category
-            matches = check_some_condition(request)
-            
-            # Update metadata as needed
-            metadata['some_key'] = 'some_value'
-            
-            # Must return dict with at least category_match
-            return {
-                'category_match': matches,
-                **metadata
-            }
-        ```
+        Returns True if the category matches the request, False otherwise.
         """
         try:
+            if not self.processing_function:
+                return False
+
             # Create a function object from the processing_function code
-            # This should be properly sanitized and executed in a safe context
-            local_vars = {'request': request, 'metadata': request.metadata}
+            local_vars = {'request': request}
             exec(self.processing_function, {}, local_vars)
             
-            # Get result and ensure it has category_match
-            result = local_vars.get('metadata', {})
-            if 'category_match' not in result:
-                result['category_match'] = False
-                result['error'] = 'Processing function did not return category_match'
+            # Get the process function and call it
+            process_func = local_vars.get('process')
+            if not process_func:
+                return False
+                
+            return bool(process_func(request))
             
-            return result
         except Exception as e:
-            # Log the error and return non-matching result
             print(f"Error processing category {self.name}: {e}")
-            return {
-                'category_match': False,
-                'error': str(e),
-                **request.metadata
-            } 
+            return False 
