@@ -28,6 +28,12 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     bot_email = channel.config['EMAIL_ADDRESS'].lower()
     is_outgoing = (from_email.lower() == bot_email)
 
+    # Check if sender is blocked
+    account = Account.objects.filter(platform=platform, id=from_email).first()
+    if account and account.blocked:
+        # For blocked accounts, we just mark as opened but don't save
+        return None
+
     # headers
     hdr_id        = msg.get('Message-ID')            # primary key
     hdr_in_reply  = msg.get('In-Reply-To')           # parent Message-ID

@@ -109,7 +109,12 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
             text = f"[[[[Unknown Message Type! {message_data.get('type')} Message]]]]"
         timestamp = datetime.fromtimestamp(int(message_data.get('timestamp'))) if 'timestamp' in message_data else None
         chat = Chat.objects.filter(platform=platform, id=chat_id)
-        account = Account.objects.filter(platform=platform, id=sender_id)
+        
+        # Check if account exists and is blocked
+        account = Account.objects.filter(platform=platform, id=sender_id).first()
+        if account and account.blocked:
+            continue  # Skip this message if account is blocked
+            
         if not chat.exists():
             chat = Chat(platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)
             chat.save()
@@ -118,7 +123,7 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
             if sender_name != chat.name and not is_outgoing:
                 chat.name = sender_name
                 chat.save()
-        if not account.exists():
+        if not account:
             account = Account(
                 platform=platform,
                 id=sender_id,
@@ -127,8 +132,6 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
                 raw=messages_data.get('contacts')[0]
             )
             account.save()
-        else:
-            account = account.get()
         account_chat = AccountChat.objects.filter(account=account, chat=chat)
         if not account_chat.exists():
             account_chat = AccountChat(

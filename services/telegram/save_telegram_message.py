@@ -16,6 +16,12 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     sender_id = message_data.get('from')['id']
     sender_name = message_data.get('from')['first_name']
     is_outgoing = message_data.get('from')['is_bot']  # Keep is_bot in message_data for backwards compatibility
+    
+    # Check if account exists and is blocked
+    account = Account.objects.filter(platform=platform, id=sender_id).first()
+    if account and account.blocked:
+        return None  # Don't save message if account is blocked
+        
     chat_id = message_data.get('chat')['id']
     chat_is_private = message_data.get('chat')["type"] == "private"
     chat_name = sender_name if chat_is_private else message_data.get('chat')["title"]
@@ -82,13 +88,12 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
         text = "[[[[Unknown User Action!]]]]"
     timestamp = datetime.fromtimestamp(message_data.get('date'))
     chat = Chat.objects.filter(platform='Telegram', id=chat_id)
-    account = Account.objects.filter(platform='Telegram', id=sender_id)
     if not chat.exists():
         chat = Chat(channel=channel, platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)
         chat.save()
     else:
         chat = chat.get()
-    if not account.exists():
+    if not account:
         account = Account(
             channel=channel,
             platform=platform,
@@ -98,8 +103,6 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
             raw=message_data.get('from')
         )
         account.save()
-    else:
-        account = account.get()
     account_chat = AccountChat.objects.filter(account=account, chat=chat)
     if not account_chat.exists():
         account_chat = AccountChat(
