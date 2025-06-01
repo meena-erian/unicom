@@ -29,7 +29,18 @@ def listen_to_IMAP(channel):
             with IMAPClient(host, port=port, ssl=use_ssl) as server:
                 server.login(email_address, password)
                 server.select_folder('INBOX')
-                caps = server.capabilities()
+                # caps = server.capabilities()
+                # Immediately fetch any older unseen messages on startup
+                uids = server.search(['UNSEEN'])
+                for uid in uids:
+                    try:
+                        resp = server.fetch(uid, ['BODY.PEEK[]'])
+                        raw = resp[uid][b'BODY[]']
+                        msg = save_email_message(channel, raw)
+                        print(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
+                    except Exception as e:
+                        print(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
+
                 logger.info(f"Channel {channel.pk}: Connected to {host}:{port}, entering IDLE…")
 
                 while True:
