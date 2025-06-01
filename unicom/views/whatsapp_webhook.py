@@ -38,6 +38,9 @@ def whatsapp_webhook(request):
                         with transaction.atomic():
                             msg = save_whatsapp_message(change_value)
                             update.message = msg
+                            # Mark update as from blocked account if no message was saved
+                            if msg is None:
+                                update.from_blocked_account = True
                             update.save()
                     if "statuses" in change_value:
                         with transaction.atomic():

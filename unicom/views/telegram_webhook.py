@@ -49,6 +49,9 @@ def telegram_webhook(request, bot_id: int):
         with transaction.atomic():
             msg = save_telegram_message(channel, data_dict['message'])
             update.message = msg
+            # Mark update as from blocked account if no message was saved
+            if msg is None:
+                update.from_blocked_account = True
             update.save()
         return HttpResponse('Message received and saved.', status=200)
 
