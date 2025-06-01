@@ -22,16 +22,22 @@ class Chat(models.Model):
         Send a message to this chat using the channel's platform.
         The msg_dict must include at least the text or media to send.
         
-        For email channels, this will find the last incoming message and reply to it,
-        ensuring proper email threading and recipient handling.
-        For other platforms (Telegram, WhatsApp), it sends the message directly to the chat.
+        If reply_to_message_id is provided in msg_dict, it will reply to that specific message.
+        For email channels without a specific reply_to_message_id, this will find the last incoming 
+        message and reply to it, ensuring proper email threading.
         """
         if not self.channel.active:
             raise ValueError("Channel must be active to send messages.")
         
         try:
-            if self.platform == 'Email':
-                # For email, find the last incoming message and reply to it
+            # If replying to a specific message
+            if reply_to_id := msg_dict.pop('reply_to_message_id', None):
+                from unicom.models import Message
+                reply_to_message = Message.objects.get(id=reply_to_id, chat=self)
+                return reply_to_message.reply_with(msg_dict)
+            
+            # Default behavior for email - reply to last incoming message
+            elif self.platform == 'Email':
                 last_incoming = self.messages.filter(
                     is_outgoing=False
                 ).order_by('-timestamp').first()
@@ -39,10 +45,10 @@ class Chat(models.Model):
                 if not last_incoming:
                     raise ValidationError("No incoming messages found in this email chat to reply to")
                 
-                # Use Message.reply_with which handles all email threading and recipient logic
                 return last_incoming.reply_with(msg_dict)
+            
+            # For other platforms without specific reply
             else:
-                # For other platforms, just send to the chat directly
                 from unicom.services.crossplatform.send_message import send_message
                 return send_message(self.channel, {**msg_dict, "chat_id": self.id}, user)
                 
