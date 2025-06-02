@@ -20,13 +20,17 @@ def chat_history_view(request, chat_id):
 
         if message_type == 'email':
             message_html = request.POST.get('message_html', '').strip()
+            # Only use custom subject if it was actually modified
             subject = request.POST.get('subject', '').strip()
+            original_subject = request.POST.get('original_subject', '').strip()
             
-            if message_html and subject:
+            if message_html:
                 msg_dict = {
                     'html': message_html,
-                    'subject': subject,
                 }
+                # Only include subject if it differs from the original
+                if subject and subject != original_subject:
+                    msg_dict['subject'] = subject
         else:
             message_text = request.POST.get('message_text', '').strip()
             if message_text:
