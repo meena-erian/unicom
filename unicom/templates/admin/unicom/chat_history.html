@@ -41,6 +41,11 @@
     display: flex;
     flex-direction: column;
     gap: 15px;
+    transition: margin-bottom 0.3s ease-in-out;
+  }
+
+  .chat-messages.with-form {
+    margin-bottom: 550px;
   }
 
   .message {
@@ -224,7 +229,7 @@
 
 {% block content %}
 <div class="chat-container">
-  <h1>Chat with: {{ chat.name }} ({{ chat.id }})</h1>
+  <h1>Chat with: {{ chat.name }}{% if chat.platform != 'Email' %} ({{ chat.id }}){% endif %}</h1>
   
   <div class="chat-messages">
     {% for message in chat_messages_list %}
@@ -387,6 +392,8 @@ function selectMessage(messageElement) {
     const container = document.querySelector('.selected-message-container');
     const content = document.querySelector('.selected-message-content');
     const replyInput = document.getElementById('reply_to_id');
+    const formContainer = document.querySelector('.email-form-container');
+    const chatMessages = document.querySelector('.chat-messages');
     
     // Clone the message content but remove the timestamp
     const messageClone = messageElement.cloneNode(true);
@@ -397,6 +404,8 @@ function selectMessage(messageElement) {
     content.innerHTML = messageClone.innerHTML;
     
     container.classList.add('visible');
+    formContainer.classList.add('visible');
+    chatMessages.classList.add('with-form');
     replyInput.value = messageElement.id.replace('message_', '');
 }
 
@@ -408,8 +417,12 @@ function clearSelection() {
     
     const container = document.querySelector('.selected-message-container');
     const replyInput = document.getElementById('reply_to_id');
+    const formContainer = document.querySelector('.email-form-container');
+    const chatMessages = document.querySelector('.chat-messages');
     
     container.classList.remove('visible');
+    formContainer.classList.remove('visible');
+    chatMessages.classList.remove('with-form');
     replyInput.value = '';
 }
 

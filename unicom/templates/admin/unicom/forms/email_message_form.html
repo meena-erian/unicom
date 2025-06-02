@@ -1,19 +1,46 @@
 {% load static %}
 <script src="https://cdn.tiny.cloud/1/47omvjk8csmi1w7xy7tew3vgivvfsut62b1zjsmm8p9ya95z/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-  tinymce.init({
-    selector: '#email-editor',
-    plugins: 'link image lists table code',
-    toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
-    height: 300,
-    menubar: false,
-    branding: false,
-    promotion: false,
-    setup: function(editor) {
-      editor.on('change', function() {
-        editor.save();
-      });
+  let editor = null;
+
+  function initEditor() {
+    if (editor) {
+      editor.remove();
     }
+    
+    editor = tinymce.init({
+      selector: '#email-editor',
+      plugins: 'link image lists table code',
+      toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
+      height: 400,
+      max_height: 400,
+      menubar: false,
+      branding: false,
+      promotion: false,
+      setup: function(editor) {
+        editor.on('change', function() {
+          editor.save();
+        });
+      }
+    });
+  }
+
+  // Initialize editor when form becomes visible
+  document.addEventListener('DOMContentLoaded', function() {
+    const formContainer = document.querySelector('.email-form-container');
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          if (formContainer.classList.contains('visible')) {
+            initEditor();
+          }
+        }
+      });
+    });
+
+    observer.observe(formContainer, {
+      attributes: true
+    });
   });
 </script>
 
@@ -32,7 +59,6 @@
       {% csrf_token %}
       <input type="hidden" name="reply_to_id" id="reply_to_id">
       <input type="hidden" name="message_type" value="email">
-      <input type="text" name="subject" placeholder="Subject" class="email-subject">
       <textarea id="email-editor" name="message_html"></textarea>
       <button type="submit" class="send-button">Send Email ➤</button>
     </form>
@@ -41,7 +67,25 @@
 
 <style>
 .email-form-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--form-bg);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 550px;
   padding-bottom: 20px;
+  transform: translateY(100%);
+  transition: transform 0.3s ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.email-form-container.visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: all;
 }
 
 .email-form {
@@ -50,14 +94,12 @@
   gap: 10px;
 }
 
-.email-subject {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 1em;
-}
-
 .tox-tinymce {
   border-radius: 4px !important;
+  max-height: 250px !important;
+}
+
+.selected-message-container {
+  display: block;
 }
 </style> 
