@@ -133,6 +133,7 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
             'user': user,
             'text': text,
             'media_type': m_type,
+            'reply_to_message': reply_to_message,
             'chat': chat,
             'is_outgoing': is_outgoing,
             'timestamp': timestamp,
