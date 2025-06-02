@@ -433,11 +433,15 @@ function selectMessage(messageElement) {
     const chatMessages = document.querySelector('.chat-messages');
     
     if (container && content && replyInput && formContainer && chatMessages) {
-        // Clone the message content but remove the timestamp
+        // Clone the message content but remove the timestamp and reply-to section
         const messageClone = messageElement.cloneNode(true);
         const timestamp = messageClone.querySelector('.timestamp');
+        const replyTo = messageClone.querySelector('.reply-to');
         if (timestamp) {
             timestamp.remove();
+        }
+        if (replyTo) {
+            replyTo.parentElement.remove(); // Remove the anchor tag containing reply-to
         }
         content.innerHTML = messageClone.innerHTML;
         
