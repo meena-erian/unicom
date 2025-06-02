@@ -346,6 +346,10 @@ let isScrolling = false;
 let touchStartTime = 0;
 
 function handleTouchStart(e) {
+    // Ignore touch events on reply-to links
+    if (e.target.closest('.reply-to')) {
+        return;
+    }
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     touchStartTime = Date.now();
@@ -353,6 +357,10 @@ function handleTouchStart(e) {
 }
 
 function handleTouchMove(e) {
+    // Ignore touch events on reply-to links
+    if (e.target.closest('.reply-to')) {
+        return;
+    }
     if (e.touches.length > 1) {
         // Ignore multi-touch gestures
         return;
@@ -376,6 +384,10 @@ function handleTouchMove(e) {
 }
 
 function handleTouchEnd(e) {
+    // Ignore touch events on reply-to links
+    if (e.target.closest('.reply-to')) {
+        return;
+    }
     const touchDuration = Date.now() - touchStartTime;
     const diffX = touchEndX - touchStartX;
     const diffY = Math.abs(touchEndY - touchStartY);
@@ -394,6 +406,14 @@ function handleTouchEnd(e) {
         touchDuration < 500) {
         selectMessage(e.currentTarget);
     }
+}
+
+function handleClick(e) {
+    // Ignore clicks on reply-to links
+    if (e.target.closest('.reply-to')) {
+        return;
+    }
+    selectMessage(e.currentTarget);
 }
 
 function selectMessage(messageElement) {
@@ -452,7 +472,14 @@ document.querySelectorAll('.message').forEach(message => {
     message.addEventListener('touchstart', handleTouchStart);
     message.addEventListener('touchmove', handleTouchMove);
     message.addEventListener('touchend', handleTouchEnd);
-    message.addEventListener('click', () => selectMessage(message));
+    message.addEventListener('click', handleClick);
+});
+
+// Add event listeners for reply-to links to prevent event bubbling
+document.querySelectorAll('.reply-to').forEach(replyTo => {
+    replyTo.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
 });
 
 document.querySelector('.clear-selection').addEventListener('click', clearSelection);
