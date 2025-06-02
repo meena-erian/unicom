@@ -14,11 +14,25 @@ def chat_history_view(request, chat_id):
     )[::-1]
 
     if request.method == 'POST':
-        message_text = request.POST.get('message_text', '')
+        message_type = request.POST.get('message_type', 'text')
         reply_to_id = request.POST.get('reply_to_id')
-        
-        if message_text.strip():
-            msg_dict = {'text': message_text}
+        msg_dict = {}
+
+        if message_type == 'email':
+            message_html = request.POST.get('message_html', '').strip()
+            subject = request.POST.get('subject', '').strip()
+            
+            if message_html and subject:
+                msg_dict = {
+                    'html': message_html,
+                    'subject': subject,
+                }
+        else:
+            message_text = request.POST.get('message_text', '').strip()
+            if message_text:
+                msg_dict = {'text': message_text}
+
+        if msg_dict:
             if reply_to_id:
                 msg_dict['reply_to_message_id'] = reply_to_id
                 

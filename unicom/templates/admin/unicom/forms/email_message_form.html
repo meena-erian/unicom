@@ -1,0 +1,63 @@
+{% load static %}
+<script src="https://cdn.tiny.cloud/1/47omvjk8csmi1w7xy7tew3vgivvfsut62b1zjsmm8p9ya95z/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+  tinymce.init({
+    selector: '#email-editor',
+    plugins: 'link image lists table code',
+    toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
+    height: 300,
+    menubar: false,
+    branding: false,
+    promotion: false,
+    setup: function(editor) {
+      editor.on('change', function() {
+        editor.save();
+      });
+    }
+  });
+</script>
+
+<div class="form-container email-form-container">
+  <div class="form-inner">
+    <div class="selected-message-container">
+      <div class="selected-message-header">
+        <span class="reply-icon">↩</span>
+        <span>Replying to message</span>
+        <button type="button" class="clear-selection">✕</button>
+      </div>
+      <div class="selected-message-content"></div>
+    </div>
+
+    <form method="post" action="" class="chat-form email-form">
+      {% csrf_token %}
+      <input type="hidden" name="reply_to_id" id="reply_to_id">
+      <input type="hidden" name="message_type" value="email">
+      <input type="text" name="subject" placeholder="Subject" class="email-subject">
+      <textarea id="email-editor" name="message_html"></textarea>
+      <button type="submit" class="send-button">Send Email ➤</button>
+    </form>
+  </div>
+</div>
+
+<style>
+.email-form-container {
+  padding-bottom: 20px;
+}
+
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.email-subject {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.tox-tinymce {
+  border-radius: 4px !important;
+}
+</style> 
