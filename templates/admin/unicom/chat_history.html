@@ -25,6 +25,71 @@
     --form-bg: #1a1a1a;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @keyframes highlight-target {
+    0%, 35% {
+      background-color: color-mix(in srgb, var(--link-hover-color) 50%, var(--message-bg-bot));
+    }
+    100% {
+      background-color: var(--message-bg-bot);
+    }
+  }
+
+  @keyframes highlight-target-user {
+    0%, 35% {
+      background-color: color-mix(in srgb, var(--link-hover-color) 50%, var(--message-bg-user));
+    }
+    100% {
+      background-color: var(--message-bg-user);
+    }
+  }
+
+  @keyframes highlight-target-triangle-bot {
+    0%, 35% {
+      border-left-color: color-mix(in srgb, var(--link-hover-color) 50%, var(--message-bg-bot));
+    }
+    100% {
+      border-left-color: var(--message-bg-bot);
+    }
+  }
+
+  @keyframes highlight-target-triangle-user {
+    0%, 35% {
+      border-right-color: color-mix(in srgb, var(--link-hover-color) 50%, var(--message-bg-user));
+    }
+    100% {
+      border-right-color: var(--message-bg-user);
+    }
+  }
+
+  :target.message-bot {
+    animation: highlight-target 2s ease;
+  }
+
+  :target.message-bot::after {
+    animation: highlight-target-triangle-bot 2s ease;
+  }
+
+  :target.message-user {
+    animation: highlight-target-user 2s ease;
+  }
+
+  :target.message-user::after {
+    animation: highlight-target-triangle-user 2s ease;
+  }
+
+  /* Make the animation replayable when clicking the same link multiple times */
+  @keyframes highlight-target-reset {
+    0% { }
+  }
+
+  .message a[href^="#"]:active + :target {
+    animation: highlight-target-reset 0s;
+  }
+
   body {
     background-color: var(--body-bg);
     color: var(--body-fg);
