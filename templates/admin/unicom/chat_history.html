@@ -409,21 +409,23 @@ function selectMessage(messageElement) {
     const container = document.querySelector('.selected-message-container');
     const content = document.querySelector('.selected-message-content');
     const replyInput = document.getElementById('reply_to_id');
-    const formContainer = document.querySelector('.email-form-container');
+    const formContainer = document.querySelector('.form-container');
     const chatMessages = document.querySelector('.chat-messages');
     
-    // Clone the message content but remove the timestamp
-    const messageClone = messageElement.cloneNode(true);
-    const timestamp = messageClone.querySelector('.timestamp');
-    if (timestamp) {
-        timestamp.remove();
+    if (container && content && replyInput && formContainer && chatMessages) {
+        // Clone the message content but remove the timestamp
+        const messageClone = messageElement.cloneNode(true);
+        const timestamp = messageClone.querySelector('.timestamp');
+        if (timestamp) {
+            timestamp.remove();
+        }
+        content.innerHTML = messageClone.innerHTML;
+        
+        container.classList.add('visible');
+        formContainer.classList.add('visible');
+        chatMessages.classList.add('with-form');
+        replyInput.value = messageElement.id.replace('message_', '');
     }
-    content.innerHTML = messageClone.innerHTML;
-    
-    container.classList.add('visible');
-    formContainer.classList.add('visible');
-    chatMessages.classList.add('with-form');
-    replyInput.value = messageElement.id.replace('message_', '');
 }
 
 function clearSelection() {
@@ -434,13 +436,15 @@ function clearSelection() {
     
     const container = document.querySelector('.selected-message-container');
     const replyInput = document.getElementById('reply_to_id');
-    const formContainer = document.querySelector('.email-form-container');
+    const formContainer = document.querySelector('.form-container');
     const chatMessages = document.querySelector('.chat-messages');
     
-    container.classList.remove('visible');
-    formContainer.classList.remove('visible');
-    chatMessages.classList.remove('with-form');
-    replyInput.value = '';
+    if (container && replyInput && formContainer && chatMessages) {
+        container.classList.remove('visible');
+        formContainer.classList.remove('visible');
+        chatMessages.classList.remove('with-form');
+        replyInput.value = '';
+    }
 }
 
 // Add event listeners
