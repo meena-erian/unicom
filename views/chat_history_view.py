@@ -1,5 +1,6 @@
 from django.http import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
+from django.conf import settings
 from unicom.models import Message, Chat
 from django.contrib.auth.decorators import login_required
 
@@ -43,8 +44,14 @@ def chat_history_view(request, chat_id):
             chat.send_message(msg_dict, user=request.user)
             return HttpResponseRedirect(request.path_info)
 
-    return render(request, 'admin/unicom/chat_history.html', {
-        'chat': chat,
-        'chat_messages_list': message_list,
-        'without_messages': True  # This will be used to suppress the toast
-    })
+    return render(
+        request,
+        'admin/unicom/chat_history.html',
+        {
+            'chat': chat,
+            'chat_messages_list': message_list,
+            'without_messages': True,  # This will be used to suppress the toast
+            # Expose TinyMCE Cloud API key (if set) for the email composer template
+            'tinymce_api_key': getattr(settings, 'UNICOM_TINYMCE_API_KEY', ''),
+        },
+    )
