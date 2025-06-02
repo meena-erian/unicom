@@ -224,6 +224,23 @@
       max-width: 90%;
     }
   }
+
+  .message-content table,
+  .message-content tr,
+  .message-content td,
+  .message-content th,
+  .message-content tbody,
+  .message-content thead,
+  .message-content tfoot {
+    all: unset;
+    display: revert;
+  }
+
+  /* Optionally, re-apply only the most basic table layout styles */
+  .message-content table {
+    border-collapse: collapse;
+    width: auto;
+  }
 </style>
 {% endblock %}
 
