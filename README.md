@@ -47,6 +47,20 @@
    DJANGO_PUBLIC_ORIGIN=https://yourdomain.com
    ```
 
+5. *(Optional, but recommended)* **Set your TinyMCE Cloud API key** — required if you plan to compose **Email** messages from the Django admin UI.
+
+   Obtain a free key at <https://www.tiny.cloud>, then add it to your `settings.py`:
+
+   ```python
+   UNICOM_TINYMCE_API_KEY = "your-tinymce-api-key"
+   ```
+
+   Or via environment variable:
+
+   ```env
+   UNICOM_TINYMCE_API_KEY=your-tinymce-api-key
+   ```
+
 That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL.
 
 ---
@@ -75,6 +89,8 @@ We ❤️ contributors!
    POSTGRES_USER=unicom
    POSTGRES_PASSWORD=unicom
    DJANGO_PUBLIC_ORIGIN=https://yourdomain.com
+   # Needed if you want to use the rich-text email composer in the admin
+   UNICOM_TINYMCE_API_KEY=your-tinymce-api-key
    ```
 
 3. Start the dev environment:

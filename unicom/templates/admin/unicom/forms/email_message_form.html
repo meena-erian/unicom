@@ -1,5 +1,10 @@
 {% load static %}
-<script src="https://cdn.tiny.cloud/1/47omvjk8csmi1w7xy7tew3vgivvfsut62b1zjsmm8p9ya95z/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% if tinymce_api_key %}
+  <script src="https://cdn.tiny.cloud/1/{{ tinymce_api_key }}/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% else %}
+  {# Fallback to TinyMCE's limited no-api-key usage #}
+  <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% endif %}
 <script>
   let editor = null;
 

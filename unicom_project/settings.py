@@ -24,6 +24,9 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / 'db.env', overr
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+UNICOM_TINYMCE_API_KEY = "47omvjk8csmi1w7xy7tew3vgivvfsut62b1zjsmm8p9ya95z"
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
