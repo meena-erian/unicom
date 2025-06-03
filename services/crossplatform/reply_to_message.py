@@ -64,7 +64,6 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
         }, source_function_call=source_function_call)
     elif platform == 'Email':
         return send_email_message(channel, {
-            'chat_id'             : message.sender_id,
             'reply_to_message_id' : message.id,
             'text'                : response.get('text', None),
             'html'                : response.get('html', None),

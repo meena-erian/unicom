@@ -37,16 +37,56 @@ def convert_text_to_html(text: str) -> str:
 
 def send_email_message(channel: Channel, params: dict, user: User=None):
     """
-    params keys:
-      - chat_id              : recipient email address (string)
-      - reply_to_message_id  : original Message-ID header (string)
-      - text                 : plain-text body
-      - html                 : (optional) HTML body
-      - cc, bcc              : lists of email strings
-      - attachments          : list of local file paths
-      - subject              : optional override for subject
+    Compose, send and save an email using the SMTP/IMAP credentials
+    configured on ``channel``.
+
+    The function handles both new email threads and replies:
+    
+    For new threads:
+        - Must provide 'to' list with at least one recipient
+        - A new Chat will be created with the sent email's Message-ID
+    
+    For replies (either option):
+        - Option 1: Provide 'chat_id' of an existing email thread
+          The last message in the chat will be used as reference
+        - Option 2: Provide 'reply_to_message_id' of a specific message
+          The referenced message will be used directly
+        - Recipients are derived from the original thread unless overridden
+
+    Parameters
+    ----------
+    channel : unicom.models.Channel
+        Channel whose ``config`` dictionary supplies ``EMAIL_ADDRESS``,
+        ``EMAIL_PASSWORD``, ``SMTP`` and ``IMAP`` settings.
+    params : dict
+        to       (list[str], required for new threads) – primary recipient addresses
+        chat_id  (str, optional) – ID of existing email thread to reply to
+        reply_to_message_id (str, optional) – specific message ID to reply to
+        text     (str, optional) – plain-text body
+        html     (str, optional) – HTML body. If omitted but *text* is
+                                   supplied, it is generated automatically
+        subject  (str, optional) – explicit subject; if missing and
+                                   replying, a "Re: …" subject is derived 
+                                   from the parent message
+        cc, bcc (list[str], optional) – additional recipient addresses
+        attachments (list[str], optional) – absolute paths of files to attach
+    user : django.contrib.auth.models.User, optional
+        User responsible for the action
+
+    Returns
+    -------
+    unicom.models.Message
+        The persisted database record representing the sent email.
+
+    Raises
+    ------
+    ValueError
+        - If neither 'to' (new thread) nor 'chat_id'/'reply_to_message_id' (reply) is provided
+        - If chat_id is provided but chat doesn't exist or has no messages
+        - If reply_to_message_id is provided but message doesn't exist
     """
     Message = apps.get_model('unicom', 'Message')
+    Chat = apps.get_model('unicom', 'Chat')
     from_addr = channel.config['EMAIL_ADDRESS']
     smtp_conf = channel.config['SMTP']
     connection = get_connection(
@@ -56,9 +96,50 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         password=channel.config['EMAIL_PASSWORD'],
         use_ssl=smtp_conf['use_ssl'],
     )
-    to_addrs  = [params['chat_id']]
-    cc_addrs  = params.get('cc', [])
-    bcc_addrs = params.get('bcc', [])
+
+    # Determine message context (new thread vs reply)
+    chat_id = params.get('chat_id')
+    reply_to_id = params.get('reply_to_message_id')
+    to_addrs = params.get('to', [])
+    parent = None
+    
+    # Case 1: Reply to specific message
+    if reply_to_id:
+        parent = Message.objects.get(id=reply_to_id)
+        if not parent:
+            raise ValueError(f"Reply-to message not found: {reply_to_id}")
+        
+    # Case 2: Reply in chat thread
+    elif chat_id:
+        chat = Chat.objects.get(id=chat_id)
+        if not chat:
+            raise ValueError(f"Email chat not found: {chat_id}")
+            
+        parent = chat.messages.filter(
+            is_outgoing=False
+        ).order_by('-timestamp').first()
+        
+        if not parent:
+            parent = chat.messages.filter(
+                is_outgoing=True
+            ).order_by('-timestamp').first()
+            if not parent:
+                raise ValueError(f"No messages found in chat {chat_id} to reply to")
+            
+    # Case 3: New thread
+    elif to_addrs:
+        cc_addrs = params.get('cc', [])
+        bcc_addrs = params.get('bcc', [])
+    else:
+        raise ValueError("Must provide either 'to' addresses for new thread, or 'chat_id'/'reply_to_message_id' for reply")
+
+    # If this is a reply, use parent message for threading and recipients
+    if parent:
+        # Use original recipients if not explicitly overridden
+        to_addrs = to_addrs or parent.to
+        cc_addrs = params.get('cc', parent.cc)
+        bcc_addrs = params.get('bcc', parent.bcc)
+        reply_to_id = parent.id  # Ensure we have the message ID for threading
 
     logger.info(f"Preparing to send email: to={to_addrs}, cc={cc_addrs}, bcc={bcc_addrs}")
 

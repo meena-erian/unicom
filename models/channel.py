@@ -25,7 +25,13 @@ class Channel(models.Model):
     def send_message(self, msg: dict, user=None) -> Message:
         """
         Send a message using the channel's platform.
-        The msg dict must include at least the chat_id and text.
+        
+        For email channels:
+            - New threads require 'to' list with at least one recipient
+            - Replies require 'reply_to_message_id' or 'chat_id'
+        
+        For other platforms:
+            - Requires 'chat_id' and 'text'
         """
         if not self.active:
             raise ValidationError("Channel must be active to send messages.")
