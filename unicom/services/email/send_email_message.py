@@ -7,6 +7,7 @@ from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img
 from unicom.services.email.save_email_message import save_email_message
 from unicom.services.email.email_tracking import prepare_email_for_tracking
+from unicom.services.get_public_origin import get_public_domain
 from django.apps import apps
 import logging
 from email.utils import make_msgid
@@ -44,6 +45,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     
     For new threads:
         - Must provide 'to' list with at least one recipient
+        - Must provide 'subject' for the email
         - A new Chat will be created with the sent email's Message-ID
     
     For replies (either option):
@@ -52,6 +54,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         - Option 2: Provide 'reply_to_message_id' of a specific message
           The referenced message will be used directly
         - Recipients are derived from the original thread unless overridden
+        - Subject is derived from parent message if not provided
 
     Parameters
     ----------
@@ -60,14 +63,12 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         ``EMAIL_PASSWORD``, ``SMTP`` and ``IMAP`` settings.
     params : dict
         to       (list[str], required for new threads) – primary recipient addresses
+        subject  (str, required for new threads) – subject line for new threads
         chat_id  (str, optional) – ID of existing email thread to reply to
         reply_to_message_id (str, optional) – specific message ID to reply to
         text     (str, optional) – plain-text body
         html     (str, optional) – HTML body. If omitted but *text* is
                                    supplied, it is generated automatically
-        subject  (str, optional) – explicit subject; if missing and
-                                   replying, a "Re: …" subject is derived 
-                                   from the parent message
         cc, bcc (list[str], optional) – additional recipient addresses
         attachments (list[str], optional) – absolute paths of files to attach
     user : django.contrib.auth.models.User, optional
@@ -84,6 +85,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         - If neither 'to' (new thread) nor 'chat_id'/'reply_to_message_id' (reply) is provided
         - If chat_id is provided but chat doesn't exist or has no messages
         - If reply_to_message_id is provided but message doesn't exist
+        - If starting a new thread without a subject
     """
     Message = apps.get_model('unicom', 'Message')
     Chat = apps.get_model('unicom', 'Chat')
@@ -128,6 +130,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
             
     # Case 3: New thread
     elif to_addrs:
+        # Validate subject is provided for new threads
+        if not params.get('subject'):
+            raise ValueError("Subject is required when starting a new email thread")
         cc_addrs = params.get('cc', [])
         bcc_addrs = params.get('bcc', [])
     else:
@@ -159,7 +164,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
             logger.warning(f"Reply-to message not found: {params['reply_to_message_id']}")
 
     # Generate a message ID and tracking ID before constructing the message
-    message_id = make_msgid(domain="insightifyr.portacode.com")
+    message_id = make_msgid(domain=get_public_domain())
     tracking_id = uuid.uuid4()
     logger.info(f"Generated Message-ID: {message_id}, Tracking-ID: {tracking_id}")
 

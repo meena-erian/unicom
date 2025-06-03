@@ -11,7 +11,18 @@ if TYPE_CHECKING:
 
 def send_message(channel: Channel, msg:dict, user:User=None) -> Message:
     """
-    The msg dict must include at least the chat_id, and text
+    The msg dict must include platform-specific required fields:
+
+    For Email:
+        New threads:
+            - 'to': list of recipient email addresses
+            - 'subject': required subject line
+        Replies:
+            - Either 'chat_id' or 'reply_to_message_id'
+            - Subject is optional (derived from parent if not provided)
+    
+    For Telegram/WhatsApp:
+        - 'chat_id' and 'text' are required
     """
     if channel.platform == 'Telegram':
         return send_telegram_message(channel, msg, user)

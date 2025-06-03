@@ -27,8 +27,12 @@ class Channel(models.Model):
         Send a message using the channel's platform.
         
         For email channels:
-            - New threads require 'to' list with at least one recipient
-            - Replies require 'reply_to_message_id' or 'chat_id'
+            - New threads require:
+                - 'to' list with at least one recipient
+                - 'subject' for the email thread
+            - Replies require:
+                - Either 'reply_to_message_id' or 'chat_id'
+                - Subject is optional (derived from parent if not provided)
         
         For other platforms:
             - Requires 'chat_id' and 'text'
