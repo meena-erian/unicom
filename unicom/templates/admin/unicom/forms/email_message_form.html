@@ -74,7 +74,8 @@
     UnicomTinyMCE.init('#email-editor', {
       setup: function (ed) {
         emailEditor = ed;
-      }
+      },
+      channel_id: '{{ channel_id }}'  // Use the channel_id passed from the view
     });
   }
 

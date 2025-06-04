@@ -260,6 +260,7 @@ function prefillFromUrl() {
 }
 
 function initEditor() {
+    const channelId = document.getElementById('channel').value;
     UnicomTinyMCE.init('#email-body', {
         setup: function (ed) {
             editor = ed;
@@ -268,7 +269,8 @@ function initEditor() {
             if (params.html) {
                 ed.setContent(decodeURIComponent(params.html));
             }
-        }
+        },
+        channel_id: channelId || null
     });
 }
 
@@ -347,6 +349,11 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleRequiredFields(platform);
         
         if (showEmail) {
+            // Remove existing editor if any
+            if (editor) {
+                editor.remove();
+                editor = null;
+            }
             initEditor();
         }
         
