@@ -44,6 +44,22 @@ def chat_history_view(request, chat_id):
             chat.send_message(msg_dict, user=request.user)
             return HttpResponseRedirect(request.path_info)
 
+    # Additional context for email chats
+    last_message = message_list[-1] if message_list else None
+    show_recipients = False
+
+    if chat.platform == 'Email' and last_message:
+        # Determine whether to render recipient headers.
+        recipients_set = set((last_message.to or []) + (last_message.cc or []) + (last_message.bcc or []))
+        # Show only if more than one unique recipient (excluding empties)
+        if len(recipients_set) > 1:
+            show_recipients = True
+
+    # Determine subject line to display (primarily for email threads)
+    subject_line = chat.name
+    if chat.platform == 'Email' and last_message and last_message.subject:
+        subject_line = last_message.subject
+
     return render(
         request,
         'admin/unicom/chat_history.html',
@@ -53,5 +69,8 @@ def chat_history_view(request, chat_id):
             'without_messages': True,  # This will be used to suppress the toast
             # Expose TinyMCE Cloud API key (if set) for the email composer template
             'tinymce_api_key': getattr(settings, 'UNICOM_TINYMCE_API_KEY', ''),
+            'last_message': last_message,
+            'show_recipients': show_recipients,
+            'subject_line': subject_line,
         },
     )
