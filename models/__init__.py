@@ -8,6 +8,7 @@ from .member import Member
 from .member_group import MemberGroup
 from .request_category import RequestCategory
 from .request import Request
+from .message_template import MessageTemplate
 
 __all__ = [
     'AccountChat',
@@ -19,5 +20,6 @@ __all__ = [
     'Request',
     'RequestCategory',
     'Member',
-    'MemberGroup'
+    'MemberGroup',
+    'MessageTemplate'
 ]

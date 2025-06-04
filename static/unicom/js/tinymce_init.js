@@ -16,13 +16,14 @@
     }
 
     const DEFAULT_CONFIG = {
-        plugins: 'link image lists table code',
-        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
+        plugins: 'link image lists table code template',
+        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | template',
+        menubar: 'file edit view insert format tools table',
         height: 400,
         max_height: 400,
-        menubar: false,
         branding: false,
         promotion: false,
+        templates: '/unicom/api/message-templates/',
         /*
          * We will attach a default setup that triggers save on change so that the underlying
          * <textarea> is always kept in sync.
@@ -95,8 +96,32 @@
         });
     }
 
+    // Auto-initialize TinyMCE on elements with data-tinymce attribute
+    function initializeAll() {
+        const elements = document.querySelectorAll('textarea[data-tinymce]');
+        elements.forEach(function(element) {
+            init('#' + element.id);
+        });
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeAll);
+    } else {
+        initializeAll();
+    }
+
+    // Re-initialize when Django's admin adds a new inline form
+    document.addEventListener('formset:added', function(e) {
+        const elements = e.target.querySelectorAll('textarea[data-tinymce]');
+        elements.forEach(function(element) {
+            init('#' + element.id);
+        });
+    });
+
     global.UnicomTinyMCE = {
         init: init,
-        defaultConfig: DEFAULT_CONFIG
+        defaultConfig: DEFAULT_CONFIG,
+        initializeAll: initializeAll
     };
 })(window); 

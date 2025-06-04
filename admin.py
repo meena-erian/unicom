@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from unicom.models import Message, Update, Chat, Account, AccountChat, Channel
 from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
@@ -11,7 +12,10 @@ from .models import (
     MemberGroup,
     RequestCategory,
     Request,
+    MessageTemplate,
 )
+from django import forms
+from django.conf import settings
 
 
 class ChatAdmin(admin.ModelAdmin):
@@ -210,6 +214,51 @@ class RequestAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+@admin.register(MessageTemplate)
+class MessageTemplateAdmin(admin.ModelAdmin):
+    list_display = ('title', 'category', 'created_at', 'updated_at')
+    list_filter = ('category', 'channels')
+    search_fields = ('title', 'description', 'content')
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('channels',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('title', 'category')
+        }),
+        (_('Template Content'), {
+            'fields': ('description', 'content'),
+            'classes': ('tinymce-content',),
+        }),
+        (_('Availability'), {
+            'fields': ('channels',),
+        }),
+        (_('Metadata'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Add TinyMCE API key to the form's Media
+        form.Media = type('Media', (), {
+            'css': {'all': ('admin/css/forms.css',)},
+            'js': (
+                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
+                'unicom/js/tinymce_init.js',
+            )
+        })
+        return form
+
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'content':
+            kwargs['widget'] = forms.Textarea(attrs={
+                'class': 'tinymce',
+                'data-tinymce': 'true'
+            })
+        return super().formfield_for_dbfield(db_field, **kwargs)
 
 admin.site.register(Channel, ChannelAdmin)
 admin.site.register(Message)
