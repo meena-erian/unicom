@@ -197,6 +197,7 @@ textarea:not(:placeholder-shown):valid {
   {# Fallback to TinyMCE's limited no-api-key usage #}
   <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 {% endif %}
+<script src="{% static 'unicom/js/tinymce_init.js' %}"></script>
 
 <script>
 let editor = null;
@@ -259,22 +260,9 @@ function prefillFromUrl() {
 }
 
 function initEditor() {
-    if (editor) {
-        editor.remove();
-    }
-    
-    tinymce.init({
-        selector: '#email-body',
-        plugins: 'link image lists table code',
-        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
-        height: 400,
-        max_height: 400,
-        menubar: false,
-        branding: false,
-        promotion: false,
-        setup: function(ed) {
+    UnicomTinyMCE.init('#email-body', {
+        setup: function (ed) {
             editor = ed;
-            
             // If there's HTML content in URL params, set it after editor is ready
             const params = getUrlParams();
             if (params.html) {
