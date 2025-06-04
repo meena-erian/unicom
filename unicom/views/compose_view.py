@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.conf import settings
 from unicom.models import Channel
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 
 @staff_member_required
@@ -65,9 +66,13 @@ def compose_view(request):
                 raise ValidationError(f"Unsupported platform: {channel.platform}")
             
             # Send the message
-            channel.send_message(msg_params, request.user)
+            message = channel.send_message(msg_params, request.user)
             messages.success(request, 'Message sent successfully!')
-            return redirect('admin:unicom_chat_changelist')
+            
+            # Redirect to the chat history page
+            return redirect(
+                reverse('admin:chat-detail', args=[message.chat.id])
+            )
             
         except Channel.DoesNotExist:
             messages.error(request, 'Invalid channel selected.')
