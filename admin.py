@@ -19,12 +19,94 @@ from django.conf import settings
 
 
 class ChatAdmin(admin.ModelAdmin):
-    list_filter = ('platform', 'is_private')
-    list_display = ('id', 'name', 'view_chat_link')
-    search_fields = ('id', 'name') 
+    list_filter = ('platform', 'is_private', 'channel')
+    list_display = ('chat_info',)
+    search_fields = ('id', 'name', 'messages__text', 'messages__sender__name')
 
-    def view_chat_link(self, obj):
-        return format_html('<a href="{}" target="_blank">View Chat</a>', self.url_for_chat(obj.id))
+    class Media:
+        css = {
+            'all': ('admin/css/chat_list.css',)
+        }
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate the queryset with the last message information
+        return qs.annotate(
+            last_message_time=models.Max('messages__timestamp'),
+            last_message_text=models.Subquery(
+                Message.objects.filter(chat=models.OuterRef('pk'))
+                .order_by('-timestamp')
+                .values('text')[:1]
+            )
+        ).order_by('-last_message_time')
+
+    def chat_info(self, obj):
+        name = obj.name or obj.id
+        last_message = obj.last_message_text[:100] + '...' if obj.last_message_text and len(obj.last_message_text) > 100 else obj.last_message_text or 'No messages'
+        
+        return format_html('''
+            <a href="{}" class="chat-info-container">
+                <div class="chat-header">
+                    <span class="chat-name">{}</span>
+                </div>
+                <div class="chat-message">
+                    {}
+                </div>
+                <div class="chat-footer">
+                    <span class="chat-channel">{}</span>
+                    <span class="chat-time">{}</span>
+                </div>
+            </a>
+            <style>
+                .chat-info-container {{
+                    display: block;
+                    padding: 10px;
+                    text-decoration: none;
+                    color: var(--body-fg);
+                    border-radius: 4px;
+                    transition: background-color 0.2s;
+                }}
+                .chat-info-container:hover {{
+                    background-color: var(--darkened-bg);
+                }}
+                .chat-header {{
+                    margin-bottom: 5px;
+                }}
+                .chat-name {{
+                    font-weight: bold;
+                    font-size: 1.1em;
+                    color: var(--link-fg);
+                }}
+                .chat-message {{
+                    color: var(--body-fg);
+                    margin-bottom: 5px;
+                    font-size: 0.9em;
+                    opacity: 0.9;
+                }}
+                .chat-footer {{
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 0.8em;
+                    color: var(--body-quiet-color);
+                }}
+                .chat-channel {{
+                    background-color: var(--selected-row);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                }}
+                .chat-time {{
+                    color: var(--body-quiet-color);
+                }}
+            </style>
+        ''',
+        self.url_for_chat(obj.id),
+        name,
+        last_message,
+        obj.channel,
+        obj.last_message_time.strftime('%Y-%m-%d %H:%M') if obj.last_message_time else 'Never'
+        )
+    chat_info.short_description = 'Chats'
+    chat_info.admin_order_field = '-last_message_time'
 
     def url_for_chat(self, id):
         return f"{id}/messages/"
@@ -47,8 +129,6 @@ class ChatAdmin(admin.ModelAdmin):
 
     def get_changelist_template(self, request):
         return "admin/unicom/chat/change_list.html"
-
-    view_chat_link.short_description = 'View Chat'
 
 
 class AccountChatAdmin(admin.ModelAdmin):
