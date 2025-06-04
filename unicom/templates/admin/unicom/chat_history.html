@@ -275,6 +275,53 @@
     margin: 0;
   }
 
+  /* Move the email scaling styles into a media query */
+  @media (max-width: 900px) {
+    .reply-to {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .reply-to .message-content.email-content {
+    transform: scale(0.75);
+    transform-origin: center top;
+    width: 133.33%;
+    margin-left: -16.665%;
+  }
+
+  .reply-to.email-content {
+    transform: scale(0.75);
+    transform-origin: center top;
+    width: 133.33%;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%) scale(0.75);
+  }
+
+
+    .message-content.email-content {
+      transform: scale(0.75);
+      transform-origin: center top;
+      width: 133.33%;
+      margin-left: -16.665%;
+    }
+
+    /* Remove duplicate scaling for nested content */
+    .reply-to.email-content .message-content.email-content {
+      transform: none;
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .reply-to.email-content {
+      transform: translateX(-50%) scale(0.75);
+      transform-origin: center top;
+      width: 133.33%;
+      position: relative;
+      left: 50%;
+    }
+  }
+
   .message-content img {
     max-width: 100%;
     height: auto;
@@ -341,14 +388,14 @@
     <div id="message_{{ message.id }}" class="message {% if message.is_outgoing %}message-bot{% else %}message-user{% endif %}">
       {% if message.reply_to_message %}
       <a href="#message_{{ message.reply_to_message.id }}">
-        <div class="reply-to">
+        <div class="reply-to {% if message.reply_to_message.platform == 'Email' %}email-content{% endif %}">
           {% if message.reply_to_message.media_type == "image" and message.reply_to_message.media %}
             <img src="{{ message.reply_to_message.media.url }}" alt="Image message">
           {% elif message.reply_to_message.media_type == "image" %}
             <div style="color: red;">Image file is missing.</div>
           {% endif %}
           {% if message.reply_to_message.html %}
-            <div class="message-content">{{ message.reply_to_message.html|safe }}</div>
+            <div class="message-content {% if message.reply_to_message.platform == 'Email' %}email-content{% endif %}">{{ message.reply_to_message.html|safe }}</div>
           {% else %}
             <pre>{{ message.reply_to_message.text }}</pre>
           {% endif %}
@@ -372,7 +419,7 @@
       {% endif %}
 
       {% if message.html %}
-        <div class="message-content">{{ message.html|safe }}</div>
+        <div class="message-content {% if message.platform == 'Email' %}email-content{% endif %}">{{ message.html|safe }}</div>
       {% else %}
         <pre>{{ message.text }}</pre>
       {% endif %}
