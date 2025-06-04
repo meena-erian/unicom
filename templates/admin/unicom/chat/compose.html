@@ -171,6 +171,63 @@
 <script>
 let editor = null;
 
+// Function to update URL parameters
+function updateUrlParams(params) {
+    const url = new URL(window.location.href);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    window.history.replaceState({}, '', url);
+}
+
+// Function to get URL parameters
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    return Object.fromEntries(params.entries());
+}
+
+// Function to pre-fill form fields from URL parameters
+function prefillFromUrl() {
+    const params = getUrlParams();
+    
+    // Pre-fill channel and trigger change event if specified
+    if (params.channel) {
+        const channelSelect = document.getElementById('channel');
+        channelSelect.value = params.channel;
+        channelSelect.dispatchEvent(new Event('change'));
+    }
+    
+    // Pre-fill Telegram fields
+    if (params.chat_id) {
+        document.getElementById('chat_id').value = params.chat_id;
+    }
+    if (params.text) {
+        document.getElementById('telegram-text').value = params.text;
+    }
+    
+    // Pre-fill Email fields
+    if (params.to) {
+        document.getElementById('to').value = params.to;
+    }
+    if (params.cc) {
+        document.getElementById('cc').value = params.cc;
+    }
+    if (params.bcc) {
+        document.getElementById('bcc').value = params.bcc;
+    }
+    if (params.subject) {
+        document.getElementById('subject').value = params.subject;
+    }
+    // Note: HTML content should be handled with care due to potential security issues
+    if (params.html && editor) {
+        editor.setContent(decodeURIComponent(params.html));
+    }
+}
+
 function initEditor() {
     if (editor) {
         editor.remove();
@@ -185,10 +242,19 @@ function initEditor() {
         menubar: false,
         branding: false,
         promotion: false,
-        setup: function(editor) {
+        setup: function(ed) {
+            editor = ed;
             editor.on('change', function() {
                 editor.save();
+                // Don't update URL with HTML content as it could be very large
+                // and potentially contain sensitive information
             });
+            
+            // If there's HTML content in URL params, set it after editor is ready
+            const params = getUrlParams();
+            if (params.html) {
+                editor.setContent(decodeURIComponent(params.html));
+            }
         }
     });
 }
@@ -197,6 +263,26 @@ function initEditor() {
 document.addEventListener('DOMContentLoaded', function() {
     const emailFields = document.getElementById('email-fields');
     const channelSelect = document.getElementById('channel');
+    const form = document.getElementById('compose-form');
+    
+    // Add input event listeners to update URL parameters
+    const urlUpdatingInputs = {
+        'channel': channelSelect,
+        'chat_id': document.getElementById('chat_id'),
+        'text': document.getElementById('telegram-text'),
+        'to': document.getElementById('to'),
+        'cc': document.getElementById('cc'),
+        'bcc': document.getElementById('bcc'),
+        'subject': document.getElementById('subject')
+    };
+    
+    Object.entries(urlUpdatingInputs).forEach(([param, element]) => {
+        if (element) {
+            element.addEventListener('input', function() {
+                updateUrlParams({ [param]: this.value });
+            });
+        }
+    });
     
     channelSelect.addEventListener('change', function() {
         const platform = this.options[this.selectedIndex].getAttribute('data-platform');
@@ -209,7 +295,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (showEmail) {
             initEditor();
         }
+        
+        // Update URL with channel and platform
+        updateUrlParams({
+            'channel': this.value,
+            'platform': platform
+        });
     });
+    
+    // Pre-fill form fields from URL parameters
+    prefillFromUrl();
 });
 </script>
 {% endblock %} 
