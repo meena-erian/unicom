@@ -76,5 +76,6 @@ def chat_history_view(request, chat_id):
             'last_message': last_message,
             'show_recipients': show_recipients,
             'subject_line': subject_line,
+            'channel_id': chat.channel_id if hasattr(chat, 'channel_id') else None,
         },
     )

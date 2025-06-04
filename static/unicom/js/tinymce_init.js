@@ -23,7 +23,25 @@
         max_height: 400,
         branding: false,
         promotion: false,
-        templates: '/unicom/api/message-templates/',
+        templates: function(callback) {
+            const url = new URL('/unicom/api/message-templates/', window.location.origin);
+            // Get the editor instance
+            const editor = tinymce.activeEditor;
+            if (editor && editor.getParam) {
+                const channelId = editor.getParam('channel_id');
+                if (channelId) {
+                    url.searchParams.set('channel_id', channelId);
+                }
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(callback)
+                .catch(error => {
+                    console.error('Error loading templates:', error);
+                    callback([]);
+                });
+        },
         /*
          * We will attach a default setup that triggers save on change so that the underlying
          * <textarea> is always kept in sync.
