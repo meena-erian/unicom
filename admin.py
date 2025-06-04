@@ -3,6 +3,7 @@ from django.db import models
 from unicom.models import Message, Update, Chat, Account, AccountChat, Channel
 from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
+from unicom.views.compose_view import compose_view
 from django.urls import path
 from django_ace import AceWidget
 from .models import (
@@ -27,9 +28,21 @@ class ChatAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('<path:chat_id>/messages/', self.admin_site.admin_view(chat_history_view), name='chat-detail')
+            path('<path:chat_id>/messages/', self.admin_site.admin_view(chat_history_view), name='chat-detail'),
+            path('compose/', self.admin_site.admin_view(compose_view), name='chat-compose'),
         ]
         return custom_urls + urls
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_add_button'] = False  # Hide the default "Add" button
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def has_add_permission(self, request):
+        return False  # Disable the default add form
+
+    def get_changelist_template(self, request):
+        return "admin/unicom/chat/change_list.html"
 
     view_chat_link.short_description = 'View Chat'
 
