@@ -8,6 +8,18 @@ from django.core.exceptions import ValidationError
 
 @staff_member_required
 def compose_view(request):
+    # Store initial form data
+    form_data = {
+        'channel': request.POST.get('channel', ''),
+        'to': request.POST.get('to', ''),
+        'cc': request.POST.get('cc', ''),
+        'bcc': request.POST.get('bcc', ''),
+        'subject': request.POST.get('subject', ''),
+        'html': request.POST.get('html', ''),
+        'chat_id': request.POST.get('chat_id', ''),
+        'text': request.POST.get('text', '')
+    }
+    
     if request.method == 'POST':
         channel_id = request.POST.get('channel')
         try:
@@ -63,12 +75,14 @@ def compose_view(request):
             messages.error(request, str(e))
         except Exception as e:
             messages.error(request, f'Error sending message: {str(e)}')
+
     t_key = getattr(settings, 'UNICOM_TINYMCE_API_KEY', None)
-    print(t_key)
+    
     # For GET requests or if POST fails, show the form
     context = {
         'channels': Channel.objects.filter(active=True),
         'tinymce_api_key': t_key,
         'title': 'Compose Message',
+        'form_data': form_data  # Pass the form data back to the template
     }
     return render(request, 'admin/unicom/chat/compose.html', context) 

@@ -115,7 +115,9 @@
             <select name="channel" id="channel" required>
                 <option value="">Select a channel</option>
                 {% for channel in channels %}
-                    <option value="{{ channel.id }}" data-platform="{{ channel.platform }}">{{ channel.name }} ({{ channel.platform }})</option>
+                    <option value="{{ channel.id }}" data-platform="{{ channel.platform }}" {% if channel.id == form_data.channel %}selected{% endif %}>
+                        {{ channel.name }} ({{ channel.platform }})
+                    </option>
                 {% endfor %}
             </select>
         </div>
@@ -124,11 +126,11 @@
         <div id="telegram-fields" style="display: none;">
             <div class="form-row">
                 <label for="chat_id">Chat ID:</label>
-                <input type="text" name="chat_id" id="chat_id">
+                <input type="text" name="chat_id" id="chat_id" value="{{ form_data.chat_id }}">
             </div>
             <div class="form-row">
                 <label for="telegram-text">Message:</label>
-                <textarea name="text" id="telegram-text" rows="5"></textarea>
+                <textarea name="text" id="telegram-text" rows="5">{{ form_data.text }}</textarea>
             </div>
         </div>
 
@@ -136,23 +138,23 @@
         <div id="email-fields" style="display: none;">
             <div class="form-row">
                 <label for="to">To:</label>
-                <input type="text" name="to" id="to" placeholder="Comma-separated email addresses">
+                <input type="text" name="to" id="to" placeholder="Comma-separated email addresses" value="{{ form_data.to }}">
             </div>
             <div class="form-row">
                 <label for="cc">CC:</label>
-                <input type="text" name="cc" id="cc" placeholder="Comma-separated email addresses">
+                <input type="text" name="cc" id="cc" placeholder="Comma-separated email addresses" value="{{ form_data.cc }}">
             </div>
             <div class="form-row">
                 <label for="bcc">BCC:</label>
-                <input type="text" name="bcc" id="bcc" placeholder="Comma-separated email addresses">
+                <input type="text" name="bcc" id="bcc" placeholder="Comma-separated email addresses" value="{{ form_data.bcc }}">
             </div>
             <div class="form-row">
                 <label for="subject">Subject:</label>
-                <input type="text" name="subject" id="subject">
+                <input type="text" name="subject" id="subject" value="{{ form_data.subject }}">
             </div>
             <div class="form-row">
                 <label for="email-body">Message:</label>
-                <textarea id="email-body" name="html"></textarea>
+                <textarea id="email-body" name="html">{{ form_data.html }}</textarea>
             </div>
         </div>
 
@@ -304,8 +306,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Pre-fill form fields from URL parameters
-    prefillFromUrl();
+    // If we have form data from a previous submission, use that first
+    if (channelSelect.value) {
+        channelSelect.dispatchEvent(new Event('change'));
+    }
+    // Otherwise try to fill from URL parameters
+    else {
+        prefillFromUrl();
+    }
 });
 </script>
 {% endblock %} 
