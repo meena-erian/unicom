@@ -62,8 +62,8 @@
 }
 
 #compose-form-container {
-    padding: 20px;
-    margin: 20px;
+    padding: 10px;
+    margin: 10px;
     background: var(--body-bg);
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -127,7 +127,28 @@ input:not(:placeholder-shown):valid,
 textarea:not(:placeholder-shown):valid {
     border-color: #72a338;
 }
+
+@media (max-width: 767px) {
+    #compose-form-container {
+        padding: 10px 0;
+        margin: 10px 0;
+    }
+    
+    .form-row {
+        margin-bottom: 0.75em;
+        padding: 0 10px;
+    }
+}
 </style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='unicom' %}">Unicom</a>
+    &rsaquo; <a href="{% url 'admin:unicom_chat_changelist' %}">Chat</a>
+    &rsaquo; Compose Message
+</div>
 {% endblock %}
 
 {% block content %}

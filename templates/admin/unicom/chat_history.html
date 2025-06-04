@@ -1,6 +1,15 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='unicom' %}">Unicom</a>
+    &rsaquo; <a href="{% url 'admin:unicom_chat_changelist' %}">Chat</a>
+    &rsaquo; {{ chat.name }}
+</div>
+{% endblock %}
+
 {% block extrastyle %}
 {% include "admin/unicom/includes/loading_indicators.html" %}
 <style>

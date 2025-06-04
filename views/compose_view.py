@@ -87,7 +87,6 @@ def compose_view(request):
     context = {
         'channels': Channel.objects.filter(active=True),
         'tinymce_api_key': t_key,
-        'title': 'Compose Message',
         'form_data': form_data  # Pass the form data back to the template
     }
     return render(request, 'admin/unicom/chat/compose.html', context) 
