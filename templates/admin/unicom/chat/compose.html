@@ -100,6 +100,33 @@
         background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23fff' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
     }
 }
+
+.required {
+    color: #ba2121;
+    font-weight: bold;
+    margin-left: 2px;
+}
+
+/* Add asterisk to required fields that use TinyMCE */
+.tox-tinymce.required {
+    border-color: #ba2121 !important;
+}
+
+/* Style the HTML5 validation popup */
+input:invalid, textarea:invalid {
+    box-shadow: none; /* Remove default red shadow in Firefox */
+}
+
+/* Custom validation styling */
+input:not(:placeholder-shown):invalid,
+textarea:not(:placeholder-shown):invalid {
+    border-color: #ba2121;
+}
+
+input:not(:placeholder-shown):valid,
+textarea:not(:placeholder-shown):valid {
+    border-color: #72a338;
+}
 </style>
 {% endblock %}
 
@@ -125,11 +152,11 @@
         <!-- Telegram-specific fields -->
         <div id="telegram-fields" style="display: none;">
             <div class="form-row">
-                <label for="chat_id">Chat ID:</label>
+                <label for="chat_id">Chat ID: <span class="required">*</span></label>
                 <input type="text" name="chat_id" id="chat_id" value="{{ form_data.chat_id }}">
             </div>
             <div class="form-row">
-                <label for="telegram-text">Message:</label>
+                <label for="telegram-text">Message: <span class="required">*</span></label>
                 <textarea name="text" id="telegram-text" rows="5">{{ form_data.text }}</textarea>
             </div>
         </div>
@@ -137,7 +164,7 @@
         <!-- Email-specific fields -->
         <div id="email-fields" style="display: none;">
             <div class="form-row">
-                <label for="to">To:</label>
+                <label for="to">To: <span class="required">*</span></label>
                 <input type="text" name="to" id="to" placeholder="Comma-separated email addresses" value="{{ form_data.to }}">
             </div>
             <div class="form-row">
@@ -149,11 +176,11 @@
                 <input type="text" name="bcc" id="bcc" placeholder="Comma-separated email addresses" value="{{ form_data.bcc }}">
             </div>
             <div class="form-row">
-                <label for="subject">Subject:</label>
+                <label for="subject">Subject: <span class="required">*</span></label>
                 <input type="text" name="subject" id="subject" value="{{ form_data.subject }}">
             </div>
             <div class="form-row">
-                <label for="email-body">Message:</label>
+                <label for="email-body">Message: <span class="required">*</span></label>
                 <textarea id="email-body" name="html">{{ form_data.html }}</textarea>
             </div>
         </div>
@@ -236,7 +263,7 @@ function initEditor() {
         editor.remove();
     }
     
-    editor = tinymce.init({
+    tinymce.init({
         selector: '#email-body',
         plugins: 'link image lists table code',
         toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
@@ -247,16 +274,11 @@ function initEditor() {
         promotion: false,
         setup: function(ed) {
             editor = ed;
-            editor.on('change', function() {
-                editor.save();
-                // Don't update URL with HTML content as it could be very large
-                // and potentially contain sensitive information
-            });
             
             // If there's HTML content in URL params, set it after editor is ready
             const params = getUrlParams();
             if (params.html) {
-                editor.setContent(decodeURIComponent(params.html));
+                ed.setContent(decodeURIComponent(params.html));
             }
         }
     });
@@ -267,24 +289,62 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailFields = document.getElementById('email-fields');
     const channelSelect = document.getElementById('channel');
     const form = document.getElementById('compose-form');
+    const globalLoadingOverlay = document.querySelector('.global-loading-overlay');
     
-    // Add input event listeners to update URL parameters
-    const urlUpdatingInputs = {
-        'channel': channelSelect,
-        'chat_id': document.getElementById('chat_id'),
-        'text': document.getElementById('telegram-text'),
-        'to': document.getElementById('to'),
-        'cc': document.getElementById('cc'),
-        'bcc': document.getElementById('bcc'),
-        'subject': document.getElementById('subject')
-    };
-    
-    Object.entries(urlUpdatingInputs).forEach(([param, element]) => {
-        if (element) {
-            element.addEventListener('input', function() {
-                updateUrlParams({ [param]: this.value });
-            });
+    // Function to toggle required attributes based on platform
+    function toggleRequiredFields(platform) {
+        // First, remove required from all fields
+        const allInputs = form.querySelectorAll('input, textarea');
+        allInputs.forEach(input => input.removeAttribute('required'));
+        
+        // Then add required to visible fields based on platform
+        if (platform === 'Email') {
+            document.getElementById('to').setAttribute('required', 'required');
+            document.getElementById('subject').setAttribute('required', 'required');
+        } else if (platform === 'Telegram') {
+            document.getElementById('chat_id').setAttribute('required', 'required');
+            document.getElementById('telegram-text').setAttribute('required', 'required');
         }
+    }
+    
+    // Handle form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault(); // Prevent form submission initially
+        
+        const platform = channelSelect.options[channelSelect.selectedIndex].getAttribute('data-platform');
+        
+        // Validate form based on platform
+        if (platform === 'Email') {
+            const emailContent = editor.getContent().trim();
+            if (!emailContent) {
+                // Hide loading overlay if it was shown by another listener
+                if (globalLoadingOverlay) {
+                    globalLoadingOverlay.classList.add('hidden');
+                }
+                // Re-enable any disabled submit buttons
+                form.querySelectorAll('input[type="submit"], button[type="submit"]').forEach(btn => {
+                    btn.disabled = false;
+                    if (btn.tagName === 'INPUT') {
+                        btn.value = 'Send Message';
+                    }
+                });
+                alert('Please enter a message body.');
+                editor.focus();
+                return; // Abort submission
+            }
+        }
+        
+        // If we get here, all validation passed
+        // Now show loading and submit
+        if (globalLoadingOverlay) {
+            globalLoadingOverlay.querySelector('.loading-text').textContent = 'Sending...';
+            globalLoadingOverlay.classList.remove('hidden');
+        }
+        
+        // Small delay to ensure loading indicator is visible
+        setTimeout(() => {
+            form.submit();
+        }, 50);
     });
     
     channelSelect.addEventListener('change', function() {
@@ -294,6 +354,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         document.getElementById('telegram-fields').style.display = showTelegram ? 'block' : 'none';
         emailFields.style.display = showEmail ? 'block' : 'none';
+        
+        // Toggle required fields based on selected platform
+        toggleRequiredFields(platform);
         
         if (showEmail) {
             initEditor();
@@ -314,6 +377,25 @@ document.addEventListener('DOMContentLoaded', function() {
     else {
         prefillFromUrl();
     }
+    
+    // Add input event listeners to update URL parameters
+    const urlUpdatingInputs = {
+        'channel': channelSelect,
+        'chat_id': document.getElementById('chat_id'),
+        'text': document.getElementById('telegram-text'),
+        'to': document.getElementById('to'),
+        'cc': document.getElementById('cc'),
+        'bcc': document.getElementById('bcc'),
+        'subject': document.getElementById('subject')
+    };
+    
+    Object.entries(urlUpdatingInputs).forEach(([param, element]) => {
+        if (element) {
+            element.addEventListener('input', function() {
+                updateUrlParams({ [param]: this.value });
+            });
+        }
+    });
 });
 </script>
 {% endblock %} 
