@@ -50,10 +50,14 @@ def chat_history_view(request, chat_id):
 
     if chat.platform == 'Email' and last_message:
         # Determine whether to render recipient headers.
-        recipients_set = set((last_message.to or []) + (last_message.cc or []) + (last_message.bcc or []))
-        # Show only if more than one unique recipient (excluding empties)
-        if len(recipients_set) > 1:
+        # For outgoing messages, always show recipients
+        if last_message.is_outgoing:
             show_recipients = True
+        else:
+            # For incoming messages, show if multiple recipients
+            recipients_set = set((last_message.to or []) + (last_message.cc or []) + (last_message.bcc or []))
+            if len(recipients_set) > 1:
+                show_recipients = True
 
     # Determine subject line to display (primarily for email threads)
     subject_line = chat.name
