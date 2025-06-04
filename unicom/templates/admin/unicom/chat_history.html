@@ -312,7 +312,20 @@
 
 {% block content %}
 <div class="chat-container">
-  <h1>Chat with: {{ chat.name }}{% if chat.platform != 'Email' %} ({{ chat.id }}){% endif %}</h1>
+  {% if chat.platform == 'Email' %}
+    <div class="email-thread-header">
+      <h1>{{ subject_line }}</h1>
+      {% if show_recipients %}
+        <div class="email-recipients">
+          {% if last_message.to %}<p><strong>To:</strong> {{ last_message.to|join:", " }}</p>{% endif %}
+          {% if last_message.cc %}<p><strong>Cc:</strong> {{ last_message.cc|join:", " }}</p>{% endif %}
+          {% if last_message.bcc %}<p><strong>Bcc:</strong> {{ last_message.bcc|join:", " }}</p>{% endif %}
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <h1>Chat with: {{ chat.name }} ({{ chat.id }})</h1>
+  {% endif %}
   
   <div class="chat-messages">
     {% for message in chat_messages_list %}
@@ -356,10 +369,14 @@
       {% endif %}
 
       <div class="timestamp">
-        {% if message.user.username %}
-        {{ message.user.username }}
+        {% if message.platform == 'Email' %}
+          {{ message.sender_id }}
         {% else %}
-        {{ message.sender_name }}
+          {% if message.user.username %}
+            {{ message.user.username }}
+          {% else %}
+            {{ message.sender_name }}
+          {% endif %}
         {% endif %}
         : {{ message.timestamp|date:"h:i A" }} - {{ message.timestamp|timesince }} ago
         {% if message.is_outgoing %}
