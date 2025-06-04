@@ -6,8 +6,9 @@
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
-    background: var(--body-bg);
+    height: 100vh;
+    background: rgba(var(--body-bg-rgb, 255, 255, 255), 0.8);
+    backdrop-filter: blur(4px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -28,27 +29,6 @@
     border-top: 4px solid var(--link-fg);
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-.form-loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(var(--body-bg-rgb), 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease-out;
-}
-
-.form-loading-overlay.active {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 .loading-text {
@@ -78,58 +58,25 @@ document.addEventListener('DOMContentLoaded', function() {
         globalLoadingOverlay.classList.add('hidden');
     }
 
-    // Initialize form loading overlays
-    function initFormLoadingOverlays() {
-        document.querySelectorAll('form').forEach(form => {
-            // Only add loading overlay if form doesn't already have one
-            if (!form.querySelector('.form-loading-overlay')) {
-                const overlay = document.createElement('div');
-                overlay.className = 'form-loading-overlay';
-                overlay.innerHTML = `
-                    <div style="text-align: center;">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Sending...</div>
-                    </div>
-                `;
-                
-                // Make sure form has position relative for overlay positioning
-                if (getComputedStyle(form).position === 'static') {
-                    form.style.position = 'relative';
+    // Handle form submissions
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function() {
+            // Show the global loading overlay with "Sending..." text
+            if (globalLoadingOverlay) {
+                globalLoadingOverlay.querySelector('.loading-text').textContent = 'Sending...';
+                globalLoadingOverlay.classList.remove('hidden');
+            }
+            
+            // Disable submit buttons
+            form.querySelectorAll('input[type="submit"], button[type="submit"]').forEach(button => {
+                button.disabled = true;
+                if (button.tagName === 'INPUT') {
+                    button.value = 'Sending...';
+                } else {
+                    button.textContent = 'Sending...';
                 }
-                
-                form.appendChild(overlay);
-                
-                form.addEventListener('submit', function() {
-                    const submitButtons = form.querySelectorAll('input[type="submit"], button[type="submit"]');
-                    submitButtons.forEach(button => {
-                        button.disabled = true;
-                        if (button.tagName === 'INPUT') {
-                            button.value = 'Sending...';
-                        } else {
-                            button.textContent = 'Sending...';
-                        }
-                    });
-                    overlay.classList.add('active');
-                });
-            }
+            });
         });
-    }
-
-    // Initialize on page load
-    initFormLoadingOverlay();
-
-    // Initialize when content changes (for dynamically loaded forms)
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes.length) {
-                initFormLoadingOverlays();
-            }
-        });
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
     });
 });
 </script> 
