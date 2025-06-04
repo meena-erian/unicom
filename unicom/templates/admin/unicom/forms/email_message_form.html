@@ -5,49 +5,7 @@
   {# Fallback to TinyMCE's limited no-api-key usage #}
   <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 {% endif %}
-<script>
-  let editor = null;
-
-  function initEditor() {
-    if (editor) {
-      editor.remove();
-    }
-    
-    editor = tinymce.init({
-      selector: '#email-editor',
-      plugins: 'link image lists table code',
-      toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table',
-      height: 400,
-      max_height: 400,
-      menubar: false,
-      branding: false,
-      promotion: false,
-      setup: function(editor) {
-        editor.on('change', function() {
-          editor.save();
-        });
-      }
-    });
-  }
-
-  // Initialize editor when form becomes visible
-  document.addEventListener('DOMContentLoaded', function() {
-    const formContainer = document.querySelector('.email-form-container');
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          if (formContainer.classList.contains('visible')) {
-            initEditor();
-          }
-        }
-      });
-    });
-
-    observer.observe(formContainer, {
-      attributes: true
-    });
-  });
-</script>
+<script src="{% static 'unicom/js/tinymce_init.js' %}"></script>
 
 <div class="form-container email-form-container">
   <div class="form-inner">
@@ -107,4 +65,34 @@
 .selected-message-container {
   display: block;
 }
-</style> 
+</style>
+
+<script>
+  let emailEditor = null;
+
+  function initEmailEditor() {
+    UnicomTinyMCE.init('#email-editor', {
+      setup: function (ed) {
+        emailEditor = ed;
+      }
+    });
+  }
+
+  // Initialize editor when form becomes visible
+  document.addEventListener('DOMContentLoaded', function () {
+    const formContainer = document.querySelector('.email-form-container');
+    const observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          if (formContainer.classList.contains('visible')) {
+            initEmailEditor();
+          }
+        }
+      });
+    });
+
+    observer.observe(formContainer, {
+      attributes: true
+    });
+  });
+</script> 
