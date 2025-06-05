@@ -2,9 +2,10 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.conf import settings
-from unicom.models import Channel
+from unicom.models import Channel, DraftMessage
 from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 
 
 @staff_member_required
@@ -18,11 +19,14 @@ def compose_view(request):
         'subject': request.POST.get('subject', ''),
         'html': request.POST.get('html', ''),
         'chat_id': request.POST.get('chat_id', ''),
-        'text': request.POST.get('text', '')
+        'text': request.POST.get('text', ''),
+        'send_at': request.POST.get('send_at', '')
     }
     
     if request.method == 'POST':
         channel_id = request.POST.get('channel')
+        send_at = request.POST.get('send_at')
+        
         try:
             channel = Channel.objects.get(id=channel_id)
             
@@ -53,7 +57,6 @@ def compose_view(request):
                 msg_params = {
                     'chat_id': request.POST.get('chat_id'),
                     'text': request.POST.get('text'),
-                    'parse_mode': 'Markdown'
                 }
                 
                 # Validate required fields for telegram
@@ -65,21 +68,46 @@ def compose_view(request):
             else:
                 raise ValidationError(f"Unsupported platform: {channel.platform}")
             
-            # Send the message
-            message = channel.send_message(msg_params, request.user)
-            messages.success(request, 'Message sent successfully!')
+            # If send_at is set, create a draft message instead of sending immediately
+            if send_at:
+                draft = DraftMessage(
+                    channel=channel,
+                    created_by=request.user,
+                    status='scheduled',
+                    is_approved=True,
+                    send_at=parse_datetime(send_at)
+                )
+                
+                # Set platform-specific fields
+                if channel.platform == 'Email':
+                    draft.to = msg_params['to']
+                    draft.cc = msg_params['cc']
+                    draft.bcc = msg_params['bcc']
+                    draft.subject = msg_params['subject']
+                    draft.html = msg_params['html']
+                else:  # Telegram
+                    draft.chat_id = msg_params['chat_id']
+                    draft.text = msg_params['text']
+                
+                draft.full_clean()  # Validate the draft
+                draft.save()
+                messages.success(request, 'Message scheduled successfully!')
+                return redirect('admin:unicom_draftmessage_changelist')
             
-            # Redirect to the chat history page
-            return redirect(
-                reverse('admin:chat-detail', args=[message.chat.id])
-            )
+            # If no send_at, send immediately (existing logic)
+            else:
+                message = channel.send_message(msg_params, request.user)
+                messages.success(request, 'Message sent successfully!')
+                return redirect(
+                    reverse('admin:chat-detail', args=[message.chat.id])
+                )
             
         except Channel.DoesNotExist:
             messages.error(request, 'Invalid channel selected.')
         except ValidationError as e:
             messages.error(request, str(e))
         except Exception as e:
-            messages.error(request, f'Error sending message: {str(e)}')
+            messages.error(request, f'Error: {str(e)}')
 
     t_key = getattr(settings, 'UNICOM_TINYMCE_API_KEY', None)
     
@@ -87,6 +115,6 @@ def compose_view(request):
     context = {
         'channels': Channel.objects.filter(active=True),
         'tinymce_api_key': t_key,
-        'form_data': form_data  # Pass the form data back to the template
+        'form_data': form_data
     }
     return render(request, 'admin/unicom/chat/compose.html', context) 
