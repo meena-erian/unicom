@@ -6,6 +6,8 @@ from unicom.models import Channel, DraftMessage
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
+from django.utils import timezone
+import pytz
 
 
 @staff_member_required
@@ -70,12 +72,30 @@ def compose_view(request):
             
             # If send_at is set, create a draft message instead of sending immediately
             if send_at:
+                # Get the user's timezone from their browser
+                user_timezone = request.POST.get('timezone', 'UTC')
+                try:
+                    # Validate the timezone
+                    tz = pytz.timezone(user_timezone)
+                except pytz.exceptions.UnknownTimeZoneError:
+                    tz = pytz.UTC
+                
+                # Parse the datetime in user's timezone
+                local_dt = parse_datetime(send_at)
+                if local_dt is None:
+                    raise ValidationError("Invalid datetime format")
+                
+                # Make it timezone aware in user's timezone
+                local_tz_dt = tz.localize(local_dt)
+                # Convert to UTC for storage
+                utc_dt = local_tz_dt.astimezone(pytz.UTC)
+                
                 draft = DraftMessage(
                     channel=channel,
                     created_by=request.user,
                     status='scheduled',
                     is_approved=True,
-                    send_at=parse_datetime(send_at)
+                    send_at=utc_dt
                 )
                 
                 # Set platform-specific fields
@@ -88,10 +108,16 @@ def compose_view(request):
                 else:  # Telegram
                     draft.chat_id = msg_params['chat_id']
                     draft.text = msg_params['text']
+                    # Append timezone info to the text field
+                    if draft.text:
+                        draft.text += f"\n[Scheduled in {user_timezone}]"
                 
                 draft.full_clean()  # Validate the draft
                 draft.save()
-                messages.success(request, 'Message scheduled successfully!')
+                
+                # Format the message to show in user's local timezone
+                local_time_str = local_tz_dt.strftime("%Y-%m-%d %H:%M %Z")
+                messages.success(request, f'Message scheduled successfully for {local_time_str}!')
                 return redirect('admin:unicom_draftmessage_changelist')
             
             # If no send_at, send immediately (existing logic)

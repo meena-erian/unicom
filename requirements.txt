@@ -7,6 +7,7 @@ IMAPClient>=3.0.1
 fa2svg==0.1.6
 dnspython>=2.7.0,<3.0
 django-ace>=1.39.2
+pytz>=2024.1
 
 # Only required by unicom_project not unicom app
 python-dotenv>=1.0,<2.0

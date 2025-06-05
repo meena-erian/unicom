@@ -157,6 +157,7 @@ textarea:not(:placeholder-shown):valid {
     
     <form method="post" id="compose-form">
         {% csrf_token %}
+        <input type="hidden" name="timezone" id="timezone-input">
         
         <div class="form-row">
             <label for="channel">Channel:</label>
@@ -227,6 +228,11 @@ textarea:not(:placeholder-shown):valid {
 
 <script>
 let editor = null;
+
+// Function to get user's timezone
+function getUserTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 
 // Function to format relative time
 function formatRelativeTime(dateString) {
@@ -389,6 +395,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('compose-form');
     const globalLoadingOverlay = document.querySelector('.global-loading-overlay');
     const scheduleDateTime = document.getElementById('schedule-datetime');
+    
+    // Set the timezone input value
+    document.getElementById('timezone-input').value = getUserTimezone();
     
     // Function to toggle required attributes based on platform
     function toggleRequiredFields(platform) {
