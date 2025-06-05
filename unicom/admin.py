@@ -26,32 +26,50 @@ class ChatAdmin(admin.ModelAdmin):
 
     class Media:
         css = {
-            'all': ('admin/css/chat_list.css',)
+            'all': (
+                'admin/css/chat_list.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+            )
         }
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        # Annotate the queryset with the last message information
-        return qs.annotate(
-            last_message_time=models.Max('messages__timestamp'),
-            last_message_text=models.Subquery(
-                Message.objects.filter(chat=models.OuterRef('pk'))
-                .order_by('-timestamp')
-                .values('text')[:1]
-            )
-        ).order_by('-last_message_time')
+        # No need for annotations since we have cached fields
+        return super().get_queryset(request).order_by('-last_message__timestamp')
 
     def chat_info(self, obj):
         name = obj.name or obj.id
-        last_message = obj.last_message_text[:100] + '...' if obj.last_message_text and len(obj.last_message_text) > 100 else obj.last_message_text or 'No messages'
+        last_message = obj.last_message
+        last_message_text = last_message.text[:100] + '...' if last_message and last_message.text and len(last_message.text) > 100 else (last_message.text if last_message else 'No messages')
+        
+        # Determine message status indicators
+        has_incoming = obj.first_incoming_message is not None
+        has_outgoing = obj.first_outgoing_message is not None
+        is_last_incoming = last_message and last_message.is_outgoing is False
+        
+        # Create status icons HTML
+        status_icons = format_html(
+            '<span class="chat-status-icons">{}{}</span>',
+            format_html('<i class="fas fa-inbox" title="Has incoming messages"></i>') if has_incoming else '',
+            format_html('<i class="fas fa-paper-plane" title="Has outgoing messages"></i>') if has_outgoing else ''
+        )
+        
+        # Create last message icon
+        last_message_icon = ''
+        if last_message:
+            if is_last_incoming:
+                last_message_icon = format_html('<i class="fas fa-reply pending-response" title="Pending response"></i>')
+            else:
+                last_message_icon = format_html('<i class="fas fa-check" title="Last message was outgoing"></i>')
         
         return format_html('''
             <a href="{}" class="chat-info-container">
                 <div class="chat-header">
                     <span class="chat-name">{}</span>
+                    {}
                 </div>
                 <div class="chat-message">
-                    {}
+                    <span class="message-status-icon">{}</span>
+                    <span class="message-text">{}</span>
                 </div>
                 <div class="chat-footer">
                     <span class="chat-channel">{}</span>
@@ -72,17 +90,42 @@ class ChatAdmin(admin.ModelAdmin):
                 }}
                 .chat-header {{
                     margin-bottom: 5px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
                 }}
                 .chat-name {{
                     font-weight: bold;
                     font-size: 1.1em;
                     color: var(--link-fg);
                 }}
+                .chat-status-icons {{
+                    display: flex;
+                    gap: 8px;
+                    font-size: 0.8em;
+                    color: var(--body-quiet-color);
+                }}
+                .chat-status-icons i {{
+                    opacity: 0.7;
+                }}
                 .chat-message {{
                     color: var(--body-fg);
                     margin-bottom: 5px;
                     font-size: 0.9em;
                     opacity: 0.9;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                }}
+                .message-status-icon {{
+                    flex-shrink: 0;
+                    margin-top: 3px;
+                }}
+                .message-status-icon .pending-response {{
+                    color: #e74c3c;
+                }}
+                .message-text {{
+                    flex-grow: 1;
                 }}
                 .chat-footer {{
                     display: flex;
@@ -102,12 +145,14 @@ class ChatAdmin(admin.ModelAdmin):
         ''',
         self.url_for_chat(obj.id),
         name,
-        last_message,
+        status_icons,
+        last_message_icon,
+        last_message_text,
         obj.channel,
-        obj.last_message_time.strftime('%Y-%m-%d %H:%M') if obj.last_message_time else 'Never'
+        last_message.timestamp.strftime('%Y-%m-%d %H:%M') if last_message else 'Never'
         )
     chat_info.short_description = 'Chats'
-    chat_info.admin_order_field = '-last_message_time'
+    chat_info.admin_order_field = '-last_message__timestamp'
 
     def url_for_chat(self, id):
         return f"{id}/messages/"

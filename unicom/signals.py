@@ -2,6 +2,7 @@ from unicom.models import Message, AccountChat, Channel, Request
 from django.db import transaction
 from django.db.models.signals import post_save, pre_save, post_delete
 from unicom.services.email.IMAP_thread_manager import imap_manager
+from unicom.services.chat_summary import update_chat_summary
 from django.db import transaction
 from django.dispatch import receiver
 import threading
@@ -45,8 +46,14 @@ def create_request_from_message(sender, instance, created, **kwargs):
     Signal handler to create a Request object when a new Message is created.
     Only creates a Request for incoming messages (is_outgoing=False).
     """
-    # Skip if this is not a new message or if it's an outgoing message
-    if not created or instance.is_outgoing != False:
+    if not created:
+        return
+
+    # Update chat summary fields
+    update_chat_summary(instance)
+    
+    # Skip request creation if it's an outgoing message
+    if instance.is_outgoing:
         return
 
     # Extract contact information based on platform
