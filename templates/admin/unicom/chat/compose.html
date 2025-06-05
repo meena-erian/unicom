@@ -206,8 +206,13 @@ textarea:not(:placeholder-shown):valid {
             </div>
         </div>
 
+        <div class="form-row">
+            <label for="schedule-datetime">Schedule For:</label>
+            <input type="datetime-local" name="send_at" id="schedule-datetime" value="{{ form_data.send_at }}" min="">
+        </div>
+
         <div class="submit-row">
-            <input type="submit" value="Send Message" class="default">
+            <input type="submit" value="Send Now" class="default" id="submit-button">
         </div>
     </form>
 </div>
@@ -222,6 +227,57 @@ textarea:not(:placeholder-shown):valid {
 
 <script>
 let editor = null;
+
+// Function to format relative time
+function formatRelativeTime(dateString) {
+    const scheduledDate = new Date(dateString);
+    const now = new Date();
+    const diffTime = scheduledDate - now;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Format the time part
+    const timeStr = scheduledDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+    
+    // If it's today
+    if (diffDays === 0) {
+        if (diffTime < 0) return 'Send Now'; // Past time defaults to Send Now
+        return `Send Today at ${timeStr}`;
+    }
+    
+    // If it's tomorrow
+    if (diffDays === 1) {
+        return `Send Tomorrow at ${timeStr}`;
+    }
+    
+    // If it's within the next 6 days
+    if (diffDays > 1 && diffDays < 7) {
+        const dayName = scheduledDate.toLocaleDateString('en-US', { weekday: 'long' });
+        return `Send ${dayName} at ${timeStr}`;
+    }
+    
+    // If it's further in the future
+    const dateStr = scheduledDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+    });
+    return `Send on ${dateStr} at ${timeStr}`;
+}
+
+// Function to update submit button text
+function updateSubmitButtonText() {
+    const scheduleDateTime = document.getElementById('schedule-datetime').value;
+    const submitButton = document.getElementById('submit-button');
+    
+    if (!scheduleDateTime) {
+        submitButton.value = 'Send Now';
+    } else {
+        submitButton.value = formatRelativeTime(scheduleDateTime);
+    }
+}
 
 // Function to update URL parameters
 function updateUrlParams(params) {
@@ -274,6 +330,10 @@ function prefillFromUrl() {
     if (params.subject) {
         document.getElementById('subject').value = params.subject;
     }
+    // Pre-fill schedule datetime
+    if (params.send_at) {
+        document.getElementById('schedule-datetime').value = params.send_at;
+    }
     // Note: HTML content should be handled with care due to potential security issues
     if (params.html && editor) {
         editor.setContent(decodeURIComponent(params.html));
@@ -295,12 +355,40 @@ function initEditor() {
     });
 }
 
+// Function to get current datetime in YYYY-MM-DDThh:mm format
+function getCurrentDateTime() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 1); // Set to next minute
+    return now.toISOString().slice(0, 16);
+}
+
+// Function to validate and handle datetime changes
+function handleDateTimeChange(e) {
+    const input = e.target;
+    const selectedDate = new Date(input.value);
+    const now = new Date();
+    
+    if (selectedDate <= now) {
+        input.value = ''; // Clear invalid value
+        alert('Please select a future date and time.');
+    }
+    
+    updateSubmitButtonText();
+}
+
+// Function to update datetime min attribute
+function updateDateTimeMin() {
+    const scheduleDateTime = document.getElementById('schedule-datetime');
+    scheduleDateTime.min = getCurrentDateTime();
+}
+
 // Initialize editor when form becomes visible
 document.addEventListener('DOMContentLoaded', function() {
     const emailFields = document.getElementById('email-fields');
     const channelSelect = document.getElementById('channel');
     const form = document.getElementById('compose-form');
     const globalLoadingOverlay = document.querySelector('.global-loading-overlay');
+    const scheduleDateTime = document.getElementById('schedule-datetime');
     
     // Function to toggle required attributes based on platform
     function toggleRequiredFields(platform) {
@@ -402,7 +490,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'to': document.getElementById('to'),
         'cc': document.getElementById('cc'),
         'bcc': document.getElementById('bcc'),
-        'subject': document.getElementById('subject')
+        'subject': document.getElementById('subject'),
+        'send_at': document.getElementById('schedule-datetime')
     };
     
     Object.entries(urlUpdatingInputs).forEach(([param, element]) => {
@@ -412,6 +501,26 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // Set initial min datetime and update it periodically
+    updateDateTimeMin();
+    setInterval(updateDateTimeMin, 60000); // Update every minute
+    
+    // Replace the simple input listener with the validation handler
+    scheduleDateTime.addEventListener('change', handleDateTimeChange);
+    
+    // Initial update of submit button text
+    updateSubmitButtonText();
+    
+    // Validate any preset datetime from URL params
+    if (scheduleDateTime.value) {
+        const selectedDate = new Date(scheduleDateTime.value);
+        const now = new Date();
+        if (selectedDate <= now) {
+            scheduleDateTime.value = ''; // Clear invalid value
+            updateSubmitButtonText();
+        }
+    }
 });
 </script>
 {% endblock %} 
