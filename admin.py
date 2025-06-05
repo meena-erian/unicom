@@ -13,6 +13,7 @@ from .models import (
     RequestCategory,
     Request,
     MessageTemplate,
+    DraftMessage,
 )
 from django import forms
 from django.conf import settings
@@ -334,6 +335,71 @@ class MessageTemplateAdmin(admin.ModelAdmin):
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == 'content':
+            kwargs['widget'] = forms.Textarea(attrs={
+                'class': 'tinymce',
+                'data-tinymce': 'true'
+            })
+        return super().formfield_for_dbfield(db_field, **kwargs)
+
+@admin.register(DraftMessage)
+class DraftMessageAdmin(admin.ModelAdmin):
+    list_display = ('message_preview', 'channel', 'status', 'send_at', 'is_approved', 'created_by', 'created_at')
+    list_filter = ('status', 'channel', 'is_approved', 'created_by')
+    search_fields = ('text', 'html', 'subject', 'to', 'cc', 'bcc', 'chat_id')
+    readonly_fields = ('created_at', 'updated_at', 'sent_at', 'error_message', 'sent_message')
+    
+    def message_preview(self, obj):
+        if obj.subject:
+            return obj.subject
+        elif obj.text:
+            return obj.text[:50] + ('...' if len(obj.text) > 50 else '')
+        return f"Message {obj.id}"
+    message_preview.short_description = 'Message'
+    
+    fieldsets = (
+        (None, {
+            'fields': ('channel',)
+        }),
+        (_('Message Content'), {
+            'fields': ('text', 'html'),
+            'classes': ('tinymce-content',),
+        }),
+        (_('Email Specific'), {
+            'fields': ('to', 'cc', 'bcc', 'subject'),
+            'classes': ('collapse',),
+        }),
+        (_('Chat Specific'), {
+            'fields': ('chat_id',),
+            'classes': ('collapse',),
+        }),
+        (_('Scheduling & Approval'), {
+            'fields': ('send_at', 'is_approved', 'status'),
+        }),
+        (_('Metadata'), {
+            'fields': ('created_by', 'created_at', 'updated_at', 'sent_at', 'sent_message', 'error_message'),
+            'classes': ('collapse',),
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If this is a new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Add TinyMCE for HTML content
+        form.Media = type('Media', (), {
+            'css': {'all': ('admin/css/forms.css',)},
+            'js': (
+                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
+                'unicom/js/tinymce_init.js',
+            )
+        })
+        return form
+    
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'html':
             kwargs['widget'] = forms.Textarea(attrs={
                 'class': 'tinymce',
                 'data-tinymce': 'true'
