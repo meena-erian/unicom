@@ -15,6 +15,14 @@ class Chat(models.Model):
     platform = models.CharField(max_length=100, choices=channels)
     is_private = models.BooleanField(default=True)
     name = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Message cache fields
+    first_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    first_outgoing_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    first_incoming_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    last_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    last_outgoing_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    last_incoming_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     # accounts = models.ManyToManyField('unicom.Account', related_name="chats")
 
     def send_message(self, msg_dict: dict, user:User=None) -> Message:
