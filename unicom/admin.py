@@ -7,6 +7,9 @@ from unicom.views.chat_history_view import chat_history_view
 from unicom.views.compose_view import compose_view
 from django.urls import path
 from django_ace import AceWidget
+from django.contrib.admin import SimpleListFilter
+from django.utils import timezone
+from datetime import timedelta
 from .models import (
     Member,
     MemberGroup,
@@ -19,8 +22,99 @@ from django import forms
 from django.conf import settings
 
 
+class LastMessageTypeFilter(SimpleListFilter):
+    title = _('Last Message Type')
+    parameter_name = 'last_message_type'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('incoming', _('Needs Response')),
+            ('outgoing', _('We Responded Last')),
+            ('none', _('No Messages')),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'incoming':
+            return queryset.filter(last_message__is_outgoing=False)
+        if self.value() == 'outgoing':
+            return queryset.filter(last_message__is_outgoing=True)
+        if self.value() == 'none':
+            return queryset.filter(last_message__isnull=True)
+
+
+class LastMessageTimeFilter(SimpleListFilter):
+    title = _('Last Activity')
+    parameter_name = 'last_activity'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('1h', _('Within 1 hour')),
+            ('24h', _('Within 24 hours')),
+            ('7d', _('Within 7 days')),
+            ('30d', _('Within 30 days')),
+            ('old', _('Older than 30 days')),
+            ('none', _('No activity')),
+        )
+
+    def queryset(self, request, queryset):
+        now = timezone.now()
+        if self.value() == '1h':
+            return queryset.filter(last_message__timestamp__gte=now - timedelta(hours=1))
+        if self.value() == '24h':
+            return queryset.filter(last_message__timestamp__gte=now - timedelta(days=1))
+        if self.value() == '7d':
+            return queryset.filter(last_message__timestamp__gte=now - timedelta(days=7))
+        if self.value() == '30d':
+            return queryset.filter(last_message__timestamp__gte=now - timedelta(days=30))
+        if self.value() == 'old':
+            return queryset.filter(last_message__timestamp__lt=now - timedelta(days=30))
+        if self.value() == 'none':
+            return queryset.filter(last_message__isnull=True)
+
+
+class MessageHistoryFilter(SimpleListFilter):
+    title = _('Message History')
+    parameter_name = 'message_history'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('has_both', _('Has both incoming & outgoing')),
+            ('only_incoming', _('Only incoming messages')),
+            ('only_outgoing', _('Only outgoing messages')),
+            ('empty', _('No messages')),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'has_both':
+            return queryset.filter(
+                first_incoming_message__isnull=False,
+                first_outgoing_message__isnull=False
+            )
+        if self.value() == 'only_incoming':
+            return queryset.filter(
+                first_incoming_message__isnull=False,
+                first_outgoing_message__isnull=True
+            )
+        if self.value() == 'only_outgoing':
+            return queryset.filter(
+                first_incoming_message__isnull=True,
+                first_outgoing_message__isnull=False
+            )
+        if self.value() == 'empty':
+            return queryset.filter(
+                first_message__isnull=True
+            )
+
+
 class ChatAdmin(admin.ModelAdmin):
-    list_filter = ('platform', 'is_private', 'channel')
+    list_filter = (
+        LastMessageTypeFilter,
+        LastMessageTimeFilter,
+        MessageHistoryFilter,
+        'platform',
+        'is_private',
+        'channel',
+    )
     list_display = ('chat_info',)
     search_fields = ('id', 'name', 'messages__text', 'messages__sender__name')
 
