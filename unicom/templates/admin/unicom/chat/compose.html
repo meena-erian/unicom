@@ -236,10 +236,16 @@ function getUserTimezone() {
 
 // Function to format relative time
 function formatRelativeTime(dateString) {
+    // Create Date objects for comparison
     const scheduledDate = new Date(dateString);
     const now = new Date();
-    const diffTime = scheduledDate - now;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Reset time parts to start of day for day comparison
+    const scheduledDay = new Date(scheduledDate).setHours(0,0,0,0);
+    const today = new Date(now).setHours(0,0,0,0);
+    
+    // Calculate difference in days
+    const diffDays = Math.floor((scheduledDay - today) / (1000 * 60 * 60 * 24));
     
     // Format the time part
     const timeStr = scheduledDate.toLocaleTimeString('en-US', {
@@ -248,9 +254,13 @@ function formatRelativeTime(dateString) {
         hour12: true
     });
     
+    // If it's in the past
+    if (scheduledDate < now) {
+        return 'Send Now'; // Past time defaults to Send Now
+    }
+    
     // If it's today
     if (diffDays === 0) {
-        if (diffTime < 0) return 'Send Now'; // Past time defaults to Send Now
         return `Send Today at ${timeStr}`;
     }
     
