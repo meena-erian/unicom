@@ -1,6 +1,6 @@
 # Django Unicom
 
-**Unified communication layer for Django** — easily integrate Telegram bots, WhatsApp, and Email with a consistent API across all platforms.
+**Unified communication layer for Django** — easily integrate Telegram bots, WhatsApp bots, and Email bots with a consistent API across all platforms.
 
 ---
 
@@ -61,7 +61,113 @@
    UNICOM_TINYMCE_API_KEY=your-tinymce-api-key
    ```
 
-That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL.
+That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL and can automatically sync with email clients.
+
+## 📝 Features & Usage
+
+### Channel Configuration
+
+Each communication channel (Email, Telegram, WhatsApp) requires minimal configuration:
+
+#### Email Channel
+```python
+# Basic configuration - SMTP/IMAP settings are auto-discovered
+email_config = {
+    "EMAIL_ADDRESS": "your-email@example.com",
+    "EMAIL_PASSWORD": "your-password"
+}
+
+# Optional: Override auto-discovered settings if needed
+email_config_with_custom_settings = {
+    "EMAIL_ADDRESS": "your-email@example.com",
+    "EMAIL_PASSWORD": "your-password",
+    "IMAP": {  # Optional - will be auto-discovered if not provided
+        "host": "imap.example.com",
+        "port": 993,
+        "use_ssl": True,
+        "protocol": "IMAP"
+    },
+    "SMTP": {  # Optional - will be auto-discovered if not provided
+        "host": "smtp.example.com",
+        "port": 587,
+        "use_ssl": True,
+        "protocol": "SMTP"
+    }
+}
+
+channel = Channel.objects.create(
+    name="My Email Channel",
+    platform="Email",
+    config=email_config
+)
+```
+
+#### Telegram Channel
+```python
+# Only API token is required - webhook secret is auto-generated
+telegram_config = {
+    "API_TOKEN": "your-telegram-bot-token"
+}
+
+channel = Channel.objects.create(
+    name="My Telegram Bot",
+    platform="Telegram",
+    config=telegram_config
+)
+```
+
+### Message Handling
+
+#### Sending Messages
+```python
+# Send an email
+channel.send_message({
+    'to': ['recipient@example.com'],
+    'subject': 'Hello',
+    'html': '<h1>Hello World</h1>'
+})
+
+# Send a Telegram message
+channel.send_message({
+    'chat_id': '123456789',
+    'text': 'Hello Telegram!'
+})
+
+# Reply to a message
+message.reply_with({
+    'text': 'This is a reply'
+})
+```
+
+#### Using Templates
+```python
+from unicom.models import MessageTemplate
+
+template = MessageTemplate.objects.create(
+    title='Welcome Email',
+    content='<h1>Welcome {{name}}!</h1>',
+    category='Onboarding'
+)
+
+# Make template available for specific channels
+template.channels.add(email_channel)
+```
+
+#### Scheduling Messages
+```python
+from unicom.models import DraftMessage
+from django.utils import timezone
+
+draft = DraftMessage.objects.create(
+    channel=channel,
+    to=['recipient@example.com'],
+    subject='Scheduled Email',
+    html='<h1>This is scheduled</h1>',
+    send_at=timezone.now() + timezone.timedelta(hours=24),
+    is_approved=True,
+    status='scheduled'
+)
+```
 
 ---
 
