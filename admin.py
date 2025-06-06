@@ -20,6 +20,7 @@ from .models import (
 )
 from django import forms
 from django.conf import settings
+from django.utils.safestring import mark_safe
 
 
 class LastMessageTypeFilter(SimpleListFilter):
@@ -111,12 +112,14 @@ class ChatAdmin(admin.ModelAdmin):
         LastMessageTypeFilter,
         LastMessageTimeFilter,
         MessageHistoryFilter,
+        'is_archived',
         'platform',
         'is_private',
         'channel',
     )
     list_display = ('chat_info',)
     search_fields = ('id', 'name', 'messages__text', 'messages__sender__name')
+    actions = ['archive_chats', 'unarchive_chats']
 
     class Media:
         css = {
@@ -127,8 +130,21 @@ class ChatAdmin(admin.ModelAdmin):
         }
 
     def get_queryset(self, request):
-        # No need for annotations since we have cached fields
-        return super().get_queryset(request).order_by('-last_message__timestamp')
+        # By default, only show unarchived chats unless explicitly filtered
+        qs = super().get_queryset(request).order_by('-last_message__timestamp')
+        if not any(param.startswith('is_archived') for param in request.GET.keys()):
+            return qs.filter(is_archived=False)
+        return qs
+
+    def archive_chats(self, request, queryset):
+        updated = queryset.update(is_archived=True)
+        self.message_user(request, f'{updated} chat(s) have been archived.')
+    archive_chats.short_description = 'Archive selected chats'
+
+    def unarchive_chats(self, request, queryset):
+        updated = queryset.update(is_archived=False)
+        self.message_user(request, f'{updated} chat(s) have been unarchived.')
+    unarchive_chats.short_description = 'Unarchive selected chats'
 
     def chat_info(self, obj):
         name = obj.name or obj.id
@@ -142,9 +158,10 @@ class ChatAdmin(admin.ModelAdmin):
         
         # Create status icons HTML
         status_icons = format_html(
-            '<span class="chat-status-icons">{}{}</span>',
+            '<span class="chat-status-icons">{}{}{}</span>',
             format_html('<i class="fas fa-inbox" title="Has incoming messages"></i>') if has_incoming else '',
-            format_html('<i class="fas fa-paper-plane" title="Has outgoing messages"></i>') if has_outgoing else ''
+            format_html('<i class="fas fa-paper-plane" title="Has outgoing messages"></i>') if has_outgoing else '',
+            format_html('<i class="fas fa-archive" title="Archived"></i>') if obj.is_archived else ''
         )
         
         # Create last message icon
@@ -156,7 +173,7 @@ class ChatAdmin(admin.ModelAdmin):
                 last_message_icon = format_html('<i class="fas fa-check" title="Last message was outgoing"></i>')
         
         return format_html('''
-            <a href="{}" class="chat-info-container">
+            <a href="{}" class="chat-info-container{}">
                 <div class="chat-header">
                     <span class="chat-name">{}</span>
                     {}
@@ -181,6 +198,9 @@ class ChatAdmin(admin.ModelAdmin):
                 }}
                 .chat-info-container:hover {{
                     background-color: var(--darkened-bg);
+                }}
+                .chat-info-container.archived {{
+                    opacity: 0.7;
                 }}
                 .chat-header {{
                     margin-bottom: 5px;
@@ -238,6 +258,7 @@ class ChatAdmin(admin.ModelAdmin):
             </style>
         ''',
         self.url_for_chat(obj.id),
+        ' archived' if obj.is_archived else '',
         name,
         status_icons,
         last_message_icon,
@@ -480,70 +501,378 @@ class MessageTemplateAdmin(admin.ModelAdmin):
             })
         return super().formfield_for_dbfield(db_field, **kwargs)
 
+class DraftScheduleFilter(SimpleListFilter):
+    title = _('Schedule Status')
+    parameter_name = 'schedule_status'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('pending', _('Pending Approval')),
+            ('scheduled', _('Scheduled & Approved')),
+            ('past_due', _('Past Due')),
+            ('draft', _('Draft')),
+            ('all', _('All')),
+        )
+
+    def queryset(self, request, queryset):
+        now = timezone.now()
+        if self.value() == 'pending':
+            return queryset.filter(
+                status='scheduled',
+                is_approved=False,
+                send_at__gt=now
+            )
+        if self.value() == 'scheduled':
+            return queryset.filter(
+                status='scheduled',
+                is_approved=True,
+                send_at__gt=now
+            )
+        if self.value() == 'past_due':
+            return queryset.filter(
+                status='scheduled',
+                send_at__lt=now
+            )
+        if self.value() == 'draft':
+            return queryset.filter(status='draft')
+        return queryset
+
+
 @admin.register(DraftMessage)
 class DraftMessageAdmin(admin.ModelAdmin):
-    list_display = ('message_preview', 'channel', 'status', 'send_at', 'is_approved', 'created_by', 'created_at')
-    list_filter = ('status', 'channel', 'is_approved', 'created_by')
+    list_display = ('message_preview',)
+    list_filter = (
+        DraftScheduleFilter,
+        'status',
+        'is_approved',
+        'channel',
+        'created_by',
+    )
     search_fields = ('text', 'html', 'subject', 'to', 'cc', 'bcc', 'chat_id')
     readonly_fields = ('created_at', 'updated_at', 'sent_at', 'error_message', 'sent_message')
-    
-    def message_preview(self, obj):
-        if obj.subject:
-            return obj.subject
-        elif obj.text:
-            return obj.text[:50] + ('...' if len(obj.text) > 50 else '')
-        return f"Message {obj.id}"
-    message_preview.short_description = 'Message'
-    
-    fieldsets = (
-        (None, {
-            'fields': ('channel',)
-        }),
-        (_('Message Content'), {
-            'fields': ('text', 'html'),
-            'classes': ('tinymce-content',),
-        }),
-        (_('Email Specific'), {
-            'fields': ('to', 'cc', 'bcc', 'subject'),
-            'classes': ('collapse',),
-        }),
-        (_('Chat Specific'), {
-            'fields': ('chat_id',),
-            'classes': ('collapse',),
-        }),
-        (_('Scheduling & Approval'), {
-            'fields': ('send_at', 'is_approved', 'status'),
-        }),
-        (_('Metadata'), {
-            'fields': ('created_by', 'created_at', 'updated_at', 'sent_at', 'sent_message', 'error_message'),
-            'classes': ('collapse',),
-        }),
-    )
-    
-    def save_model(self, request, obj, form, change):
-        if not change:  # If this is a new object
-            obj.created_by = request.user
-        super().save_model(request, obj, form, change)
-    
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        # Add TinyMCE for HTML content
-        form.Media = type('Media', (), {
-            'css': {'all': ('admin/css/forms.css',)},
-            'js': (
-                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
-                'unicom/js/tinymce_init.js',
+    actions = ['approve_drafts', 'unapprove_drafts']
+
+    class Media:
+        css = {
+            'all': (
+                'admin/css/chat_list.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
             )
-        })
-        return form
-    
-    def formfield_for_dbfield(self, db_field, **kwargs):
-        if db_field.name == 'html':
-            kwargs['widget'] = forms.Textarea(attrs={
-                'class': 'tinymce',
-                'data-tinymce': 'true'
-            })
-        return super().formfield_for_dbfield(db_field, **kwargs)
+        }
+
+    def get_queryset(self, request):
+        # By default, only show pending approval items unless filtered
+        qs = super().get_queryset(request)
+        if not any(param.startswith('schedule_status') for param in request.GET.keys()):
+            now = timezone.now()
+            return qs.filter(
+                status='scheduled',
+                is_approved=False,
+                send_at__gt=now
+            )
+        return qs
+
+    def approve_drafts(self, request, queryset):
+        updated = queryset.update(is_approved=True)
+        self.message_user(request, f'{updated} draft(s) have been approved.')
+    approve_drafts.short_description = 'Approve selected drafts'
+
+    def unapprove_drafts(self, request, queryset):
+        updated = queryset.update(is_approved=False)
+        self.message_user(request, f'{updated} draft(s) have been unapproved.')
+    unapprove_drafts.short_description = 'Unapprove selected drafts'
+
+    def message_preview(self, obj):
+        # Determine message type and status indicators
+        is_email = obj.channel.platform == 'Email'
+        is_pending = obj.status == 'scheduled' and not obj.is_approved
+        is_past_due = obj.status == 'scheduled' and obj.send_at and obj.send_at < timezone.now()
+        
+        # Create status icons
+        status_icons = format_html(
+            '<span class="draft-status-icons">{}{}{}{}</span>',
+            format_html('<i class="fas fa-clock text-warning" title="Pending Approval"></i>') if is_pending else '',
+            format_html('<i class="fas fa-exclamation-circle text-danger" title="Past Due"></i>') if is_past_due else '',
+            format_html('<i class="fas fa-check-circle text-success" title="Approved"></i>') if obj.is_approved else '',
+            format_html('<i class="fas fa-envelope" title="Email"></i>') if is_email else format_html('<i class="fas fa-comment" title="Chat"></i>')
+        )
+
+        # Prepare content preview
+        if is_email and obj.html:
+            content_preview = format_html(
+                '<div class="email-preview">{}</div>',
+                mark_safe(obj.html)  # Safe because this is admin-only content
+            )
+        else:
+            content_preview = obj.text if obj.text else 'No content'
+
+        # Format recipients for email
+        recipients = ''
+        if is_email:
+            to_list = ', '.join(obj.to) if obj.to else ''
+            cc_list = f' (cc: {", ".join(obj.cc)})' if obj.cc else ''
+            recipients = f'{to_list}{cc_list}' if to_list or cc_list else 'No recipients'
+
+        return format_html('''
+            <div class="draft-message-container">
+                <div class="draft-header">
+                    <div class="draft-title">
+                        <span class="draft-subject">{}</span>
+                        {}
+                    </div>
+                    <div class="draft-meta">
+                        <span class="draft-channel">{}</span>
+                        <span class="draft-time" title="Send At">{}</span>
+                    </div>
+                </div>
+                {}
+                <div class="draft-content">
+                    {}
+                </div>
+                <div class="draft-footer">
+                    <span class="draft-creator">By: {}</span>
+                    <span class="draft-created">Created: {}</span>
+                </div>
+            </div>
+            <style>
+                .draft-message-container {{
+                    padding: 15px;
+                    border-radius: 4px;
+                    background: var(--body-bg);
+                    margin: 5px 0;
+                }}
+                .draft-header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    margin-bottom: 10px;
+                }}
+                .draft-title {{
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }}
+                .draft-subject {{
+                    font-weight: bold;
+                    font-size: 1.1em;
+                    color: var(--link-fg);
+                }}
+                .draft-status-icons {{
+                    display: flex;
+                    gap: 8px;
+                }}
+                .draft-status-icons i {{
+                    font-size: 1.1em;
+                }}
+                .text-warning {{
+                    color: #f39c12;
+                }}
+                .text-danger {{
+                    color: #e74c3c;
+                }}
+                .text-success {{
+                    color: #2ecc71;
+                }}
+                .draft-meta {{
+                    display: flex;
+                    gap: 15px;
+                    align-items: center;
+                }}
+                .draft-channel {{
+                    background-color: var(--selected-row);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-size: 0.9em;
+                }}
+                .draft-time {{
+                    color: var(--body-quiet-color);
+                    font-size: 0.9em;
+                }}
+                .draft-recipients {{
+                    font-size: 0.9em;
+                    color: var(--body-quiet-color);
+                    margin: 5px 0;
+                }}
+                .draft-content {{
+                    margin: 10px 0;
+                    padding: 10px;
+                    background: var(--darkened-bg);
+                    border-radius: 4px;
+                    max-height: 300px;
+                    overflow-y: auto;
+                }}
+                .email-preview {{
+                    background: white !important;
+                    padding: 15px !important;
+                    border-radius: 4px !important;
+                    /* Create a new stacking context to isolate styles */
+                    position: relative !important;
+                    z-index: 1 !important;
+                }}
+                /* Reset absolutely everything inside the preview */
+                #container .email-preview *,
+                #container .email-preview h1,
+                #container .email-preview h2,
+                #container .email-preview h3,
+                #container .email-preview h4,
+                #container .email-preview h5,
+                #container .email-preview h6,
+                #container .email-preview p,
+                #container .email-preview span,
+                #container .email-preview div,
+                #container .email-preview table,
+                #container .email-preview tr,
+                #container .email-preview td,
+                #container .email-preview th,
+                #container .email-preview ul,
+                #container .email-preview ol,
+                #container .email-preview li,
+                #container .email-preview a,
+                #container .email-preview img,
+                #container .email-preview blockquote,
+                #container .email-preview pre,
+                #container .email-preview code {{
+                    all: revert !important;
+                    font-family: revert !important;
+                    color: initial !important;
+                    background: initial !important;
+                    padding: revert !important;
+                    margin: revert !important;
+                    border: revert !important;
+                    font-size: revert !important;
+                    font-weight: revert !important;
+                    line-height: revert !important;
+                    text-align: revert !important;
+                    text-decoration: revert !important;
+                    box-sizing: border-box !important;
+                    width: revert !important;
+                    height: revert !important;
+                    min-width: revert !important;
+                    min-height: revert !important;
+                    max-width: revert !important;
+                    max-height: revert !important;
+                    display: revert !important;
+                    position: revert !important;
+                    top: revert !important;
+                    left: revert !important;
+                    right: revert !important;
+                    bottom: revert !important;
+                    float: revert !important;
+                    clear: revert !important;
+                    clip: revert !important;
+                    visibility: revert !important;
+                    overflow: revert !important;
+                    vertical-align: revert !important;
+                    white-space: revert !important;
+                    word-break: revert !important;
+                    word-wrap: revert !important;
+                    word-spacing: revert !important;
+                    letter-spacing: revert !important;
+                    quotes: revert !important;
+                    list-style: revert !important;
+                    list-style-type: revert !important;
+                    list-style-position: revert !important;
+                    border-spacing: revert !important;
+                    border-collapse: revert !important;
+                    caption-side: revert !important;
+                    table-layout: revert !important;
+                    empty-cells: revert !important;
+                    opacity: revert !important;
+                    transform: none !important;
+                    transition: none !important;
+                    box-shadow: none !important;
+                    text-shadow: none !important;
+                    text-transform: none !important;
+                    flex: none !important;
+                    flex-flow: none !important;
+                    flex-basis: auto !important;
+                    flex-direction: row !important;
+                    flex-grow: 0 !important;
+                    flex-shrink: 1 !important;
+                    flex-wrap: nowrap !important;
+                    justify-content: normal !important;
+                    align-items: normal !important;
+                    align-content: normal !important;
+                    order: 0 !important;
+                    filter: none !important;
+                    backdrop-filter: none !important;
+                    perspective: none !important;
+                    -webkit-font-smoothing: auto !important;
+                    -moz-osx-font-smoothing: auto !important;
+                }}
+                /* Additional specific overrides for problematic elements */
+                #container .email-preview h1,
+                #container .email-preview h2,
+                #container .email-preview h3,
+                #container .email-preview h4,
+                #container .email-preview h5,
+                #container .email-preview h6 {{
+                    background: none !important;
+                    border: none !important;
+                    color: #000 !important;
+                    padding: revert !important;
+                    margin: 0.67em 0 !important;
+                    font-weight: bold !important;
+                }}
+                #container .email-preview h1 {{ font-size: 2em !important; }}
+                #container .email-preview h2 {{ font-size: 1.5em !important; }}
+                #container .email-preview h3 {{ font-size: 1.17em !important; }}
+                #container .email-preview h4 {{ font-size: 1em !important; }}
+                #container .email-preview h5 {{ font-size: 0.83em !important; }}
+                #container .email-preview h6 {{ font-size: 0.67em !important; }}
+                /* Ensure tables render properly */
+                #container .email-preview table {{
+                    display: table !important;
+                    border-collapse: separate !important;
+                    border-spacing: 2px !important;
+                    box-sizing: border-box !important;
+                    text-indent: initial !important;
+                    border-color: gray !important;
+                }}
+                #container .email-preview table td,
+                #container .email-preview table th {{
+                    padding: 1px !important;
+                    border-color: inherit !important;
+                }}
+                /* Ensure lists render properly */
+                #container .email-preview ul {{
+                    list-style-type: disc !important;
+                    margin: 1em 0 !important;
+                    padding-left: 40px !important;
+                }}
+                #container .email-preview ol {{
+                    list-style-type: decimal !important;
+                    margin: 1em 0 !important;
+                    padding-left: 40px !important;
+                }}
+                /* Ensure links render properly */
+                #container .email-preview a {{
+                    color: #0000EE !important;
+                    text-decoration: underline !important;
+                    cursor: pointer !important;
+                }}
+                #container .email-preview a:visited {{
+                    color: #551A8B !important;
+                }}
+                .draft-footer {{
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 0.8em;
+                    color: var(--body-quiet-color);
+                    margin-top: 10px;
+                }}
+            </style>
+        ''',
+        obj.subject or 'No Subject',
+        status_icons,
+        obj.channel,
+        obj.send_at.strftime('%Y-%m-%d %H:%M') if obj.send_at else 'No schedule',
+        format_html('<div class="draft-recipients">{}</div>', recipients) if recipients else '',
+        content_preview,
+        obj.created_by.get_full_name() if obj.created_by else 'Unknown',
+        obj.created_at.strftime('%Y-%m-%d %H:%M')
+        )
+    message_preview.short_description = 'Draft Messages'
 
 admin.site.register(Channel, ChannelAdmin)
 admin.site.register(Message)
