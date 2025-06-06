@@ -118,7 +118,10 @@ def compose_view(request):
                 # Format the message to show in user's local timezone
                 local_time_str = local_tz_dt.strftime("%Y-%m-%d %H:%M %Z")
                 messages.success(request, f'Message scheduled successfully for {local_time_str}!')
-                return redirect('admin:unicom_draftmessage_changelist')
+                
+                # Redirect to the changelist and show all scheduled drafts
+                changelist_url = reverse('admin:unicom_draftmessage_changelist')
+                return redirect(f'{changelist_url}?schedule_status=all&status__exact=scheduled')
             
             # If no send_at, send immediately (existing logic)
             else:
