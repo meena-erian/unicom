@@ -552,6 +552,31 @@ class DraftMessageAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at', 'sent_at', 'error_message', 'sent_message')
     actions = ['approve_drafts', 'unapprove_drafts']
 
+    fieldsets = (
+        (None, {
+            'fields': ('channel',)
+        }),
+        (_('Message Content'), {
+            'fields': ('text', 'html'),
+            'classes': ('tinymce-content',),
+        }),
+        (_('Email Specific'), {
+            'fields': ('to', 'cc', 'bcc', 'subject'),
+            'classes': ('collapse',),
+        }),
+        (_('Chat Specific'), {
+            'fields': ('chat_id',),
+            'classes': ('collapse',),
+        }),
+        (_('Scheduling & Approval'), {
+            'fields': ('send_at', 'is_approved', 'status'),
+        }),
+        (_('Metadata'), {
+            'fields': ('created_by', 'created_at', 'updated_at', 'sent_at', 'sent_message', 'error_message'),
+            'classes': ('collapse',),
+        }),
+    )
+
     class Media:
         css = {
             'all': (
@@ -560,10 +585,44 @@ class DraftMessageAdmin(admin.ModelAdmin):
             )
         }
 
+    def save_model(self, request, obj, form, change):
+        if not change:  # If this is a new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Add TinyMCE for HTML content
+        form.Media = type('Media', (), {
+            'css': {'all': ('admin/css/forms.css',)},
+            'js': (
+                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
+                'unicom/js/tinymce_init.js',
+            )
+        })
+        return form
+    
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'html':
+            kwargs['widget'] = forms.Textarea(attrs={
+                'class': 'tinymce',
+                'data-tinymce': 'true'
+            })
+        return super().formfield_for_dbfield(db_field, **kwargs)
+
     def get_queryset(self, request):
-        # By default, only show pending approval items unless filtered
+        """
+        By default, show only pending approval items on the changelist view.
+        On other views (like the change form), show all objects to prevent
+        "doesn't exist" errors.
+        """
         qs = super().get_queryset(request)
-        if not any(param.startswith('schedule_status') for param in request.GET.keys()):
+        
+        # Check if we are on the changelist page by inspecting the URL name
+        is_changelist = request.resolver_match.url_name.endswith('_changelist')
+        
+        # Apply the default filter only on the changelist page
+        if is_changelist and not any(param.startswith('schedule_status') for param in request.GET.keys()):
             now = timezone.now()
             return qs.filter(
                 status='scheduled',
