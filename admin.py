@@ -23,6 +23,37 @@ from django.conf import settings
 from django.utils.safestring import mark_safe
 
 
+class ArchiveStatusFilter(SimpleListFilter):
+    title = _('Archive Status')
+    parameter_name = 'archive_status'
+    default_value = 'unarchived'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('unarchived', _('Unarchived')),
+            ('archived', _('Archived')),
+            ('all', _('All Chats')),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value() or self.default_value
+        if value == 'unarchived':
+            return queryset.filter(is_archived=False)
+        if value == 'archived':
+            return queryset.filter(is_archived=True)
+        # if value == 'all':
+        return queryset
+
+    def choices(self, changelist):
+        value = self.value() or self.default_value
+        for lookup, title in self.lookup_choices:
+            yield {
+                'selected': value == str(lookup),
+                'query_string': changelist.get_query_string({self.parameter_name: lookup}),
+                'display': title,
+            }
+
+
 class LastMessageTypeFilter(SimpleListFilter):
     title = _('Last Message Type')
     parameter_name = 'last_message_type'
@@ -112,7 +143,7 @@ class ChatAdmin(admin.ModelAdmin):
         LastMessageTypeFilter,
         LastMessageTimeFilter,
         MessageHistoryFilter,
-        'is_archived',
+        ArchiveStatusFilter,
         'platform',
         'is_private',
         'channel',
@@ -130,11 +161,8 @@ class ChatAdmin(admin.ModelAdmin):
         }
 
     def get_queryset(self, request):
-        # By default, only show unarchived chats unless explicitly filtered
-        qs = super().get_queryset(request).order_by('-last_message__timestamp')
-        if not any(param.startswith('is_archived') for param in request.GET.keys()):
-            return qs.filter(is_archived=False)
-        return qs
+        # The filtering logic is now handled by the ArchiveStatusFilter.
+        return super().get_queryset(request).order_by('-last_message__timestamp')
 
     def archive_chats(self, request, queryset):
         updated = queryset.update(is_archived=True)
@@ -504,38 +532,55 @@ class MessageTemplateAdmin(admin.ModelAdmin):
 class DraftScheduleFilter(SimpleListFilter):
     title = _('Schedule Status')
     parameter_name = 'schedule_status'
+    default_value = 'pending'
 
     def lookups(self, request, model_admin):
+        """
+        Returns a list of tuples. The first element in each
+        tuple is the coded value for the option that will appear in the URL query.
+        The second element is the human-readable name for the option that will
+        appear in the right sidebar.
+        """
         return (
             ('pending', _('Pending Approval')),
+            ('all', _('All')),
             ('scheduled', _('Scheduled & Approved')),
             ('past_due', _('Past Due')),
             ('draft', _('Draft')),
-            ('all', _('All')),
         )
 
     def queryset(self, request, queryset):
+        """
+        Returns the filtered queryset based on the value
+        provided in the query string and retrievable via `self.value()`.
+        """
+        value = self.value() or self.default_value
         now = timezone.now()
-        if self.value() == 'pending':
-            return queryset.filter(
-                status='scheduled',
-                is_approved=False,
-                send_at__gt=now
-            )
-        if self.value() == 'scheduled':
-            return queryset.filter(
-                status='scheduled',
-                is_approved=True,
-                send_at__gt=now
-            )
-        if self.value() == 'past_due':
-            return queryset.filter(
-                status='scheduled',
-                send_at__lt=now
-            )
-        if self.value() == 'draft':
+
+        if value == 'pending':
+            return queryset.filter(status='scheduled', is_approved=False, send_at__gt=now)
+        if value == 'scheduled':
+            return queryset.filter(status='scheduled', is_approved=True, send_at__gt=now)
+        if value == 'past_due':
+            return queryset.filter(status='scheduled', send_at__lt=now)
+        if value == 'draft':
             return queryset.filter(status='draft')
+        if value == 'all':
+            return queryset
         return queryset
+
+    def choices(self, changelist):
+        """
+        Override the default choices to prevent the automatic "All" link and
+        to select our custom default.
+        """
+        value = self.value() or self.default_value
+        for lookup, title in self.lookup_choices:
+            yield {
+                'selected': value == str(lookup),
+                'query_string': changelist.get_query_string({self.parameter_name: lookup}),
+                'display': title,
+            }
 
 
 @admin.register(DraftMessage)
@@ -611,25 +656,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
         return super().formfield_for_dbfield(db_field, **kwargs)
 
     def get_queryset(self, request):
-        """
-        By default, show only pending approval items on the changelist view.
-        On other views (like the change form), show all objects to prevent
-        "doesn't exist" errors.
-        """
-        qs = super().get_queryset(request)
-        
-        # Check if we are on the changelist page by inspecting the URL name
-        is_changelist = request.resolver_match.url_name.endswith('_changelist')
-        
-        # Apply the default filter only on the changelist page
-        if is_changelist and not any(param.startswith('schedule_status') for param in request.GET.keys()):
-            now = timezone.now()
-            return qs.filter(
-                status='scheduled',
-                is_approved=False,
-                send_at__gt=now
-            )
-        return qs
+        return super().get_queryset(request)
 
     def approve_drafts(self, request, queryset):
         updated = queryset.update(is_approved=True)
@@ -928,7 +955,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
         obj.send_at.strftime('%Y-%m-%d %H:%M') if obj.send_at else 'No schedule',
         format_html('<div class="draft-recipients">{}</div>', recipients) if recipients else '',
         content_preview,
-        obj.created_by.get_full_name() if obj.created_by else 'Unknown',
+        (obj.created_by.get_full_name() or obj.created_by.username) if obj.created_by else 'Unknown',
         obj.created_at.strftime('%Y-%m-%d %H:%M')
         )
     message_preview.short_description = 'Draft Messages'
