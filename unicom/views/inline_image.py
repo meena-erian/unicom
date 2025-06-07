@@ -1,5 +1,6 @@
 from django.http import HttpResponse, Http404
 from unicom.models import EmailInlineImage
+from unicom.models.message_template import MessageTemplateInlineImage
 import string
 
 def base62_decode(s):
@@ -12,10 +13,24 @@ def base62_decode(s):
 def serve_inline_image(request, shortid):
     try:
         pk = base62_decode(shortid)
-        image = EmailInlineImage.objects.get(pk=pk)
+        try:
+            image = EmailInlineImage.objects.get(pk=pk)
+        except EmailInlineImage.DoesNotExist:
+            image = MessageTemplateInlineImage.objects.get(pk=pk)
         response = HttpResponse(image.file, content_type='image/*')
         filename = image.file.name.split('/')[-1]
         response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
-    except (EmailInlineImage.DoesNotExist, ValueError, IndexError):
+    except (EmailInlineImage.DoesNotExist, MessageTemplateInlineImage.DoesNotExist, ValueError, IndexError):
+        raise Http404('Image not found')
+
+def serve_template_inline_image(request, shortid):
+    try:
+        pk = base62_decode(shortid)
+        image = MessageTemplateInlineImage.objects.get(pk=pk)
+        response = HttpResponse(image.file, content_type='image/*')
+        filename = image.file.name.split('/')[-1]
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+    except (MessageTemplateInlineImage.DoesNotExist, ValueError, IndexError):
         raise Http404('Image not found') 

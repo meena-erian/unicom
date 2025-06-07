@@ -512,15 +512,18 @@ class MessageTemplateAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        # Add TinyMCE API key to the form's Media
+        # Only include the local tinymce_init.js, not the CDN script
         form.Media = type('Media', (), {
             'css': {'all': ('admin/css/forms.css',)},
             'js': (
-                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
                 'unicom/js/tinymce_init.js',
             )
         })
         return form
+
+    def render_change_form(self, request, context, *args, **kwargs):
+        context['tinymce_api_key'] = settings.UNICOM_TINYMCE_API_KEY
+        return super().render_change_form(request, context, *args, **kwargs)
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == 'content':
@@ -642,7 +645,6 @@ class DraftMessageAdmin(admin.ModelAdmin):
         form.Media = type('Media', (), {
             'css': {'all': ('admin/css/forms.css',)},
             'js': (
-                f'https://cdn.tiny.cloud/1/{settings.UNICOM_TINYMCE_API_KEY}/tinymce/6/tinymce.min.js',
                 'unicom/js/tinymce_init.js',
             )
         })
