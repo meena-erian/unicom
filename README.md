@@ -61,6 +61,12 @@
    UNICOM_TINYMCE_API_KEY=your-tinymce-api-key
    ```
 
+   and then you would still have to load it in settings.py
+
+   ```python
+   UNICOM_TINYMCE_API_KEY = os.getenv('UNICOM_TINYMCE_API_KEY', '')
+   ```
+
 That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL and can automatically sync with email clients.
 
 ## 📝 Features & Usage
