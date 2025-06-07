@@ -17,6 +17,7 @@ from .models import (
     Request,
     MessageTemplate,
     DraftMessage,
+    EmailInlineImage
 )
 from django import forms
 from django.conf import settings
@@ -966,3 +967,4 @@ admin.site.register(Update)
 admin.site.register(Chat, ChatAdmin)
 admin.site.register(Account, AccountAdmin)
 admin.site.register(AccountChat, AccountChatAdmin)
+admin.site.register(EmailInlineImage)

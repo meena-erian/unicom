@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img
 from unicom.services.email.save_email_message import save_email_message
-from unicom.services.email.email_tracking import prepare_email_for_tracking
+from unicom.services.email.email_tracking import prepare_email_for_tracking, remove_tracking
 from unicom.services.get_public_origin import get_public_domain
 from django.apps import apps
 import logging
@@ -273,7 +273,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     # Add tracking info and original content to the saved message
     saved_msg.tracking_id = tracking_id
     saved_msg.raw['original_urls'] = original_urls  # Store original URLs in raw field
-    saved_msg.html = original_html  # Store the original HTML without tracking
+    # Use the HTML with shortlinks and without tracking for DB
+    if html_content:
+        saved_msg.html = remove_tracking(saved_msg.html, original_urls)
     saved_msg.sent = True  # Mark as sent since we successfully sent it
     saved_msg.save(update_fields=['tracking_id', 'raw', 'html', 'sent'])
     

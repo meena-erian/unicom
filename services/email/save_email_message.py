@@ -9,6 +9,8 @@ from django.core.files.base import ContentFile
 from django.conf import settings
 from django.contrib.auth.models import User
 from unicom.services.email.email_tracking import remove_tracking
+from django.urls import reverse
+from unicom.services.get_public_origin import get_public_origin
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +139,37 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
         soup = BeautifulSoup(body_html, 'html.parser')
         body_text = soup.get_text()
 
+    # --- extract and save inline base64 images, build HTML with shortlinks ---
+    inline_image_pks = []
+    if body_html:
+        from bs4 import BeautifulSoup
+        import base64
+        import mimetypes
+        from unicom.models import EmailInlineImage
+        soup = BeautifulSoup(body_html, 'html.parser')
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            if src.startswith('data:image/') and ';base64,' in src:
+                header, b64data = src.split(';base64,', 1)
+                mime = header.split(':')[1]
+                ext = mimetypes.guess_extension(mime) or '.png'
+                data = base64.b64decode(b64data)
+                content_id = img.get('cid') or None
+                image_obj = EmailInlineImage.objects.create(
+                    email_message=None,
+                    content_id=content_id
+                )
+                fname = f'inline_{image_obj.pk}{ext}'
+                image_obj.file.save(fname, ContentFile(data), save=True)
+                
+                # Generate full public URL
+                short_id = image_obj.get_short_id()
+                path = reverse('inline_image', kwargs={'shortid': short_id})
+                public_url = f"{get_public_origin().strip('/')}{path}"
+                img['src'] = public_url
+                inline_image_pks.append(image_obj.pk)
+        body_html = str(soup)
+
     # --- save into your Message model ---
     msg_obj, created = Message.objects.get_or_create(
         platform=platform,
@@ -160,6 +193,16 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             'channel': channel
         }
     )
+
+    # If message already existed, update its HTML if it changed
+    if not created and msg_obj.html != body_html:
+        msg_obj.html = body_html
+        msg_obj.save(update_fields=['html'])
+
+    # Associate any newly created inline images with the message
+    if inline_image_pks:
+        from unicom.models import EmailInlineImage
+        EmailInlineImage.objects.filter(pk__in=inline_image_pks).update(email_message=msg_obj)
 
     if not created:
         logger.debug(f"Message {msg_obj.id} already exists in chat {chat_obj.id}")

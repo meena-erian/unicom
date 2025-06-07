@@ -98,3 +98,23 @@ class Message(models.Model):
 
     def __str__(self) -> str:
         return f"{self.platform}:{self.chat.name}->{self.sender_name}: {self.text}"
+
+
+class EmailInlineImage(models.Model):
+    file = models.FileField(upload_to='email_inline_images/')
+    email_message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='inline_images', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    content_id = models.CharField(max_length=255, blank=True, null=True, help_text='Content-ID for cid: references in HTML')
+
+    def get_short_id(self):
+        # Use base62 encoding of PK for short URLs
+        import string
+        chars = string.digits + string.ascii_letters
+        n = self.pk
+        s = ''
+        if n == 0:
+            return chars[0]
+        while n > 0:
+            n, r = divmod(n, 62)
+            s = chars[r] + s
+        return s
