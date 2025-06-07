@@ -13,3 +13,4 @@ dist
 staticfiles/
 unicom/staticfiles/
 unicom/media/
+email_inline_images
