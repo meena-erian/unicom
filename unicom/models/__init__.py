@@ -1,7 +1,7 @@
 from .account_chat import AccountChat
 from .account import Account
 from .chat import Chat
-from .message import Message
+from .message import Message, EmailInlineImage
 from .update import Update
 from .channel import Channel
 from .member import Member
@@ -16,6 +16,7 @@ __all__ = [
     'Account',
     'Chat',
     'Message',
+    'EmailInlineImage',
     'Update',
     'Channel',
     'Request',
