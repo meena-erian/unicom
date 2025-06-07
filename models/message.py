@@ -7,6 +7,9 @@ from django.contrib.postgres.fields import ArrayField
 from django.core.validators import validate_email
 from fa2svg.converter import revert_to_original_fa
 import uuid
+import re
+from bs4 import BeautifulSoup
+import base64
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -92,6 +95,37 @@ class Message(models.Model):
     @property
     def original_content(self):
         return revert_to_original_fa(self.html) if self.platform == 'Email' else self.text
+
+    @property
+    def html_with_base64_images(self):
+        """
+        Returns the HTML content with all inline image shortlinks replaced by their original base64 data, if available.
+        """
+        if not self.html:
+            return self.html
+        soup = BeautifulSoup(self.html, 'html.parser')
+        # Map shortlink src to base64 for all inline images
+        images = {img.get_short_id(): img for img in getattr(self, 'inline_images', [])}
+        for img_tag in soup.find_all('img'):
+            src = img_tag.get('src', '')
+            # Extract short id from src (e.g., /i/abc123 or full URL)
+            m = re.search(r'/i/([A-Za-z0-9]+)', src)
+            if m:
+                short_id = m.group(1)
+                image_obj = images.get(short_id)
+                if image_obj:
+                    # Read file and encode as base64
+                    data = image_obj.file.read()
+                    image_obj.file.seek(0)
+                    mime = 'image/png'  # Default
+                    if hasattr(image_obj.file, 'file') and hasattr(image_obj.file.file, 'content_type'):
+                        mime = image_obj.file.file.content_type
+                    elif image_obj.file.name:
+                        import mimetypes
+                        mime = mimetypes.guess_type(image_obj.file.name)[0] or 'image/png'
+                    b64 = base64.b64encode(data).decode('ascii')
+                    img_tag['src'] = f'data:{mime};base64,{b64}'
+        return str(soup)
 
     class Meta:
         ordering = ['-timestamp']
