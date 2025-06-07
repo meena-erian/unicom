@@ -16,13 +16,14 @@
     }
 
     const DEFAULT_CONFIG = {
-        plugins: 'link image lists table code template',
+        plugins: 'link image lists table code template paste',
         toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | template',
         menubar: 'file edit view insert format tools table',
         height: 400,
         max_height: 400,
         branding: false,
         promotion: false,
+        paste_webkit_styles: 'all',
         templates: function(callback) {
             const url = new URL('/unicom/api/message-templates/', window.location.origin);
             // Get the editor instance
