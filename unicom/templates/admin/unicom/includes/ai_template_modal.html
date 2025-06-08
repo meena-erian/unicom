@@ -2,6 +2,32 @@
 <link rel="stylesheet" href="{% static 'unicom/css/bootstrap_scoped.css' %}">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
+<style>
+  #unicom-ai-template-preview table,
+  #unicom-ai-template-preview tr,
+  #unicom-ai-template-preview td,
+  #unicom-ai-template-preview th,
+  #unicom-ai-template-preview tbody,
+  #unicom-ai-template-preview thead,
+  #unicom-ai-template-preview tfoot,
+  #unicom-ai-template-custom-preview table,
+  #unicom-ai-template-custom-preview tr,
+  #unicom-ai-template-custom-preview td,
+  #unicom-ai-template-custom-preview th,
+  #unicom-ai-template-custom-preview tbody,
+  #unicom-ai-template-custom-preview thead,
+  #unicom-ai-template-custom-preview tfoot {
+    all: unset;
+    display: revert;
+  }
+
+  #unicom-ai-template-preview table,
+  #unicom-ai-template-custom-preview table {
+    border-collapse: collapse;
+    width: auto;
+  }
+</style>
+
 <div class="unicom-bootstrap-scope">
   <div class="modal fade" id="unicom-ai-template-modal" tabindex="-1" aria-labelledby="unicomAiTemplateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
