@@ -3,6 +3,9 @@ from django.views.generic import View
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
 
 from ..models import MessageTemplate, Channel
 
@@ -34,9 +37,33 @@ class MessageTemplateListView(View):
         tinymce_templates = []
         for template in templates:
             tinymce_templates.append({
+                'id': template.id,
                 'title': template.title,
                 'description': template.description,
                 'content': template.content,
             })
         
-        return JsonResponse(tinymce_templates, safe=False) 
+        return JsonResponse(tinymce_templates, safe=False)
+
+@csrf_exempt
+@require_POST
+@login_required
+def populate_message_template(request):
+    """
+    API endpoint to populate a message template using AI.
+    Expects JSON: {"template_id": <id>, "html_prompt": <html>}
+    Returns: {"html": <populated_html>} or {"error": ...}
+    """
+    try:
+        data = json.loads(request.body)
+        template_id = data.get("template_id")
+        html_prompt = data.get("html_prompt")
+        if not template_id or not html_prompt:
+            return JsonResponse({"error": "Missing template_id or html_prompt"}, status=400)
+        template = MessageTemplate.objects.get(pk=template_id)
+        result_html = template.populate(html_prompt)
+        return JsonResponse({"html": result_html})
+    except MessageTemplate.DoesNotExist:
+        return JsonResponse({"error": "Template not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500) 

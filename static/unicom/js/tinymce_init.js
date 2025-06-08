@@ -16,33 +16,14 @@
     }
 
     const DEFAULT_CONFIG = {
-        plugins: 'link image lists table code template paste',
-        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | template',
+        plugins: 'link image lists table code unicom_ai_template',
+        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | unicom_ai_template',
         menubar: 'file edit view insert format tools table',
         height: 400,
         max_height: 400,
         branding: false,
         promotion: false,
         paste_webkit_styles: 'all',
-        templates: function(callback) {
-            const url = new URL('/unicom/api/message-templates/', window.location.origin);
-            // Get the editor instance
-            const editor = tinymce.activeEditor;
-            if (editor && editor.getParam) {
-                const channelId = editor.getParam('channel_id');
-                if (channelId) {
-                    url.searchParams.set('channel_id', channelId);
-                }
-            }
-            
-            fetch(url)
-                .then(response => response.json())
-                .then(callback)
-                .catch(error => {
-                    console.error('Error loading templates:', error);
-                    callback([]);
-                });
-        },
         /*
          * We will attach a default setup that triggers save on change so that the underlying
          * <textarea> is always kept in sync.

@@ -6,6 +6,9 @@ import base64
 from django.core.files.base import ContentFile
 from django.urls import reverse
 from unicom.services.get_public_origin import get_public_origin
+import openai
+from django.conf import settings
+from unicom.services.html_inline_images import html_base64_images_to_shortlinks
 
 class MessageTemplate(models.Model):
     """Model for storing reusable message templates."""
@@ -124,6 +127,41 @@ class MessageTemplate(models.Model):
                 self.content = str(soup)
                 # Save again to update content with shortlinks
                 super().save(update_fields=['content'])
+
+    def populate(self, html_prompt):
+        """
+        Uses OpenAI GPT-4o to populate and customize the template content based on the given prompt.
+        Returns the AI-generated content.
+        """
+        if not settings.OPENAI_API_KEY:
+            raise ValueError("OpenAI API key not configured in settings.")
+        openai.api_key = settings.OPENAI_API_KEY
+        system_prompt = (
+            "You are a template population function. Given a message template (HTML) and a user prompt, "
+            "populate the template with relevant content, customizing it as per the user's instructions. "
+            "Your output MUST be valid HTML only, with NO markdown, code blocks, or plain text. "
+            "Do NOT use any markdown formatting. Only output the populated HTML template. "
+            "For clarity, you may wrap the system and user instructions in <p> tags if you need to reference them, but the main output must be the HTML template itself."
+        )
+        user_content = f"""
+<p><b>System:</b> Populate the following HTML template as per the user prompt. Output only valid HTML, no markdown or plain text.</p>
+<p><b>User Prompt:</b> {html_base64_images_to_shortlinks(html_prompt)}</p>
+<p><b>Template:</b></p>
+{self.content}
+"""
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.7,
+                max_tokens=2048,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"OpenAI API error: {e}")
 
 class MessageTemplateInlineImage(models.Model):
     file = models.FileField(upload_to='message_template_inline_images/')
