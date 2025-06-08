@@ -145,7 +145,7 @@ class MessageTemplate(models.Model):
         )
         user_content = f"""
 <p><b>System:</b> Populate the following HTML template as per the user prompt. Output only valid HTML, no markdown or plain text.</p>
-<p><b>User Prompt:</b> {html_base64_images_to_shortlinks(html_prompt)}</p>
+<p><b>User Prompt:</b> {html_base64_images_to_shortlinks(html_prompt)[0]}</p>
 <p><b>Template:</b></p>
 {self.content}
 """
@@ -168,6 +168,11 @@ class MessageTemplateInlineImage(models.Model):
     template = models.ForeignKey(MessageTemplate, on_delete=models.CASCADE, related_name='inline_images')
     created_at = models.DateTimeField(auto_now_add=True)
     content_id = models.CharField(max_length=255, blank=True, null=True, help_text='Content-ID for cid: references in HTML')
+
+    def delete(self, *args, **kwargs):
+        if self.file:
+            self.file.delete(save=False)
+        super().delete(*args, **kwargs)
 
     def get_short_id(self):
         import string

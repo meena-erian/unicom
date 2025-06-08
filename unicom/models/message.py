@@ -140,6 +140,11 @@ class EmailInlineImage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     content_id = models.CharField(max_length=255, blank=True, null=True, help_text='Content-ID for cid: references in HTML')
 
+    def delete(self, *args, **kwargs):
+        if self.file:
+            self.file.delete(save=False)
+        super().delete(*args, **kwargs)
+
     def get_short_id(self):
         # Use base62 encoding of PK for short URLs
         import string
