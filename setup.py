@@ -23,6 +23,7 @@ setup(
         'django-ace>=1.39.2',
         'fa2svg==0.1.6',
         'pytz>=2024.1',
+        'openai',
     ],
     extras_require={
         'dev': [
