@@ -67,6 +67,16 @@
    UNICOM_TINYMCE_API_KEY = os.getenv('UNICOM_TINYMCE_API_KEY', '')
    ```
 
+6. *(Optional)* **Set your OpenAI API key** — required if you plan to use the AI-powered template population service.
+
+   Obtain a key from <https://platform.openai.com/api-keys>, then set it as an environment variable:
+
+   ```env
+   OPENAI_API_KEY="your-openai-api-key"
+   ```
+
+   The application will automatically pick it up from the environment.
+
 That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL and can automatically sync with email clients.
 
 ## 📝 Features & Usage
@@ -203,6 +213,8 @@ We ❤️ contributors!
    DJANGO_PUBLIC_ORIGIN=https://yourdomain.com
    # Needed if you want to use the rich-text email composer in the admin
    UNICOM_TINYMCE_API_KEY=your-tinymce-api-key
+   # Needed if you want to use the AI template population service
+   OPENAI_API_KEY=your-openai-api-key
    ```
 
 3. Start the dev environment:
