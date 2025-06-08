@@ -26,15 +26,16 @@ def base62_decode(s: str) -> int:
         n = n * 62 + chars.index(c)
     return n
 
-def html_base64_images_to_shortlinks(html: str) -> str:
+def html_base64_images_to_shortlinks(html: str) -> tuple[str, list[int]]:
     """
     Converts base64 images in HTML to shortlinks, saves them as EmailInlineImage (email_message=None),
     and replaces <img src="data:image/..."> with <img src="shortlink">.
-    Returns the modified HTML.
+    Returns the modified HTML and the list of inline image pks.
     """
     if not html:
         return html
     soup = BeautifulSoup(html, 'html.parser')
+    inline_image_pks = []
     for img in soup.find_all('img'):
         src = img.get('src', '')
         if src.startswith('data:image/') and ';base64,' in src:
@@ -54,7 +55,8 @@ def html_base64_images_to_shortlinks(html: str) -> str:
             path = reverse('inline_image', kwargs={'shortid': short_id})
             public_url = f"{get_public_origin().strip('/')}{path}"
             img['src'] = public_url
-    return str(soup)
+            inline_image_pks.append(image_obj.pk)
+    return str(soup), inline_image_pks
 
 def html_shortlinks_to_base64_images(html: str) -> str:
     """
