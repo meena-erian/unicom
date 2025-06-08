@@ -162,9 +162,11 @@ textarea:not(:placeholder-shown):valid {
         <div class="form-row">
             <label for="channel">Channel:</label>
             <select name="channel" id="channel" required>
-                <option value="">Select a channel</option>
+                {% if channels|length != 1 %}
+                    <option value="">Select a channel</option>
+                {% endif %}
                 {% for channel in channels %}
-                    <option value="{{ channel.id }}" data-platform="{{ channel.platform }}" {% if channel.id == form_data.channel %}selected{% endif %}>
+                    <option value="{{ channel.id }}" data-platform="{{ channel.platform }}" {% if channel.id == form_data.channel or channels|length == 1 and not form_data.channel %}selected{% endif %}>
                         {{ channel.name }} ({{ channel.platform }})
                     </option>
                 {% endfor %}
@@ -494,13 +496,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // If we have form data from a previous submission, use that first
+    // Always prefill from URL parameters first
+    prefillFromUrl();
+
+    // After prefill, if channel is set, trigger change event to show correct fields
     if (channelSelect.value) {
         channelSelect.dispatchEvent(new Event('change'));
-    }
-    // Otherwise try to fill from URL parameters
-    else {
-        prefillFromUrl();
     }
     
     // Add input event listeners to update URL parameters
