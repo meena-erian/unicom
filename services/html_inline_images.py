@@ -4,9 +4,9 @@ import re
 from bs4 import BeautifulSoup
 from django.core.files.base import ContentFile
 from django.urls import reverse
-from unicom.models import EmailInlineImage
 from unicom.services.get_public_origin import get_public_origin
 from typing import Optional
+from django.apps import apps
 import string
 
 def base62_encode(n: int) -> str:
@@ -32,6 +32,8 @@ def html_base64_images_to_shortlinks(html: str) -> tuple[str, list[int]]:
     and replaces <img src="data:image/..."> with <img src="shortlink">.
     Returns the modified HTML and the list of inline image pks.
     """
+    EmailInlineImage = apps.get_model('unicom', 'EmailInlineImage')
+    MessageTemplateInlineImage = apps.get_model('unicom', 'MessageTemplateInlineImage')
     if not html:
         return html
     soup = BeautifulSoup(html, 'html.parser')
@@ -60,31 +62,49 @@ def html_base64_images_to_shortlinks(html: str) -> tuple[str, list[int]]:
 
 def html_shortlinks_to_base64_images(html: str) -> str:
     """
-    Converts <img src="shortlink"> in HTML to <img src="data:image/..."> by looking up EmailInlineImage.
+    Converts <img src="shortlink"> in HTML to <img src="data:image/..."> by looking up EmailInlineImage or MessageTemplateInlineImage.
     Returns the modified HTML.
     """
+    EmailInlineImage = apps.get_model('unicom', 'EmailInlineImage')
+    MessageTemplateInlineImage = apps.get_model('unicom', 'MessageTemplateInlineImage')
     if not html:
         return html
     soup = BeautifulSoup(html, 'html.parser')
     for img_tag in soup.find_all('img'):
         src = img_tag.get('src', '')
-        # Extract short id from src (e.g., /i/abc123 or full URL)
-        m = re.search(r'/i/([A-Za-z0-9]+)', src)
-        if m:
-            short_id = m.group(1)
+        # Match /i/<shortid> or /t/<shortid> anywhere in the path, possibly with trailing slash
+        m_i = re.search(r'/i/([A-Za-z0-9]+)(?:/)?', src)
+        m_t = re.search(r'/t/([A-Za-z0-9]+)(?:/)?', src)
+        if m_i:
+            short_id = m_i.group(1)
             try:
                 pk = base62_decode(short_id)
                 image_obj = EmailInlineImage.objects.get(pk=pk)
-                # Read file and encode as base64
                 data = image_obj.file.read()
                 image_obj.file.seek(0)
-                mime = 'image/png'  # Default
+                mime = 'image/png'
                 if hasattr(image_obj.file, 'file') and hasattr(image_obj.file.file, 'content_type'):
                     mime = image_obj.file.file.content_type
                 elif image_obj.file.name:
                     mime = mimetypes.guess_type(image_obj.file.name)[0] or 'image/png'
                 b64 = base64.b64encode(data).decode('ascii')
                 img_tag['src'] = f'data:{mime};base64,{b64}'
-            except Exception:
+            except Exception as e:
                 continue
-    return str(soup) 
+        elif m_t:
+            short_id = m_t.group(1)
+            try:
+                pk = base62_decode(short_id)
+                image_obj = MessageTemplateInlineImage.objects.get(pk=pk)
+                data = image_obj.file.read()
+                image_obj.file.seek(0)
+                mime = 'image/png'
+                if hasattr(image_obj.file, 'file') and hasattr(image_obj.file.file, 'content_type'):
+                    mime = image_obj.file.file.content_type
+                elif image_obj.file.name:
+                    mime = mimetypes.guess_type(image_obj.file.name)[0] or 'image/png'
+                b64 = base64.b64encode(data).decode('ascii')
+                img_tag['src'] = f'data:{mime};base64,{b64}'
+            except Exception as e:
+                continue
+    return str(soup)

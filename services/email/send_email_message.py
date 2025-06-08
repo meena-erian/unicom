@@ -13,6 +13,7 @@ import logging
 from email.utils import make_msgid
 import uuid
 import html
+from unicom.services.html_inline_images import html_shortlinks_to_base64_images, html_base64_images_to_shortlinks
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         html_content, original_urls = prepare_email_for_tracking(html_content, tracking_id)
         logger.debug("Added tracking elements to HTML content")
 
+    # --- Convert shortlinks to base64 for sending ---
+    html_content_for_sending = html_shortlinks_to_base64_images(html_content) if html_content else html_content
+
     # 1) construct the EmailMultiAlternatives
     email_msg = EmailMultiAlternatives(
         subject=subject,
@@ -221,9 +225,9 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         logger.debug(f"Added threading headers: In-Reply-To={params['reply_to_message_id']}, References={references}")
 
     # Always attach HTML alternative since we either have original HTML or converted text
-    if html_content:
-        email_msg.attach_alternative(html_content, "text/html")
-        logger.debug("Added HTML alternative content with tracking")
+    if html_content_for_sending:
+        email_msg.attach_alternative(html_content_for_sending, "text/html")
+        logger.debug("Added HTML alternative content with tracking and base64 images")
 
     # Attach files
     for fp in params.get('attachments', []):
@@ -275,17 +279,11 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     saved_msg.raw['original_urls'] = original_urls  # Store original URLs in raw field
     # Use the HTML with shortlinks and without tracking for DB
     if html_content:
-        saved_msg.html = remove_tracking(saved_msg.html, original_urls)
+        html_for_db = remove_tracking(html_content, original_urls)
+        saved_msg.html = html_for_db
     saved_msg.sent = True  # Mark as sent since we successfully sent it
     saved_msg.save(update_fields=['tracking_id', 'raw', 'html', 'sent'])
     
     logger.info(f"Message saved to database with ID: {saved_msg.id} and tracking ID: {tracking_id}")
     
     return saved_msg
-
-"""
-from unicom.models import Message
-email_messsage = Message.objects.filter(platform='Email').order_by('timestamp').first()
-email_messsage.reply_with({"html": "<h1>First outgoing email</h1>"})
-email_messsage.reply_with({"text": "I hear you in plain text"})
-"""

@@ -19,6 +19,7 @@
         plugins: 'link image lists table code unicom_ai_template',
         toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | unicom_ai_template',
         menubar: 'file edit view insert format tools table',
+        convert_urls: false,
         height: 400,
         max_height: 400,
         branding: false,
