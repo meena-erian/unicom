@@ -128,7 +128,7 @@ class MessageTemplate(models.Model):
                 # Save again to update content with shortlinks
                 super().save(update_fields=['content'])
 
-    def populate(self, html_prompt):
+    def populate(self, html_prompt, custom_system_prompt=None):
         """
         Uses OpenAI GPT-4o to populate and customize the template content based on the given prompt.
         Returns the AI-generated content.
@@ -139,10 +139,12 @@ class MessageTemplate(models.Model):
         system_prompt = (
             "You are a template population function. Given a message template (HTML) and a user prompt, "
             "populate the template with relevant content, customizing it as per the user's instructions. "
+            "Do not use any placeholders in the output and treat it as a final ready to send email."
+            "If the user didn't provide data for specific sections of the template you might have to remove that section from the output."
             "Your output MUST be valid HTML only, with NO markdown, code blocks, or plain text. "
             "Do NOT use any markdown formatting. Only output the populated HTML template. "
             "For clarity, you may wrap the system and user instructions in <p> tags if you need to reference them, but the main output must be the HTML template itself."
-        )
+        ) if not custom_system_prompt else custom_system_prompt
         user_content = f"""
 <p><b>System:</b> Populate the following HTML template as per the user prompt. Output only valid HTML, no markdown or plain text.</p>
 <p><b>User Prompt:</b> {html_base64_images_to_shortlinks(html_prompt)[0]}</p>

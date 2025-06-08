@@ -5,7 +5,7 @@ from unicom.models import Message, Update, Chat, Account, AccountChat, Channel
 from django.utils.html import format_html
 from unicom.views.chat_history_view import chat_history_view
 from unicom.views.compose_view import compose_view
-from django.urls import path
+from django.urls import path, reverse
 from django_ace import AceWidget
 from django.contrib.admin import SimpleListFilter
 from django.utils import timezone
@@ -22,6 +22,8 @@ from .models import (
 from django import forms
 from django.conf import settings
 from django.utils.safestring import mark_safe
+from unicom.services.get_public_origin import get_public_origin
+from unicom.models.message_template import MessageTemplateInlineImage
 
 
 class ArchiveStatusFilter(SimpleListFilter):
@@ -963,10 +965,37 @@ class DraftMessageAdmin(admin.ModelAdmin):
         )
     message_preview.short_description = 'Draft Messages'
 
+class EmailInlineImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'file', 'email_message', 'created_at', 'serving_link')
+    readonly_fields = ('serving_link',)
+
+    def serving_link(self, obj):
+        if not obj.pk:
+            return "(save to get link)"
+        shortid = obj.get_short_id()
+        path = reverse('inline_image', kwargs={'shortid': shortid})
+        url = f"{get_public_origin().rstrip('/')}{path}"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+    serving_link.short_description = "Serving Link"
+
+class MessageTemplateInlineImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'file', 'template', 'created_at', 'serving_link')
+    readonly_fields = ('serving_link',)
+
+    def serving_link(self, obj):
+        if not obj.pk:
+            return "(save to get link)"
+        shortid = obj.get_short_id()
+        path = reverse('template_inline_image', kwargs={'shortid': shortid})
+        url = f"{get_public_origin().rstrip('/')}{path}"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+    serving_link.short_description = "Serving Link"
+
 admin.site.register(Channel, ChannelAdmin)
 admin.site.register(Message)
 admin.site.register(Update)
 admin.site.register(Chat, ChatAdmin)
 admin.site.register(Account, AccountAdmin)
 admin.site.register(AccountChat, AccountChatAdmin)
-admin.site.register(EmailInlineImage)
+admin.site.register(EmailInlineImage, EmailInlineImageAdmin)
+admin.site.register(MessageTemplateInlineImage, MessageTemplateInlineImageAdmin)
