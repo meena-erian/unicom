@@ -1,4 +1,5 @@
 {% load static %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 {% if tinymce_api_key %}
   <script src="https://cdn.tiny.cloud/1/{{ tinymce_api_key }}/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 {% else %}
@@ -13,9 +14,9 @@
   <div class="form-inner">
     <div class="selected-message-container">
       <div class="selected-message-header">
-        <span class="reply-icon">↩</span>
+        <i class="fas fa-reply reply-icon"></i>
         <span>Replying to message</span>
-        <button type="button" class="clear-selection">✕</button>
+        <button type="button" class="clear-selection"><i class="fas fa-times"></i></button>
       </div>
       <div class="selected-message-content"></div>
     </div>
@@ -25,7 +26,7 @@
       <input type="hidden" name="reply_to_id" id="reply_to_id">
       <input type="hidden" name="message_type" value="email">
       <textarea id="email-editor" name="message_html"></textarea>
-      <button type="submit" class="send-button">Send Email ➤</button>
+      <button type="submit" class="send-button">Send Email <i class="fas fa-paper-plane"></i></button>
     </form>
   </div>
 </div>

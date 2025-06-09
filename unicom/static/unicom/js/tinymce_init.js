@@ -25,6 +25,10 @@
         branding: false,
         promotion: false,
         paste_webkit_styles: 'all',
+        content_css: [
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css'
+        ],
+        extended_valid_elements: 'i[class|style],span[class|style]',
         /*
          * We will attach a default setup that triggers save on change so that the underlying
          * <textarea> is always kept in sync.

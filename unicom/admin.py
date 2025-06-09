@@ -159,7 +159,7 @@ class ChatAdmin(admin.ModelAdmin):
         css = {
             'all': (
                 'admin/css/chat_list.css',
-                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
             )
         }
 
@@ -632,7 +632,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
         css = {
             'all': (
                 'admin/css/chat_list.css',
-                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
             )
         }
 
