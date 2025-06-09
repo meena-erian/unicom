@@ -5,8 +5,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from unicom.models import Message
+from unicom.models import Message, Channel
 import uuid
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 def validate_tracking_id(tracking_id):
     """Validate the tracking ID format"""
@@ -118,5 +119,14 @@ def link_click(request, tracking_id, link_index):
     
     message.save(update_fields=['link_clicked', 'time_link_clicked', 'clicked_links'])
     
-    # Redirect to the original URL
-    return HttpResponseRedirect(original_url) 
+    # Redirect to the original URL with tracking id as a parameter if configured
+    tracking_param = message.channel.config.get('TRACKING_PARAMETER_ID')
+    if tracking_param:
+        parsed = urlparse(original_url)
+        query = parse_qs(parsed.query)
+        query[tracking_param] = [str(tracking_id)]
+        new_query = urlencode(query, doseq=True)
+        new_url = urlunparse(parsed._replace(query=new_query))
+        return HttpResponseRedirect(new_url)
+    else:
+        return HttpResponseRedirect(original_url) 

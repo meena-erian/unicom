@@ -25,7 +25,8 @@ function initializeTemplates() {
         },
         'Email': {
             "EMAIL_ADDRESS": "your-email@example.com",
-            "EMAIL_PASSWORD": "your-email-password"
+            "EMAIL_PASSWORD": "your-email-password",
+            "TRACKING_PARAMETER_ID": "unicom_tid"
         }
     };
 
