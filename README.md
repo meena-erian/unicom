@@ -108,7 +108,9 @@ email_config_with_custom_settings = {
         "port": 587,
         "use_ssl": True,
         "protocol": "SMTP"
-    }
+    },
+    # Optional: Add a custom tracking parameter to all redirected links
+    "TRACKING_PARAMETER_ID": "unicom_tid"  # Default is 'unicom_tid', omit to disable
 }
 
 channel = Channel.objects.create(
