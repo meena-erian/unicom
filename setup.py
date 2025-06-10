@@ -2,7 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-unicom',
-    version='1.1.2',
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     description='Unified communication layer for Django (Telegram, WhatsApp, Email)',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

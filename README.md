@@ -247,3 +247,28 @@ No need to modify `settings.py` — everything is pre-wired to read from `db.env
 ## 📄 License
 
 MIT License © Meena (Menas) Erian
+
+## 📦 Release Automation
+
+To release a new version to PyPI:
+
+1. Ensure your changes are committed and pushed.
+2. Run:
+   
+   ```bash
+   make release VERSION=1.2.3
+   ```
+   This will:
+   - Tag the release as v1.2.3 in Git
+   - Push the tag
+   - Build the package
+   - Upload to PyPI using your .pypirc
+
+3. For an auto-generated version based on date/time, just run:
+   
+   ```bash
+   make release
+   ```
+   This will use the current date/time as the version (e.g., 2024.06.13.1530).
+
+The version is automatically managed by setuptools_scm from Git tags and is available at runtime as `unicom.__version__`.
