@@ -18,6 +18,8 @@ class DedupFieldFile(FieldFile):
             # Point to existing file path, do NOT call super().save()
             self.name = getattr(existing, self.field.name).name
             setattr(self.instance, self.field.attname, self.name)
+            # Save the model instance to persist the file path and hash
+            self.instance.save(update_fields=[self.field.name, self.field.hash_field])
         else:
             super().save(name, content, save=save)
 
