@@ -44,6 +44,10 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     hdr_subject   = msg.get('Subject', '')
     date_hdr      = msg.get('Date')
 
+    existing_msg = Message.objects.get(id=hdr_id)
+    if existing_msg:
+        return existing_msg
+
     logger.debug(f"Processing email - Message-ID: {hdr_id}, In-Reply-To: {hdr_in_reply}, References: {hdr_references}")
 
     # timestamp → make UTC-aware, fallback to timezone.now()
@@ -168,11 +172,6 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             'channel': channel
         }
     )
-
-    # If message already existed, update its HTML if it changed
-    if not created and msg_obj.html != body_html:
-        msg_obj.html = body_html
-        msg_obj.save(update_fields=['html'])
 
     # Associate any newly created inline images with the message
     if inline_image_pks:

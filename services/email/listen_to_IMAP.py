@@ -30,6 +30,7 @@ def listen_to_IMAP(channel):
                 server.login(email_address, password)
                 server.select_folder('INBOX')
                 # caps = server.capabilities()
+                mark_seen_on = channel.config.get('mark_seen_on', 'never')
                 # Immediately fetch any older unseen messages on startup
                 uids = server.search(['UNSEEN'])
                 for uid in uids:
@@ -40,6 +41,11 @@ def listen_to_IMAP(channel):
                         print(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
                     except Exception as e:
                         print(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
+
+                if mark_seen_on == 'on_save':
+                    if uids:
+                        server.add_flags(uids, [SEEN])
+                        logger.info(f"Channel {channel.pk}: Marked {len(uids)} messages as SEEN on startup (on_save).")
 
                 logger.info(f"Channel {channel.pk}: Connected to {host}:{port}, entering IDLE…")
 
@@ -75,7 +81,8 @@ def listen_to_IMAP(channel):
                             raw = resp[uid][b'BODY[]']
                             msg = save_email_message(channel, raw)
                             logger.info(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
-                            server.add_flags(uid, [SEEN])
+                            if mark_seen_on == 'on_save':
+                                server.add_flags(uid, [SEEN])
                             logger.debug(f"Incoming email - Message-ID: {msg.id}, In-Reply-To: {msg.raw.get('In-Reply-To') if msg.raw else 'None'}")
                             logger.debug(f"Associated with chat: {msg.chat_id}")
                         except Exception:
