@@ -131,6 +131,11 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     body_text = "\n".join(text_parts).strip()
     body_html = "\n".join(html_parts).strip() or None
 
+    # Filter redundant quoted content before any further HTML processing
+    if body_html and chat_obj and hdr_references:
+        from unicom.services.email.quote_filter import filter_redundant_quoted_content
+        body_html = filter_redundant_quoted_content(body_html, chat_obj, hdr_references)
+
     # If this is an outgoing message with tracking, remove tracking elements
     if is_outgoing and body_html:
         original_urls = []
@@ -138,11 +143,11 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             original_urls = parent_msg.raw['original_urls']
         body_html = remove_tracking(body_html, original_urls)
 
-    # Extract plain text from HTML if no text version available
-    if not body_text and body_html:
+    # Ensure body_text is set if body_html is present but body_text is empty
+    if body_html and not body_text:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(body_html, 'html.parser')
-        body_text = soup.get_text()
+        body_text = soup.get_text(separator='\n', strip=True)
 
     inline_image_pks = []
     # --- extract and save inline base64 images, build HTML with shortlinks ---

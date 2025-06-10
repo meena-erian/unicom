@@ -38,9 +38,9 @@ def listen_to_IMAP(channel):
                         resp = server.fetch(uid, ['BODY.PEEK[]'])
                         raw = resp[uid][b'BODY[]']
                         msg = save_email_message(channel, raw)
-                        print(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
+                        # logger.info(f"Channel {channel.pk}: Found email {msg.id} (uid={uid})")
                     except Exception as e:
-                        print(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
+                        logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
 
                 if mark_seen_on == 'on_save':
                     if uids:
