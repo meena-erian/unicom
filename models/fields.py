@@ -15,9 +15,9 @@ class DedupFieldFile(FieldFile):
         Model = type(self.instance)
         existing = Model.objects.filter(**{self.field.hash_field: file_hash}).exclude(pk=self.instance.pk).first()
         if existing:
-            # Point to existing file path
-            name = getattr(existing, self.field.name).name
-            super().save(name, content=None, save=save)  # Don't save new file
+            # Point to existing file path, do NOT call super().save()
+            self.name = getattr(existing, self.field.name).name
+            setattr(self.instance, self.field.attname, self.name)
         else:
             super().save(name, content, save=save)
 
