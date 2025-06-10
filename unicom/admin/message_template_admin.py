@@ -90,7 +90,10 @@ class MessageTemplateAdmin(admin.ModelAdmin):
                 var iframe = document.getElementById('{}');
                 if (!iframe) return;
                 var doc = iframe.contentDocument || iframe.contentWindow.document;
-                var html = {};
+                var html = '<!DOCTYPE html>' +
+                    '<html><head>' +
+                    '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">' +
+                    '</head><body>' + {} + '</body></html>';
                 doc.open();
                 doc.write(html);
                 doc.close();
