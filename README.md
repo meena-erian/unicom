@@ -110,7 +110,9 @@ email_config_with_custom_settings = {
         "protocol": "SMTP"
     },
     # Optional: Add a custom tracking parameter to all redirected links
-    "TRACKING_PARAMETER_ID": "unicom_tid"  # Default is 'unicom_tid', omit to disable
+    "TRACKING_PARAMETER_ID": "unicom_tid",  # Default is 'unicom_tid', omit to disable
+    # Optional: Control when emails are marked as seen in IMAP. Options: 'on_save', 'on_request_completed', 'on_request_completed' (default)
+    "MARK_SEEN_WHEN": "on_request_completed"
 }
 
 channel = Channel.objects.create(
