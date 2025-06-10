@@ -51,17 +51,18 @@ class MessageTemplateListView(View):
 def populate_message_template(request):
     """
     API endpoint to populate a message template using AI.
-    Expects JSON: {"template_id": <id>, "html_prompt": <html>}
+    Expects JSON: {"template_id": <id>, "html_prompt": <html>, "model": <optional_model_name>}
     Returns: {"html": <populated_html>} or {"error": ...}
     """
     try:
         data = json.loads(request.body)
         template_id = data.get("template_id")
         html_prompt = data.get("html_prompt")
+        model = data.get("model", "gpt-4o")
         if not template_id or not html_prompt:
             return JsonResponse({"error": "Missing template_id or html_prompt"}, status=400)
         template = MessageTemplate.objects.get(pk=template_id)
-        result_html = template.populate(html_prompt)
+        result_html = template.populate(html_prompt, model=model)
         return JsonResponse({"html": result_html})
     except MessageTemplate.DoesNotExist:
         return JsonResponse({"error": "Template not found"}, status=404)

@@ -23,11 +23,11 @@
     }
 
     // Helper to call AI populate API
-    function populateTemplate(templateId, htmlPrompt) {
+    function populateTemplate(templateId, htmlPrompt, model) {
         return fetch('/unicom/api/message-templates/populate/', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({template_id: templateId, html_prompt: htmlPrompt})
+            body: JSON.stringify({template_id: templateId, html_prompt: htmlPrompt, model: model})
         }).then(r => r.json());
     }
 
@@ -143,6 +143,8 @@
         generateBtn.addEventListener('click', function() {
             var templateId = select.value;
             var promptHtml = '';
+            var modelSelect = document.getElementById('unicom-ai-template-model-select');
+            var selectedModel = modelSelect ? modelSelect.value : 'gpt-4o';
             if (global.tinymce) {
                 var ed = global.tinymce.get('unicom-ai-template-prompt');
                 promptHtml = ed ? ed.getContent() : promptTextarea.value;
@@ -158,7 +160,7 @@
             customizedHtml = '';
             customPreview.innerHTML = '<em>Generating...</em>';
             
-            populateTemplate(templateId, promptHtml).then(function(resp) {
+            populateTemplate(templateId, promptHtml, selectedModel).then(function(resp) {
                 hideLoading();
                 if (resp && resp.html) {
                     customPreview.innerHTML = resp.html;
