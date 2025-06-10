@@ -9,6 +9,7 @@ from unicom.services.get_public_origin import get_public_origin
 import openai
 from django.conf import settings
 from unicom.services.html_inline_images import html_base64_images_to_shortlinks
+from .fields import DedupFileField, only_delete_file_if_unused
 
 class MessageTemplate(models.Model):
     """Model for storing reusable message templates."""
@@ -164,14 +165,14 @@ class MessageTemplate(models.Model):
             raise RuntimeError(f"OpenAI API error: {e}")
 
 class MessageTemplateInlineImage(models.Model):
-    file = models.FileField(upload_to='message_template_inline_images/')
+    file = DedupFileField(upload_to='message_template_inline_images/', hash_field='hash')
     template = models.ForeignKey(MessageTemplate, on_delete=models.CASCADE, related_name='inline_images')
     created_at = models.DateTimeField(auto_now_add=True)
     content_id = models.CharField(max_length=255, blank=True, null=True, help_text='Content-ID for cid: references in HTML')
+    hash = models.CharField(max_length=64, blank=True, null=True, db_index=True, help_text='SHA256 hash of file for deduplication')
 
     def delete(self, *args, **kwargs):
-        if self.file:
-            self.file.delete(save=False)
+        only_delete_file_if_unused(self, 'file', 'hash')
         super().delete(*args, **kwargs)
 
     def get_short_id(self):

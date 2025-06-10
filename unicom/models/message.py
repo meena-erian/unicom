@@ -10,6 +10,7 @@ import uuid
 import re
 from bs4 import BeautifulSoup
 import base64
+from .fields import DedupFileField, only_delete_file_if_unused
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -135,14 +136,14 @@ class Message(models.Model):
 
 
 class EmailInlineImage(models.Model):
-    file = models.FileField(upload_to='email_inline_images/')
+    file = DedupFileField(upload_to='email_inline_images/', hash_field='hash')
     email_message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='inline_images', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     content_id = models.CharField(max_length=255, blank=True, null=True, help_text='Content-ID for cid: references in HTML')
+    hash = models.CharField(max_length=64, blank=True, null=True, db_index=True, help_text='SHA256 hash of file for deduplication')
 
     def delete(self, *args, **kwargs):
-        if self.file:
-            self.file.delete(save=False)
+        only_delete_file_if_unused(self, 'file', 'hash')
         super().delete(*args, **kwargs)
 
     def get_short_id(self):
