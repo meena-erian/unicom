@@ -44,7 +44,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
     hdr_subject   = msg.get('Subject', '')
     date_hdr      = msg.get('Date')
 
-    existing_msg = Message.objects.get(id=hdr_id)
+    existing_msg = Message.objects.filter(id=hdr_id).first()
     if existing_msg:
         return existing_msg
 
