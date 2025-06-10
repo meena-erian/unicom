@@ -10,7 +10,7 @@ from django_ace import AceWidget
 from django.contrib.admin import SimpleListFilter
 from django.utils import timezone
 from datetime import timedelta
-from .models import (
+from unicom.models import (
     Member,
     MemberGroup,
     RequestCategory,
