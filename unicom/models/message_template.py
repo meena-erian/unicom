@@ -128,9 +128,9 @@ class MessageTemplate(models.Model):
                 # Save again to update content with shortlinks
                 super().save(update_fields=['content'])
 
-    def populate(self, html_prompt, custom_system_prompt=None):
+    def populate(self, html_prompt, custom_system_prompt=None, model="gpt-4o"):
         """
-        Uses OpenAI GPT-4o to populate and customize the template content based on the given prompt.
+        Uses OpenAI GPT models to populate and customize the template content based on the given prompt.
         Returns the AI-generated content.
         """
         if not settings.OPENAI_API_KEY:
@@ -153,13 +153,11 @@ class MessageTemplate(models.Model):
 """
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
-                temperature=0.7,
-                max_tokens=2048,
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
