@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Require AI to read context before suggesting code
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+- Always scan and reference relevant model/structure definitions before generating code and any involved functions and models before using them.
+- If using classes, database models, or domain-specific code (e.g. Django models), preview their definitions first.
+- If relevant context is not already part of the prompt, ask: “Do you want me to inspect these definitions before proceeding?”

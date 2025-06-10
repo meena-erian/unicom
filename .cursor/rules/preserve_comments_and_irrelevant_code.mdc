@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Preserve code, comments, & unrelated sections
+globs: ["**/*"]
+alwaysApply: true
+---
+
+- Do **not** remove or refactor functions, files, comments, or documentation unless **explicitly** requested.
+- Before altering any code block, analyze its purpose and ask a confirming question if unsure why it's there.
+- Preserve unrelated code and comments, especially those marked with `TODO`, `FIXME`, or doc comments.

@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: Match existing code structure and conventions
+globs: ["**/*.py", "**/*.js", "**/*.ts", "**/*.html", "**/*.css"]
+alwaysApply: true
+---
+
+- Before writing new code or modifying existing parts, analyze the surrounding codebase to understand the structure, naming conventions, architectural patterns, and formatting.
+- Align new code to match these conventions unless specifically instructed otherwise.
+- Avoid introducing unfamiliar abstractions, styles, or folder structures unless required or explicitly requested.
+- The goal is consistency, clarity, and maintainability across the codebase.
