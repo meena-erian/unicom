@@ -690,9 +690,50 @@ class DraftMessageAdmin(admin.ModelAdmin):
 
         # Prepare content preview
         if is_email and obj.html:
+            # Use an iframe for email preview with auto-resize
+            iframe_id = f"email-preview-iframe-{obj.pk}"
             content_preview = format_html(
-                '<div class="email-preview">{}</div>',
-                mark_safe(obj.html)  # Safe because this is admin-only content
+                '''
+                <iframe id="{}" style="background-color: white; width:100%;border:none;overflow:hidden;min-height:40px;" scrolling="no" frameborder="0" allowtransparency="true"></iframe>
+                <script type="text/javascript">
+                (function() {{
+                    var iframe = document.getElementById('{}');
+                    if (!iframe) return;
+                    var doc = iframe.contentDocument || iframe.contentWindow.document;
+                    var html = {};
+                    doc.open();
+                    doc.write(html);
+                    doc.close();
+                    function resizeIframe() {{
+                        setTimeout(function() {{
+                            if (!iframe.contentWindow.document.body) return;
+                            var body = iframe.contentWindow.document.body;
+                            var html = iframe.contentWindow.document.documentElement;
+                            var height = Math.max(
+                                body.scrollHeight,
+                                body.offsetHeight,
+                                html.clientHeight,
+                                html.scrollHeight,
+                                html.offsetHeight
+                            );
+                            iframe.style.height = height + 'px';
+                        }}, 50);
+                    }}
+                    // Resize on load and after images load
+                    iframe.onload = resizeIframe;
+                    doc.addEventListener('DOMContentLoaded', resizeIframe);
+                    var imgs = doc.images;
+                    for (var i = 0; i < imgs.length; i++) {{
+                        imgs[i].addEventListener('load', resizeIframe);
+                    }}
+                    // Fallback resize after a short delay
+                    setTimeout(resizeIframe, 500);
+                }})();
+                </script>
+                ''',
+                iframe_id,
+                iframe_id,
+                mark_safe(repr(obj.html))
             )
         else:
             content_preview = obj.text if obj.text else 'No content'
@@ -791,159 +832,6 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     border-radius: 4px;
                     max-height: 300px;
                     overflow-y: auto;
-                }}
-                .email-preview {{
-                    background: white !important;
-                    padding: 15px !important;
-                    border-radius: 4px !important;
-                    /* Create a new stacking context to isolate styles */
-                    position: relative !important;
-                    z-index: 1 !important;
-                }}
-                /* Reset absolutely everything inside the preview */
-                #container .email-preview *,
-                #container .email-preview h1,
-                #container .email-preview h2,
-                #container .email-preview h3,
-                #container .email-preview h4,
-                #container .email-preview h5,
-                #container .email-preview h6,
-                #container .email-preview p,
-                #container .email-preview span,
-                #container .email-preview div,
-                #container .email-preview table,
-                #container .email-preview tr,
-                #container .email-preview td,
-                #container .email-preview th,
-                #container .email-preview ul,
-                #container .email-preview ol,
-                #container .email-preview li,
-                #container .email-preview a,
-                #container .email-preview img,
-                #container .email-preview blockquote,
-                #container .email-preview pre,
-                #container .email-preview code {{
-                    all: revert !important;
-                    font-family: revert !important;
-                    color: initial !important;
-                    background: initial !important;
-                    padding: revert !important;
-                    margin: revert !important;
-                    border: revert !important;
-                    font-size: revert !important;
-                    font-weight: revert !important;
-                    line-height: revert !important;
-                    text-align: revert !important;
-                    text-decoration: revert !important;
-                    box-sizing: border-box !important;
-                    width: revert !important;
-                    height: revert !important;
-                    min-width: revert !important;
-                    min-height: revert !important;
-                    max-width: revert !important;
-                    max-height: revert !important;
-                    display: revert !important;
-                    position: revert !important;
-                    top: revert !important;
-                    left: revert !important;
-                    right: revert !important;
-                    bottom: revert !important;
-                    float: revert !important;
-                    clear: revert !important;
-                    clip: revert !important;
-                    visibility: revert !important;
-                    overflow: revert !important;
-                    vertical-align: revert !important;
-                    white-space: revert !important;
-                    word-break: revert !important;
-                    word-wrap: revert !important;
-                    word-spacing: revert !important;
-                    letter-spacing: revert !important;
-                    quotes: revert !important;
-                    list-style: revert !important;
-                    list-style-type: revert !important;
-                    list-style-position: revert !important;
-                    border-spacing: revert !important;
-                    border-collapse: revert !important;
-                    caption-side: revert !important;
-                    table-layout: revert !important;
-                    empty-cells: revert !important;
-                    opacity: revert !important;
-                    transform: none !important;
-                    transition: none !important;
-                    box-shadow: none !important;
-                    text-shadow: none !important;
-                    text-transform: none !important;
-                    flex: none !important;
-                    flex-flow: none !important;
-                    flex-basis: auto !important;
-                    flex-direction: row !important;
-                    flex-grow: 0 !important;
-                    flex-shrink: 1 !important;
-                    flex-wrap: nowrap !important;
-                    justify-content: normal !important;
-                    align-items: normal !important;
-                    align-content: normal !important;
-                    order: 0 !important;
-                    filter: none !important;
-                    backdrop-filter: none !important;
-                    perspective: none !important;
-                    -webkit-font-smoothing: auto !important;
-                    -moz-osx-font-smoothing: auto !important;
-                }}
-                /* Additional specific overrides for problematic elements */
-                #container .email-preview h1,
-                #container .email-preview h2,
-                #container .email-preview h3,
-                #container .email-preview h4,
-                #container .email-preview h5,
-                #container .email-preview h6 {{
-                    background: none !important;
-                    border: none !important;
-                    color: #000 !important;
-                    padding: revert !important;
-                    margin: 0.67em 0 !important;
-                    font-weight: bold !important;
-                }}
-                #container .email-preview h1 {{ font-size: 2em !important; }}
-                #container .email-preview h2 {{ font-size: 1.5em !important; }}
-                #container .email-preview h3 {{ font-size: 1.17em !important; }}
-                #container .email-preview h4 {{ font-size: 1em !important; }}
-                #container .email-preview h5 {{ font-size: 0.83em !important; }}
-                #container .email-preview h6 {{ font-size: 0.67em !important; }}
-                /* Ensure tables render properly */
-                #container .email-preview table {{
-                    display: table !important;
-                    border-collapse: separate !important;
-                    border-spacing: 2px !important;
-                    box-sizing: border-box !important;
-                    text-indent: initial !important;
-                    border-color: gray !important;
-                }}
-                #container .email-preview table td,
-                #container .email-preview table th {{
-                    padding: 1px !important;
-                    border-color: inherit !important;
-                }}
-                /* Ensure lists render properly */
-                #container .email-preview ul {{
-                    list-style-type: disc !important;
-                    margin: 1em 0 !important;
-                    padding-left: 40px !important;
-                }}
-                #container .email-preview ol {{
-                    list-style-type: decimal !important;
-                    margin: 1em 0 !important;
-                    padding-left: 40px !important;
-                }}
-                /* Ensure links render properly */
-                #container .email-preview a {{
-                    color: #0000EE !important;
-                    text-decoration: underline !important;
-                    cursor: pointer !important;
-                }}
-                #container .email-preview a:visited {{
-                    color: #551A8B !important;
                 }}
                 .draft-footer {{
                     display: flex;
