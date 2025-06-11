@@ -7,6 +7,7 @@ from unicom.services.telegram.set_telegram_webhook import set_telegram_webhook
 from unicom.services.email.validate_email_config import validate_email_config
 from unicom.services.email.listen_to_IMAP import listen_to_IMAP
 from unicom.services.crossplatform.send_message import send_message
+from django.contrib.auth.models import User
 
 if TYPE_CHECKING:
     from unicom.models import Message
@@ -17,10 +18,13 @@ class Channel(models.Model):
     name = models.CharField(max_length=100)
     platform = models.CharField(max_length=100, choices=channels)
     config = models.JSONField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='channels', verbose_name='Created by')
 
     active = models.BooleanField(default=False, editable=False)
     confirmed_webhook_url = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
     error = models.CharField(max_length=500, null=True, blank=True, editable=False) # Used for Telegram and WhatsApp to check if the URL changed and update the service provided if it did
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Created at')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Updated at')
 
     def send_message(self, msg: dict, user=None) -> Message:
         """

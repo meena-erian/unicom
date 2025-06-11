@@ -79,7 +79,10 @@ class DraftMessageAdmin(admin.ModelAdmin):
         return super().formfield_for_dbfield(db_field, **kwargs)
 
     def get_queryset(self, request):
-        return super().get_queryset(request)
+        qs = super().get_queryset(request)
+        if request.user.is_superuser or request.user.is_staff:
+            return qs
+        return qs.select_related('channel').filter(channel__created_by_id=request.user.id)
 
     def approve_drafts(self, request, queryset):
         updated = queryset.update(is_approved=True)
