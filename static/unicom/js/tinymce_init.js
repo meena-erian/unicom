@@ -34,6 +34,17 @@
          * <textarea> is always kept in sync.
          */
         setup: function (ed) {
+            // Patch: Add a space to empty <i> and <span> elements before cleanup
+            ed.on('BeforeSetContent', function (e) {
+                console.log('BeforeSetContent', e);
+                if (e.content) {
+                    e.content = e.content.replace(
+                        /<(i|span)([^>]*)><\/\1>/g,
+                        '<$1$2> </$1>'
+                    );
+                }
+            });
+            // Existing change-save sync
             ed.on('change', function () {
                 ed.save();
             });
