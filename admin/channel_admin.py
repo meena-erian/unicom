@@ -18,4 +18,15 @@ class ChannelAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         if obj:
             return ['active', 'confirmed_webhook_url', 'error']
-        return super().get_readonly_fields(request, obj) 
+        return super().get_readonly_fields(request, obj)
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk and not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser or request.user.is_staff:
+            return qs
+        return qs.filter(created_by_id=request.user.id) 

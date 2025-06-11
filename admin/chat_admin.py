@@ -35,8 +35,10 @@ class ChatAdmin(admin.ModelAdmin):
         }
 
     def get_queryset(self, request):
-        # The filtering logic is now handled by the ArchiveStatusFilter.
-        return super().get_queryset(request).order_by('-last_message__timestamp')
+        qs = super().get_queryset(request)
+        if request.user.is_superuser or request.user.is_staff:
+            return qs
+        return qs.select_related('channel').filter(channel__created_by_id=request.user.id)
 
     def archive_chats(self, request, queryset):
         updated = queryset.update(is_archived=True)
