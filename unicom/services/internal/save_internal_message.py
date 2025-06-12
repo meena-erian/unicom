@@ -1,6 +1,7 @@
 from unicom.models import Message, Chat, Account, AccountChat
 from datetime import datetime
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 def save_internal_message(message_data: dict, user: User=None,):
     platform = 'Internal'
@@ -15,6 +16,7 @@ def save_internal_message(message_data: dict, user: User=None,):
     media_file = message_data.get('media')  # might be a path, or None
     text = message_data.get('text') or message_data.get('caption')
     timestamp = datetime.fromtimestamp(message_data.get('date'))
+    timestamp = timezone.make_aware(timestamp, timezone.utc)
     chat = Chat.objects.filter(platform=platform, id=chat_id)
     account = Account.objects.filter(platform=platform, id=sender_id)
     if not chat.exists():
