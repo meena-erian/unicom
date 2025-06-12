@@ -5,6 +5,7 @@ from unicom.services.telegram.download_file import download_file
 from django.core.files.base import ContentFile
 from django.apps import apps
 import mimetypes
+from django.utils import timezone
 
 
 def save_telegram_message(channel, message_data: dict, user:User=None):
@@ -87,6 +88,7 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     elif text == None:
         text = "[[[[Unknown User Action!]]]]"
     timestamp = datetime.fromtimestamp(message_data.get('date'))
+    timestamp = timezone.make_aware(timestamp, timezone.utc)
     chat = Chat.objects.filter(platform='Telegram', id=chat_id)
     if not chat.exists():
         chat = Chat(channel=channel, platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)

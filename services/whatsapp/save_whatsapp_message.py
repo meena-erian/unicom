@@ -6,6 +6,7 @@ import requests
 import mimetypes
 import json
 import uuid
+from django.utils import timezone
 
 
 def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=None):
@@ -108,6 +109,8 @@ def save_whatsapp_message(WhatsAppCredentials, messages_data: dict, user:User=No
         else:
             text = f"[[[[Unknown Message Type! {message_data.get('type')} Message]]]]"
         timestamp = datetime.fromtimestamp(int(message_data.get('timestamp'))) if 'timestamp' in message_data else None
+        if timestamp is not None:
+            timestamp = timezone.make_aware(timestamp, timezone.utc)
         chat = Chat.objects.filter(platform=platform, id=chat_id)
         
         # Check if account exists and is blocked

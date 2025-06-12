@@ -1,5 +1,6 @@
 from unicom.models import Message
 from datetime import datetime
+from django.utils import timezone
 
 
 def save_whatsapp_message_status(messages_data: dict):
@@ -9,6 +10,8 @@ def save_whatsapp_message_status(messages_data: dict):
         message_id = f"whatsapp.{status_data.get('id')}"
         message = Message.objects.filter(platform=platform, id=message_id).first()
         timestamp = datetime.fromtimestamp(int(status_data.get('timestamp'))) if 'timestamp' in status_data else None
+        if timestamp is not None:
+            timestamp = timezone.make_aware(timestamp, timezone.utc)
         if not message:
             continue
         last_message = message
