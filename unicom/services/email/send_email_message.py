@@ -141,10 +141,21 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # If this is a reply, use parent message for threading and recipients
     if parent:
-        # Use original recipients if not explicitly overridden
-        to_addrs = to_addrs or parent.to
-        cc_addrs = params.get('cc', parent.cc)
-        bcc_addrs = params.get('bcc', parent.bcc)
+        if parent.is_outgoing:
+            # If replying to our own outgoing message, use original recipients
+            to_addrs = to_addrs or parent.to
+            cc_addrs = params.get('cc', parent.cc)
+            bcc_addrs = params.get('bcc', parent.bcc)
+        else:
+            # If replying to an incoming message, reply to the sender
+            to_addrs = to_addrs or [parent.sender.id]
+            # Optionally include original recipients in CC (except our own address)
+            if not params.get('cc'):
+                cc_addrs = [addr for addr in (parent.to + parent.cc) 
+                           if addr not in [from_addr, to_addrs] and addr not in to_addrs]
+            else:
+                cc_addrs = params.get('cc', [])
+            bcc_addrs = params.get('bcc', [])
         reply_to_id = parent.id  # Ensure we have the message ID for threading
 
     logger.info(f"Preparing to send email: to={to_addrs}, cc={cc_addrs}, bcc={bcc_addrs}")
