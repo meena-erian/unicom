@@ -123,7 +123,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     var doc = iframe.contentDocument || iframe.contentWindow.document;
                     var html = '<!DOCTYPE html>' +
                         '<html><head>' +
-                        '<style>body {{ zoom: 0.75; -moz-transform: scale(0.75); -moz-transform-origin: 0 0; }}</style>' +
+                        '<style>body {{ zoom: 0.55; -moz-transform: scale(0.55); -moz-transform-origin: 0 0; }}</style>' +
                         '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">' +
                         '</head><body>' + {} + '</body></html>';
                     doc.open();
@@ -255,7 +255,6 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     padding: 0;
                     background: none;
                     border-radius: 0;
-                    max-height: 300px;
                     overflow-y: auto;
                 }}
                 .draft-footer {{
