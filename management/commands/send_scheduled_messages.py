@@ -24,7 +24,7 @@ class Command(BaseCommand):
 
         try:
             while True:
-                self.stdout.write(self.style.HTTP_INFO(f'Checking for scheduled messages at {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'))
+                # self.stdout.write(self.style.HTTP_INFO(f'Checking for scheduled messages at {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}'))
                 try:
                     result = process_scheduled_messages()
                     if result["total_due"] > 0:
