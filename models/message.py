@@ -152,11 +152,7 @@ class Message(models.Model):
             content = None
             extra = {}
             if msg.media and multimodal and msg.media_type in ("image", "audio"):
-                origin = get_public_origin().rstrip("/")
-                media_url = getattr(msg.media, 'url', None)
-                if media_url:
-                    media_url = origin + media_url
-                # Try to get base64
+                # Only use base64, do not use URLs
                 b64 = None
                 mime = None
                 try:
@@ -169,14 +165,14 @@ class Message(models.Model):
                 except Exception:
                     b64 = None
                 if msg.media_type == "image":
-                    content = f"[Image attached: {media_url or '[inline]'}]"
-                    extra = {"image": media_url, "image_base64": b64, "image_mime": mime}
+                    content = f"[Image attached]"
+                    extra = {"image_base64": b64, "image_mime": mime}
                 elif msg.media_type == "audio":
-                    content = f"[Audio attached: {media_url or '[inline]'}]"
-                    extra = {"audio": media_url, "audio_base64": b64, "audio_mime": mime}
+                    content = f"[Audio attached]"
+                    extra = {"audio_base64": b64, "audio_mime": mime}
                 else:
-                    content = f"[File attached: {media_url or '[inline]'}]"
-                    extra = {"file": media_url, "file_base64": b64, "file_mime": mime}
+                    content = f"[File attached]"
+                    extra = {"file_base64": b64, "file_mime": mime}
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
             else:
