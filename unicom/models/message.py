@@ -11,6 +11,9 @@ import re
 from bs4 import BeautifulSoup
 import base64
 from .fields import DedupFileField, only_delete_file_if_unused
+from unicom.services.get_public_origin import get_public_origin
+import openai
+from django.conf import settings
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -128,6 +131,112 @@ class Message(models.Model):
                     b64 = base64.b64encode(data).decode('ascii')
                     img_tag['src'] = f'data:{mime};base64,{b64}'
         return str(soup)
+
+    def as_llm_chat(self, depth=10, mode="chat", system_instruction=None, multimodal=True):
+        """
+        Returns a list of dicts for LLM chat APIs (OpenAI, Gemini, etc), each with 'role' and 'content'.
+        - depth: max number of messages to include
+        - mode: 'chat' (previous N in chat) or 'thread' (follow reply_to_message chain)
+        - system_instruction: if provided, prepends a system message
+        - multimodal: if True, includes media (image/audio) as content or URLs
+        """
+        def msg_to_dict(msg):
+            # Determine role
+            if msg.is_outgoing is True:
+                role = "assistant"
+            elif msg.is_outgoing is False:
+                role = "user"
+            else:
+                role = "system"
+            # Determine content
+            content = None
+            extra = {}
+            if msg.media and multimodal and msg.media_type in ("image", "audio"):
+                origin = get_public_origin().rstrip("/")
+                media_url = getattr(msg.media, 'url', None)
+                if media_url:
+                    media_url = origin + media_url
+                # Try to get base64
+                b64 = None
+                mime = None
+                try:
+                    msg.media.open('rb')
+                    data = msg.media.read()
+                    msg.media.seek(0)
+                    import mimetypes
+                    mime = mimetypes.guess_type(msg.media.name)[0] or 'application/octet-stream'
+                    b64 = base64.b64encode(data).decode('ascii')
+                except Exception:
+                    b64 = None
+                if msg.media_type == "image":
+                    content = f"[Image attached: {media_url or '[inline]'}]"
+                    extra = {"image": media_url, "image_base64": b64, "image_mime": mime}
+                elif msg.media_type == "audio":
+                    content = f"[Audio attached: {media_url or '[inline]'}]"
+                    extra = {"audio": media_url, "audio_base64": b64, "audio_mime": mime}
+                else:
+                    content = f"[File attached: {media_url or '[inline]'}]"
+                    extra = {"file": media_url, "file_base64": b64, "file_mime": mime}
+            elif msg.media_type == "html" and msg.html:
+                content = msg.html
+            else:
+                content = msg.text or ""
+            d = {"role": role, "content": content}
+            d.update({k: v for k, v in extra.items() if v})
+            return d
+
+        messages = []
+        if mode == "chat":
+            qs = self.chat.messages.order_by("timestamp")
+            idx = list(qs.values_list("id", flat=True)).index(self.id)
+            start = max(0, idx - depth + 1)
+            selected = list(qs[start:idx+1])
+            for m in selected:
+                messages.append(msg_to_dict(m))
+        elif mode == "thread":
+            chain = []
+            cur = self
+            for _ in range(depth):
+                if not cur:
+                    break
+                chain.append(cur)
+                cur = cur.reply_to_message
+            for m in reversed(chain):
+                messages.append(msg_to_dict(m))
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+        if system_instruction:
+            messages = [{"role": "system", "content": system_instruction}] + messages
+        return messages
+
+    def reply_using_llm(self, model: str, depth=10, mode="chat", system_instruction=None, multimodal=True, user=None, **kwargs):
+        """
+        Wrapper: Calls as_llm_chat, OpenAI ChatCompletion API, and reply_with.
+        - model: OpenAI model string
+        - depth, mode, system_instruction, multimodal: passed to as_llm_chat
+        - user: Django user for reply_with
+        - kwargs: extra params for OpenAI API
+        Returns: The Message object created by reply_with
+        """
+        # Prepare messages for LLM
+        messages = self.as_llm_chat(depth=depth, mode=mode, system_instruction=system_instruction, multimodal=multimodal)
+        # Set API key
+        openai.api_key = getattr(settings, 'OPENAI_API_KEY', None)
+        # Call OpenAI ChatCompletion API
+        response = openai.chat.completions.create(
+            model=model,
+            messages=messages,
+            **kwargs
+        )
+        # Get the LLM's reply (assume first choice)
+        llm_msg = response.choices[0].message
+        # Prepare reply dict
+        if self.platform == 'Email':
+            reply_dict = {'html': llm_msg.content}
+        else:
+            reply_dict = {'text': llm_msg.content}
+        # Reply using reply_with
+        return self.reply_with(reply_dict)
 
     class Meta:
         ordering = ['-timestamp']
