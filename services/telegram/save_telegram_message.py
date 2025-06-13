@@ -147,8 +147,5 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     else:
         if media_file_name:
             print("Attachment being saved as ", media_file_name)
-            if m_type == 'audio':
-                message.attachment.save(media_file_name, media_file_content, save=True)
-            else:
-                message.media.save(media_file_name, media_file_content, save=True)
+            message.media.save(media_file_name, media_file_content, save=True)
     return message
