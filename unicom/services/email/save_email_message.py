@@ -15,7 +15,7 @@ from unicom.services.html_inline_images import html_base64_images_to_shortlinks
 
 logger = logging.getLogger(__name__)
 
-def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
+def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid: int = None):
     """
     Save an email into Message, creating Account, Chat, AccountChat as needed.
     `raw_message_bytes` should be the full RFC-5322 bytes you get from IMAPClient.fetch(uid, ['BODY.PEEK[]'])
@@ -174,7 +174,8 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None):
             'cc': cc_list,
             'bcc': bcc_list,
             'media_type': 'html',
-            'channel': channel
+            'channel': channel,
+            'imap_uid': uid
         }
     )
 

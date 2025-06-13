@@ -124,7 +124,11 @@ def mark_email_seen_on_request_completed(sender, instance, **kwargs):
     if not all([host, port, email_address, password]):
         return
     # The Message ID is the IMAP UID
-    uid = msg.id
+    uid = getattr(msg, 'imap_uid', None)
+    if not uid:
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Message {msg.id} has no IMAP UID; cannot mark as seen.")
+        return
     try:
         with IMAPClient(host, port=port, ssl=use_ssl) as server:
             server.login(email_address, password)

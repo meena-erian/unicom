@@ -84,6 +84,7 @@ class Message(models.Model):
         default=list,
         help_text="List of links that have been clicked"
     )
+    imap_uid = models.BigIntegerField(null=True, blank=True, db_index=True, help_text="IMAP UID for marking as seen")
 
     def reply_with(self, msg_dict:dict) -> Message:
         """
