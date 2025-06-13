@@ -37,7 +37,7 @@ def listen_to_IMAP(channel):
                     try:
                         resp = server.fetch(uid, ['BODY.PEEK[]'])
                         raw = resp[uid][b'BODY[]']
-                        msg = save_email_message(channel, raw)
+                        msg = save_email_message(channel, raw, uid=uid)
                         # logger.info(f"Channel {channel.pk}: Found email {msg.id} (uid={uid})")
                     except Exception as e:
                         logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
@@ -79,7 +79,7 @@ def listen_to_IMAP(channel):
                         try:
                             resp = server.fetch(uid, ['BODY.PEEK[]'])
                             raw = resp[uid][b'BODY[]']
-                            msg = save_email_message(channel, raw)
+                            msg = save_email_message(channel, raw, uid=uid)
                             logger.info(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
                             if mark_seen_on == 'on_save':
                                 server.add_flags(uid, [SEEN])
