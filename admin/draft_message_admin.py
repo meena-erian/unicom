@@ -49,8 +49,8 @@ class DraftMessageAdmin(admin.ModelAdmin):
     class Media:
         css = {
             'all': (
-                'admin/css/chat_list.css',
                 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
+                'unicom/css/draft_message_mobile.css',
             )
         }
 
@@ -123,6 +123,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     var doc = iframe.contentDocument || iframe.contentWindow.document;
                     var html = '<!DOCTYPE html>' +
                         '<html><head>' +
+                        '<style>body {{ zoom: 0.75; -moz-transform: scale(0.75); -moz-transform-origin: 0 0; }}</style>' +
                         '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">' +
                         '</head><body>' + {} + '</body></html>';
                     doc.open();
@@ -170,7 +171,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
             recipients = f'{to_list}{cc_list}' if to_list or cc_list else 'No recipients'
 
         return format_html('''
-            <div class="draft-message-container">
+            <div style="background-color: unset;" class="draft-message-container">
                 <div class="draft-header">
                     <div class="draft-title">
                         <span class="draft-subject">{}</span>
@@ -250,10 +251,10 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     margin: 5px 0;
                 }}
                 .draft-content {{
-                    margin: 10px 0;
-                    padding: 10px;
-                    background: var(--darkened-bg);
-                    border-radius: 4px;
+                    margin: 0;
+                    padding: 0;
+                    background: none;
+                    border-radius: 0;
                     max-height: 300px;
                     overflow-y: auto;
                 }}
