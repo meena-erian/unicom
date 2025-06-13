@@ -3,7 +3,15 @@ from bs4 import BeautifulSoup, Tag, NavigableString
 from difflib import SequenceMatcher
 
 REPLY_HEADER_REGEX = re.compile(
-    r'((On .+?wrote:)|([0-9]{1,2}:[0-9]{2} ?[ap]m,? .+? <.+?>:))',
+    r'((On .+?wrote:)|([0-9]{1,2}:[0-9]{2} ?[ap]m,? .+? <.+?>:)|'  # original
+    r'(From: .+?\n)|'  # From: ...\n
+    r'(To: .+?\n)|'    # To: ...\n
+    r'(Subject: .+?\n)|' # Subject: ...\n
+    r'([0-9]{1,2}:[0-9]{2}\s*[ap]m,? .+?\n)|' # time, name, email\n
+    r'([A-Za-z]{3,9},? \d{1,2} [A-Za-z]{3,9} \d{4} .+?\n)|' # date, name, email\n
+    r'(Sent: .+?\n)|' # Sent: ...\n
+    r'(\b[A-Za-z]+: .+?\n)' # Any header-like line
+    r')',
     re.IGNORECASE | re.DOTALL
 )
 
@@ -49,10 +57,11 @@ def remove_reply_header(block):
     # Remove previous siblings that are reply headers or <br> tags
     prev = block.previous_sibling
     while prev:
+        to_remove = None
         # If it's a <br> or whitespace, remove and continue
         if isinstance(prev, Tag) and prev.name == 'br':
             to_remove = prev
-        elif isinstance(prev, Tag) and prev.name in ('div', 'span'):
+        elif isinstance(prev, Tag) and prev.name in ('div', 'span', 'p'):
             # Check text content for reply header
             if REPLY_HEADER_REGEX.search(prev.get_text()):
                 to_remove = prev
@@ -68,6 +77,26 @@ def remove_reply_header(block):
         next_prev = prev.previous_sibling
         prev.extract()
         prev = next_prev
+    # Additionally, try to remove a sequence of header lines in the parent if present
+    parent = block.parent
+    if parent:
+        # Look for a sequence of header-like lines just before the block
+        header_lines = []
+        for sibling in reversed(list(parent.children)):
+            if sibling == block:
+                break
+            if isinstance(sibling, Tag) and sibling.name == 'br':
+                continue
+            if isinstance(sibling, (Tag, NavigableString)):
+                text = sibling.get_text() if isinstance(sibling, Tag) else str(sibling)
+                if REPLY_HEADER_REGEX.search(text):
+                    header_lines.append(sibling)
+                elif text.strip() == '':
+                    continue
+                else:
+                    break
+        for header in header_lines:
+            header.extract()
 
 def filter_redundant_quoted_content(html: str, chat, references: list[str]):
     """
@@ -79,6 +108,9 @@ def filter_redundant_quoted_content(html: str, chat, references: list[str]):
         return html
     from unicom.models import Message
     soup = BeautifulSoup(html, 'html.parser')
+
+    # Reverse references to process newest first
+    ref_ids = list(references)[::-1]
 
     def process_blockquote(block, ref_ids):
         if not ref_ids:
@@ -114,5 +146,5 @@ def filter_redundant_quoted_content(html: str, chat, references: list[str]):
                     continue
                 recursive_filter(bq, ref_ids[1:])
 
-    recursive_filter(soup, list(references))
+    recursive_filter(soup, ref_ids)
     return str(soup) 
