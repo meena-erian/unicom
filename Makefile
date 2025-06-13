@@ -12,6 +12,7 @@ release-real:
 ifndef VERSION
 	$(MAKE) release-auto
 else
+	rm -rf dist/*
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
 	python -m build
