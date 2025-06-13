@@ -29,7 +29,6 @@ class ChatAdmin(admin.ModelAdmin):
     class Media:
         css = {
             'all': (
-                'admin/css/chat_list.css',
                 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css',
             )
         }
