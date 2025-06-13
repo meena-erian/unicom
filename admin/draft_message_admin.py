@@ -123,7 +123,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
                     var doc = iframe.contentDocument || iframe.contentWindow.document;
                     var html = '<!DOCTYPE html>' +
                         '<html><head>' +
-                        '<style>body {{ zoom: 0.55; -moz-transform: scale(0.55); -moz-transform-origin: 0 0; }}</style>' +
+                        '<style>body {{ zoom: 0.50; -moz-transform: scale(0.50); -moz-transform-origin: 0 0; }}</style>' +
                         '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">' +
                         '</head><body>' + {} + '</body></html>';
                     doc.open();
@@ -141,7 +141,7 @@ class DraftMessageAdmin(admin.ModelAdmin):
                                 html.scrollHeight,
                                 html.offsetHeight
                             );
-                            iframe.style.height = height + 'px';
+                            iframe.style.height = (height * 0.5) + 'px';
                         }}, 50);
                     }}
                     // Resize on load and after images load
