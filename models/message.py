@@ -158,7 +158,7 @@ class Message(models.Model):
                     msg.media.open('rb')
                     data = msg.media.read()
                     msg.media.seek(0)
-                    import mimetypes
+                    import mimetypes, os
                     mime = mimetypes.guess_type(msg.media.name)[0] or 'image/png'
                     b64 = base64.b64encode(data).decode('ascii')
                 except Exception:
@@ -179,28 +179,27 @@ class Message(models.Model):
                     })
                 content = content_list
             elif msg.media and multimodal and msg.media_type == "audio":
-                # Prepare data URL for audio
+                # Prepare input_audio structure for user audio
                 b64 = None
-                mime = None
+                ext = None
                 try:
                     msg.media.open('rb')
                     data = msg.media.read()
                     msg.media.seek(0)
-                    import mimetypes
-                    mime = mimetypes.guess_type(msg.media.name)[0] or 'audio/mpeg'
+                    import os
+                    ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
                     b64 = base64.b64encode(data).decode('ascii')
                 except Exception:
                     b64 = None
-                    mime = 'audio/mpeg'
-                data_url = f"data:{mime};base64,{b64}" if b64 else None
+                    ext = 'wav'
                 content_list = []
-                if data_url:
+                if b64:
                     content_list.append({
-                        "type": "audio_url",
-                        "audio_url": {"url": data_url}
+                        "type": "input_audio",
+                        "input_audio": {"data": b64, "format": ext}
                     })
                 if msg.text:
-                    content_list.append({
+                    content_list.insert(0, {  # text first if present
                         "type": "text",
                         "text": msg.text
                     })
@@ -258,10 +257,51 @@ class Message(models.Model):
         # Get the LLM's reply (assume first choice)
         llm_msg = response.choices[0].message
         # Prepare reply dict
-        if self.platform == 'Email':
+        reply_dict = None
+        # If the LLM returns a list of content blocks (OpenAI-style)
+        content = getattr(llm_msg, 'content', None)
+        if isinstance(content, list):
+            # Check for audio or image blocks
+            for block in content:
+                if block.get("type") == "input_audio":
+                    import base64, uuid, os
+                    audio_data = block["input_audio"]["data"]
+                    ext = block["input_audio"].get("format", "wav")
+                    audio_file_name = f"media/{uuid.uuid4()}.{ext}"
+                    with open(audio_file_name, "wb") as f:
+                        f.write(base64.b64decode(audio_data))
+                    reply_dict = {
+                        "type": "audio",
+                        "file_path": audio_file_name,
+                        "text": ""
+                    }
+                elif block.get("type") == "image_url":
+                    import re, base64, uuid, os
+                    url = block["image_url"]["url"]
+                    m = re.match(r"data:(.*?);base64,(.*)", url)
+                    if m:
+                        mime, b64data = m.groups()
+                        ext = mime.split("/")[-1]
+                        image_file_name = f"media/{uuid.uuid4()}.{ext}"
+                        with open(image_file_name, "wb") as f:
+                            f.write(base64.b64decode(b64data))
+                        reply_dict = {
+                            "type": "image",
+                            "file_path": image_file_name,
+                            "text": ""
+                        }
+                elif block.get("type") == "text":
+                    if reply_dict is None:
+                        reply_dict = {"type": "text", "text": block["text"]}
+                    else:
+                        reply_dict["text"] = block["text"]
+        elif hasattr(llm_msg, 'audio') and llm_msg.audio and hasattr(llm_msg.audio, 'id'):
+            # If the LLM returns an audio id (not typical, but fallback)
+            reply_dict = {"type": "audio", "file_path": llm_msg.audio.id, "text": ""}
+        elif self.platform == 'Email':
             reply_dict = {'html': llm_msg.content}
         else:
-            reply_dict = {'text': llm_msg.content}
+            reply_dict = {'type': 'text', 'text': llm_msg.content}
         # Reply using reply_with
         return self.reply_with(reply_dict)
 
