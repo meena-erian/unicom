@@ -301,9 +301,18 @@ class Message(models.Model):
                         reply_dict = {"type": "text", "text": block["text"]}
                     else:
                         reply_dict["text"] = block["text"]
+        # Handle OpenAI SDK audio id structure
         elif hasattr(llm_msg, 'audio') and llm_msg.audio and hasattr(llm_msg.audio, 'id'):
-            # If the LLM returns an audio id (not typical, but fallback)
-            reply_dict = {"type": "audio", "file_path": llm_msg.audio.id, "text": ""}
+            audio_id = llm_msg.audio.id
+            # Download the audio file from OpenAI using the id
+            import openai, uuid, os
+            audio_file_name = f"media/{uuid.uuid4()}.mp3"
+            # This assumes OpenAI provides an endpoint to fetch the audio by id
+            # You may need to adjust the endpoint or method as per OpenAI SDK
+            audio_response = openai.audio.files.retrieve(audio_id)
+            with open(audio_file_name, "wb") as f:
+                f.write(audio_response.read())
+            reply_dict = {"type": "audio", "file_path": audio_file_name, "text": ""}
         elif self.platform == 'Email':
             reply_dict = {'html': llm_msg.content}
         else:
