@@ -43,12 +43,21 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
         text = f"**{sender_name} pinned message <{pinned_msg_id}>**"
     elif message_data.get('voice'):
         m_type = 'audio'
-        file_id = message_data.get('voice')['file_id']
-        duration = message_data.get('voice')['duration']
-        file_size = message_data.get('voice')['file_size']
-        mime_type = message_data.get('voice')['mime_type']
-        extension = mimetypes.guess_extension(mime_type)
-        file_unique_id = message_data.get('voice')['file_unique_id']
+        voice = message_data.get('voice')
+        file_id = voice['file_id']
+        duration = voice['duration']
+        file_size = voice['file_size']
+        mime_type = voice.get('mime_type', 'audio/ogg')
+        file_unique_id = voice['file_unique_id']
+        # Try to use file_name if available (rare for voice, but for consistency)
+        file_name = voice.get('file_name')
+        if file_name:
+            # Use the extension from the file_name
+            extension = '.' + file_name.split('.')[-1] if '.' in file_name else mimetypes.guess_extension(mime_type) or '.oga'
+        else:
+            extension = mimetypes.guess_extension(mime_type)
+            if extension is None:
+                extension = '.oga'
         media_generated_filename = f'{file_unique_id}{extension}'
         media_file_name = media_generated_filename
         file_path = get_file_path(channel.config, file_id)
@@ -78,7 +87,11 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
         file_id        = audio['file_id']
         file_name      = audio.get('file_name', f"{audio['file_unique_id']}")
         mime_type      = audio.get('mime_type')
-        extension      = mimetypes.guess_extension(mime_type) or ''
+        # Use extension from file_name if present
+        if file_name and '.' in file_name:
+            extension = '.' + file_name.split('.')[-1]
+        else:
+            extension = mimetypes.guess_extension(mime_type) or ''
         file_unique_id = audio['file_unique_id']
         media_file_name    = f"{file_unique_id}{extension}"
         file_path       = get_file_path(channel.config, file_id)
