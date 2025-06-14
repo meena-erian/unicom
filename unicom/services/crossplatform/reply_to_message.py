@@ -14,10 +14,6 @@ if TYPE_CHECKING:
     from unicom.models import Message, Channel
 
 
-def speak_text(text, audio_file):
-    pass # TODO: Remove or add implementation for speak text
-
-
 def reply_to_message(channel:Channel , message: Message, response: dict) -> Message:
     """
     response can contain:
@@ -60,11 +56,6 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
         relative_path = decode_base64_media(b64, output_subdir="media", file_ext=ext)
         response["file_path"] = relative_path
         response.pop("base64_audio")  # Remove it so we don't pass raw base64 around
-
-    # Example logic if original message was audio
-    if message.media_type == 'audio':
-        response['type'] = "audio"
-        response['text'] = f"**Voice Message**\n{response['text']}"
 
     # Dispatch by platform
     platform = message.platform
