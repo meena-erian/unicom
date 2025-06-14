@@ -14,6 +14,8 @@ from .fields import DedupFileField, only_delete_file_if_unused
 from unicom.services.get_public_origin import get_public_origin
 import openai
 from django.conf import settings
+from pydub import AudioSegment
+import io
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -179,24 +181,28 @@ class Message(models.Model):
                     })
                 content = content_list
             elif msg.media and multimodal and msg.media_type == "audio":
-                # Prepare input_audio structure for user audio
+                # Convert audio to mp3 using pydub before base64 encoding
                 b64 = None
-                ext = None
+                ext = 'mp3'
                 try:
                     msg.media.open('rb')
                     data = msg.media.read()
                     msg.media.seek(0)
+                    # Detect format from file extension
                     import os
-                    ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
-                    b64 = base64.b64encode(data).decode('ascii')
+                    orig_ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
+                    audio = AudioSegment.from_file(io.BytesIO(data), format=orig_ext)
+                    mp3_io = io.BytesIO()
+                    audio.export(mp3_io, format='mp3')
+                    mp3_data = mp3_io.getvalue()
+                    b64 = base64.b64encode(mp3_data).decode('ascii')
                 except Exception:
                     b64 = None
-                    ext = 'wav'
                 content_list = []
                 if b64:
                     content_list.append({
                         "type": "input_audio",
-                        "input_audio": {"data": b64, "format": ext}
+                        "input_audio": {"data": b64, "format": "mp3"}
                     })
                 if msg.text:
                     content_list.insert(0, {  # text first if present

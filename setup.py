@@ -25,6 +25,7 @@ setup(
         'fa2svg==0.1.8',
         'pytz>=2024.1',
         'openai',
+        'pydub>=0.25.1',
     ],
     extras_require={
         'dev': [
