@@ -10,6 +10,8 @@ import time
 import os
 import tempfile
 import subprocess
+import shutil
+import uuid
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -87,6 +89,27 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
         ret = response.json()
 
         if ret.get('ok'):
+            # If media was sent, ensure the file is saved to media folder and pass its path
+            # locals() returns a dictionary of the current local symbol table, containing all local variables.
+            # Here we check if 'file_path' exists as a local variable in the current function scope
+            if 'type' in params and 'file_path' in locals():
+                msg_type = params['type']
+                if msg_type in ['audio', 'image']:
+                    # Save a copy to media folder if not already there
+                    orig_path = file_path
+                    # If not already in media folder, copy it
+                    if not orig_path.startswith('media/'):
+                        ext = os.path.splitext(orig_path)[-1]
+                        new_name = f"{uuid.uuid4()}{ext}"
+                        dest_path = os.path.join(settings.MEDIA_ROOT, 'media', new_name)
+                        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                        shutil.copy2(orig_path, dest_path)
+                        media_file_path = f"media/{new_name}"
+                    else:
+                        media_file_path = orig_path
+                    # Add to result dict for save_telegram_message
+                    ret['result']['media_file_path'] = media_file_path
+            
             return save_telegram_message(channel, ret.get('result'), user)
         elif 'error_code' in ret and ret['error_code'] == 429:  # Rate limit
             time.sleep(retry_interval)

@@ -23,15 +23,42 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
       - "type": 'text', 'audio', or 'image'
       - "text":   The text or caption
       - "html":   The HTML body for email messages
-      - "file_path" or "base64_image" or "image_link" 
+      - "file_path" or "base64_image" or "base64_audio" or "image_link"
+
+    Special handling:
+      - If 'base64_image' is present and type is 'image', decodes and saves the image to media folder, sets 'file_path'.
+      - If 'base64_audio' is present and type is 'audio', decodes and saves the audio to media folder, sets 'file_path'.
     """
 
     # If it's an image in base64, decode it:
     if response.get("type") == "image" and "base64_image" in response:
-        # decode_base64_image => returns "media/<uuid>.jpg"
-        relative_path = decode_base64_image(response["base64_image"], output_subdir="media")
+        from unicom.services.decode_base64_image import decode_base64_media
+        # Try to detect extension from base64 header if present, else default to jpg
+        import re
+        b64 = response["base64_image"]
+        ext = "jpg"
+        m = re.match(r"^data:image/(\w+);base64,(.*)$", b64)
+        if m:
+            ext = m.group(1)
+            b64 = m.group(2)
+        relative_path = decode_base64_media(b64, output_subdir="media", file_ext=ext)
         response["file_path"] = relative_path
         response.pop("base64_image")  # Remove it so we don't pass raw base64 around
+
+    # If it's an audio in base64, decode it:
+    if response.get("type") == "audio" and "base64_audio" in response:
+        from unicom.services.decode_base64_image import decode_base64_media
+        # Try to detect extension from base64 header if present, else default to mp3
+        import re
+        b64 = response["base64_audio"]
+        ext = "mp3"
+        m = re.match(r"^data:audio/(\w+);base64,(.*)$", b64)
+        if m:
+            ext = m.group(1)
+            b64 = m.group(2)
+        relative_path = decode_base64_media(b64, output_subdir="media", file_ext=ext)
+        response["file_path"] = relative_path
+        response.pop("base64_audio")  # Remove it so we don't pass raw base64 around
 
     # Example logic if original message was audio
     if message.media_type == 'audio':
