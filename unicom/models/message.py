@@ -183,36 +183,33 @@ class Message(models.Model):
                         "text": msg.text
                     })
                 content = content_list
-            elif msg.media and multimodal and msg.media_type == "audio":
-                # Convert audio to mp3 using pydub before base64 encoding
-                b64 = None
-                ext = 'mp3'
-                try:
-                    msg.media.open('rb')
-                    data = msg.media.read()
-                    msg.media.seek(0)
-                    # Detect format from file extension
-                    import os
-                    orig_ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
-                    audio = AudioSegment.from_file(io.BytesIO(data), format=orig_ext)
-                    mp3_io = io.BytesIO()
-                    audio.export(mp3_io, format='mp3')
-                    mp3_data = mp3_io.getvalue()
-                    b64 = base64.b64encode(mp3_data).decode('ascii')
-                except Exception:
-                    b64 = None
+            elif msg.media_type == "audio":
                 content_list = []
-                if b64:
-                    content_list.append({
-                        "type": "input_audio",
-                        "input_audio": {"data": b64, "format": "mp3"}
-                    })
+                if msg.media and multimodal:
+                    # Convert audio to mp3 using pydub before base64 encoding
+                    try:
+                        msg.media.open('rb')
+                        data = msg.media.read()
+                        msg.media.seek(0)
+                        import os
+                        orig_ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
+                        audio = AudioSegment.from_file(io.BytesIO(data), format=orig_ext)
+                        mp3_io = io.BytesIO()
+                        audio.export(mp3_io, format='mp3')
+                        mp3_data = mp3_io.getvalue()
+                        b64 = base64.b64encode(mp3_data).decode('ascii')
+                        content_list.append({
+                            "type": "input_audio",
+                            "input_audio": {"data": b64, "format": "mp3"}
+                        })
+                    except Exception:
+                        pass  # Optionally log error
                 if msg.text:
-                    content_list.insert(0, {  # text first if present
+                    content_list.insert(0, {
                         "type": "text",
                         "text": msg.text
                     })
-                content = content_list
+                content = content_list if content_list else (msg.text or "")
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
             else:
