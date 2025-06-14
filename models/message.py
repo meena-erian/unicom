@@ -185,6 +185,7 @@ class Message(models.Model):
                 content = content_list
             elif msg.media_type == "audio":
                 content_list = []
+                audio_processed = False
                 if msg.media and multimodal:
                     # Convert audio to mp3 using pydub before base64 encoding
                     try:
@@ -193,7 +194,13 @@ class Message(models.Model):
                         msg.media.seek(0)
                         import os
                         orig_ext = os.path.splitext(msg.media.name)[1][1:] or 'wav'
-                        audio = AudioSegment.from_file(io.BytesIO(data), format=orig_ext)
+                        
+                        # Handle oga extension for pydub
+                        format_ext = orig_ext
+                        if format_ext == 'oga':
+                            format_ext = 'ogg'
+
+                        audio = AudioSegment.from_file(io.BytesIO(data), format=format_ext)
                         mp3_io = io.BytesIO()
                         audio.export(mp3_io, format='mp3')
                         mp3_data = mp3_io.getvalue()
@@ -202,14 +209,25 @@ class Message(models.Model):
                             "type": "input_audio",
                             "input_audio": {"data": b64, "format": "mp3"}
                         })
-                    except Exception:
+                        audio_processed = True
+                    except Exception as e:
+                        # Re-enable for debugging if needed
+                        # print(f"DEBUG: Could not process audio file for message {msg.id}. Error: {e}")
                         pass  # Optionally log error
+                
                 if msg.text:
-                    content_list.insert(0, {
-                        "type": "text",
-                        "text": msg.text
-                    })
-                content = content_list if content_list else (msg.text or "")
+                    # If audio was processed, don't include the default "**Voice Message**" text
+                    if not (audio_processed and msg.text == "**Voice Message**"):
+                        content_list.insert(0, {
+                            "type": "text",
+                            "text": msg.text
+                        })
+
+                if content_list:
+                    content = content_list
+                else:
+                    # Fallback for non-multimodal or if everything failed
+                    content = msg.text or ""
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
             else:
@@ -241,22 +259,28 @@ class Message(models.Model):
             messages = [{"role": "system", "content": system_instruction}] + messages
         return messages
 
-    def reply_using_llm(self, model: str, depth=10, mode="chat", system_instruction=None, multimodal=True, user=None, **kwargs):
+    def reply_using_llm(self, model: str, depth=10, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
         """
         Wrapper: Calls as_llm_chat, OpenAI ChatCompletion API, and reply_with.
         - model: OpenAI model string
         - depth, mode, system_instruction, multimodal: passed to as_llm_chat
         - user: Django user for reply_with
+        - voice: voice name for audio response (default 'alloy')
         - kwargs: extra params for OpenAI API
         Returns: The Message object created by reply_with
         """
         # Prepare messages for LLM
         messages = self.as_llm_chat(depth=depth, mode=mode, system_instruction=system_instruction, multimodal=multimodal)
+        # Determine if we need to request audio response
+        openai_kwargs = dict(kwargs)
+        if multimodal and self.media_type == "audio":
+            openai_kwargs["modalities"] = ["text", "audio"]
+            openai_kwargs["audio"] = {"voice": voice, "format": "opus"}
         # Call OpenAI ChatCompletion API
         response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
-            **kwargs
+            **openai_kwargs
         )
         # Get the LLM's reply (assume first choice)
         llm_msg = response.choices[0].message
@@ -268,7 +292,6 @@ class Message(models.Model):
             # Check for audio or image blocks
             for block in content:
                 if block.get("type") == "input_audio":
-                    import base64, uuid, os
                     audio_data = block["input_audio"]["data"]
                     ext = block["input_audio"].get("format", "wav")
                     audio_file_name = f"media/{uuid.uuid4()}.{ext}"
@@ -280,7 +303,6 @@ class Message(models.Model):
                         "text": ""
                     }
                 elif block.get("type") == "image_url":
-                    import re, base64, uuid, os
                     url = block["image_url"]["url"]
                     m = re.match(r"data:(.*?);base64,(.*)", url)
                     if m:
@@ -304,7 +326,7 @@ class Message(models.Model):
             audio_data = llm_msg.audio.data
             transcript = getattr(llm_msg.audio, 'transcript', '')
             audio_id = getattr(llm_msg.audio, 'id', None)
-            audio_file_name = f"media/{uuid.uuid4()}.wav"
+            audio_file_name = f"media/{uuid.uuid4()}.ogg"
             wav_bytes = base64.b64decode(audio_data)
             with open(audio_file_name, "wb") as f:
                 f.write(wav_bytes)
@@ -316,6 +338,7 @@ class Message(models.Model):
         else:
             reply_dict = {'type': 'text', 'text': llm_msg.content}
         # Reply using reply_with
+        print(reply_dict)
         return self.reply_with(reply_dict)
 
     class Meta:

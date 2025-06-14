@@ -40,18 +40,12 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
             file_path = params['file_path']
             ext = os.path.splitext(file_path)[-1].lower()
             if ext in ['.oga', '.ogg']:
-                # Convert to .mp3 using ffmpeg and a temp file
-                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
-                    tmp_path = tmp.name
-                try:
-                    subprocess.run(['ffmpeg', '-y', '-i', file_path, tmp_path], check=True)
-                    files = {"audio": open(tmp_path, 'rb')}
-                finally:
-                    params.pop('file_path', None)
-                    params.pop('type', None)
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/sendVoice"
+                files = {"voice": open(file_path, 'rb')}
+                params.pop('file_path', None)
+                params.pop('type', None)
             else:
+                url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/sendAudio"
                 files = {"audio": open(file_path, 'rb')}
                 params.pop('file_path', None)
                 params.pop('type', None)
