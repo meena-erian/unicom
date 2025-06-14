@@ -150,9 +150,8 @@ class Message(models.Model):
                 role = "system"
             # Determine content
             content = None
-            extra = {}
-            if msg.media and multimodal and msg.media_type in ("image", "audio"):
-                # Only use base64, do not use URLs
+            if msg.media and multimodal and msg.media_type == "image":
+                # Prepare data URL for image
                 b64 = None
                 mime = None
                 try:
@@ -160,25 +159,57 @@ class Message(models.Model):
                     data = msg.media.read()
                     msg.media.seek(0)
                     import mimetypes
-                    mime = mimetypes.guess_type(msg.media.name)[0] or 'application/octet-stream'
+                    mime = mimetypes.guess_type(msg.media.name)[0] or 'image/png'
                     b64 = base64.b64encode(data).decode('ascii')
                 except Exception:
                     b64 = None
-                if msg.media_type == "image":
-                    content = f"[Image attached]"
-                    extra = {"image_base64": b64, "image_mime": mime}
-                elif msg.media_type == "audio":
-                    content = f"[Audio attached]"
-                    extra = {"audio_base64": b64, "audio_mime": mime}
-                else:
-                    content = f"[File attached]"
-                    extra = {"file_base64": b64, "file_mime": mime}
+                    mime = 'image/png'
+                data_url = f"data:{mime};base64,{b64}" if b64 else None
+                content_list = []
+                if data_url:
+                    content_list.append({
+                        "type": "image_url",
+                        "image_url": {"url": data_url}
+                    })
+                # If there is text/caption, add as separate dict
+                if msg.text:
+                    content_list.append({
+                        "type": "text",
+                        "text": msg.text
+                    })
+                content = content_list
+            elif msg.media and multimodal and msg.media_type == "audio":
+                # Prepare data URL for audio
+                b64 = None
+                mime = None
+                try:
+                    msg.media.open('rb')
+                    data = msg.media.read()
+                    msg.media.seek(0)
+                    import mimetypes
+                    mime = mimetypes.guess_type(msg.media.name)[0] or 'audio/mpeg'
+                    b64 = base64.b64encode(data).decode('ascii')
+                except Exception:
+                    b64 = None
+                    mime = 'audio/mpeg'
+                data_url = f"data:{mime};base64,{b64}" if b64 else None
+                content_list = []
+                if data_url:
+                    content_list.append({
+                        "type": "audio_url",
+                        "audio_url": {"url": data_url}
+                    })
+                if msg.text:
+                    content_list.append({
+                        "type": "text",
+                        "text": msg.text
+                    })
+                content = content_list
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
             else:
                 content = msg.text or ""
             d = {"role": role, "content": content}
-            d.update({k: v for k, v in extra.items() if v})
             return d
 
         messages = []
