@@ -288,21 +288,3 @@ To release a new version to PyPI:
    This will use the current date/time as the version (e.g., 2024.06.13.1530).
 
 The version is automatically managed by setuptools_scm from Git tags and is available at runtime as `unicom.__version__`.
-
-## ⚠️ Additional Setup Notes
-
-- **Audio File Conversion:**
-  - `ffmpeg` is required for converting audio files (e.g., Telegram voice notes) to formats compatible with OpenAI and other services. Make sure `ffmpeg` is installed on your system or Docker image.
-
-- **Media Files:**
-  - In your Django `settings.py`, add:
-    ```python
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, '')
-    ```
-  - In your main project `urls.py`, add:
-    ```python
-    from django.conf import settings
-    from django.conf.urls.static import static
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    ```
