@@ -40,7 +40,7 @@ def listen_to_IMAP(channel):
                         msg = save_email_message(channel, raw, uid=uid)
                         # logger.info(f"Channel {channel.pk}: Found email {msg.id} (uid={uid})")
                     except Exception as e:
-                        logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
+                        logger.error(f"Channel {channel.pk}: Failed to process UID {uid}: {e}")
 
                 if mark_seen_on == 'on_save':
                     if uids:
@@ -86,12 +86,12 @@ def listen_to_IMAP(channel):
                             logger.debug(f"Incoming email - Message-ID: {msg.id}, In-Reply-To: {msg.raw.get('In-Reply-To') if msg.raw else 'None'}")
                             logger.debug(f"Associated with chat: {msg.chat_id}")
                         except Exception:
-                            logger.exception(f"Channel {channel.pk}: Failed to process UID {uid}")
+                            logger.error(f"Channel {channel.pk}: Failed to process UID {uid}")
                         finally:
                             connections.close_all()
 
         except Exception as e:
-            logger.exception(f"Channel {channel.pk}: Fatal IMAP error: {e}, reconnecting in 30s…")
+            logger.error(f"Channel {channel.pk}: Fatal IMAP error: {e}, reconnecting in 30s…")
             time.sleep(3)
         finally:
             # Ensure we close all connections to avoid leaks
