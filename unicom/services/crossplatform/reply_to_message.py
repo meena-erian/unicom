@@ -4,7 +4,7 @@ from unicom.services.telegram.send_telegram_message import send_telegram_message
 from unicom.services.whatsapp.send_whatsapp_message import send_whatsapp_message
 from unicom.services.internal.send_internal_message import send_internal_message
 from unicom.services.email.send_email_message import send_email_message
-from unicom.services.decode_base64_image import decode_base64_image
+from unicom.services.decode_base64_image import decode_base64_media
 from unicom.models import Message, Channel
 import uuid
 import os
