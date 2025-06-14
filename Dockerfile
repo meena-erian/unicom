@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # # Install necessary system dependencies for Playwright
 RUN apt-get update && apt-get install -y wget curl netcat \
-    libcairo2
+    libcairo2 ffmpeg
 
 # Copy the current directory contents into the container at /app
 COPY . /app/
