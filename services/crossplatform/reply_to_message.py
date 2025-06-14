@@ -36,9 +36,6 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
     # Example logic if original message was audio
     if message.media_type == 'audio':
         response['type'] = "audio"
-        audio_file_name = os.path.join("media", f"{uuid.uuid4()}.oga")  # store in media/
-        speak_text(response['text'], audio_file_name)
-        response['file_path'] = audio_file_name
         response['text'] = f"**Voice Message**\n{response['text']}"
 
     # Dispatch by platform
