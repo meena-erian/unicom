@@ -8,17 +8,20 @@ from django.core.validators import validate_email
 from fa2svg.converter import revert_to_original_fa
 import uuid
 import re
+import os
 from bs4 import BeautifulSoup
 import base64
 from .fields import DedupFileField, only_delete_file_if_unused
 from unicom.services.get_public_origin import get_public_origin
-import openai
+from openai import OpenAI
 from django.conf import settings
 from pydub import AudioSegment
 import io
 
 if TYPE_CHECKING:
     from unicom.models import Channel
+
+openai_client = OpenAI(api_key=getattr(settings, 'OPENAI_API_KEY', None))
 
 
 class Message(models.Model):
@@ -252,10 +255,8 @@ class Message(models.Model):
         """
         # Prepare messages for LLM
         messages = self.as_llm_chat(depth=depth, mode=mode, system_instruction=system_instruction, multimodal=multimodal)
-        # Set API key
-        openai.api_key = getattr(settings, 'OPENAI_API_KEY', None)
         # Call OpenAI ChatCompletion API
-        response = openai.chat.completions.create(
+        response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
             **kwargs
@@ -301,18 +302,18 @@ class Message(models.Model):
                         reply_dict = {"type": "text", "text": block["text"]}
                     else:
                         reply_dict["text"] = block["text"]
-        # Handle OpenAI SDK audio id structure
-        elif hasattr(llm_msg, 'audio') and llm_msg.audio and hasattr(llm_msg.audio, 'id'):
-            audio_id = llm_msg.audio.id
-            # Download the audio file from OpenAI using the id
-            import openai, uuid, os
-            audio_file_name = f"media/{uuid.uuid4()}.mp3"
-            # This assumes OpenAI provides an endpoint to fetch the audio by id
-            # You may need to adjust the endpoint or method as per OpenAI SDK
-            audio_response = openai.audio.files.retrieve(audio_id)
+        # Handle OpenAI SDK audio id structure with base64 data and transcript
+        elif hasattr(llm_msg, 'audio') and llm_msg.audio and hasattr(llm_msg.audio, 'data'):
+            audio_data = llm_msg.audio.data
+            transcript = getattr(llm_msg.audio, 'transcript', '')
+            audio_id = getattr(llm_msg.audio, 'id', None)
+            audio_file_name = f"media/{uuid.uuid4()}.wav"
+            wav_bytes = base64.b64decode(audio_data)
             with open(audio_file_name, "wb") as f:
-                f.write(audio_response.read())
-            reply_dict = {"type": "audio", "file_path": audio_file_name, "text": ""}
+                f.write(wav_bytes)
+            reply_dict = {"type": "audio", "file_path": audio_file_name, "audio_id": audio_id}
+            if transcript:
+                reply_dict["text"] = transcript
         elif self.platform == 'Email':
             reply_dict = {'html': llm_msg.content}
         else:
