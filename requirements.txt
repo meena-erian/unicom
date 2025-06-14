@@ -4,7 +4,7 @@ requests>=2.31.0,<3.0
 urllib3>=2.4.0,<3.0
 Pillow>=10.4.0
 IMAPClient>=3.0.1
-fa2svg==0.1.6
+fa2svg==0.1.8
 dnspython>=2.7.0,<3.0
 django-ace>=1.39.2
 pytz>=2024.1

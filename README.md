@@ -47,7 +47,20 @@
    DJANGO_PUBLIC_ORIGIN=https://yourdomain.com
    ```
 
-5. *(Optional, but recommended)* **Set your TinyMCE Cloud API key** — required if you plan to compose **Email** messages from the Django admin UI.
+5. **Set up media file handling:**
+   In your Django `settings.py`:
+   ```python
+   MEDIA_URL = '/media/'
+   MEDIA_ROOT = os.path.join(BASE_DIR, '')
+   ```
+   In your main project `urls.py`:
+   ```python
+   from django.conf import settings
+   from django.conf.urls.static import static
+   urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+   ```
+
+6. *(Optional, but recommended)* **Set your TinyMCE Cloud API key** — required if you plan to compose **Email** messages from the Django admin UI.
 
    Obtain a free key at <https://www.tiny.cloud>, then add it to your `settings.py`:
 
@@ -67,7 +80,7 @@
    UNICOM_TINYMCE_API_KEY = os.getenv('UNICOM_TINYMCE_API_KEY', '')
    ```
 
-6. *(Optional)* **Set your OpenAI API key** — required if you plan to use the AI-powered template population service.
+7. *(Optional)* **Set your OpenAI API key** — required if you plan to use the AI-powered template population service.
 
    Obtain a key from <https://platform.openai.com/api-keys>, then set it as an environment variable:
 
@@ -76,6 +89,9 @@
    ```
 
    The application will automatically pick it up from the environment.
+
+8. **Install ffmpeg:**
+   - `ffmpeg` is required for converting audio files (e.g., Telegram voice notes) to formats compatible with OpenAI and other services. Make sure `ffmpeg` is installed on your system or Docker image.
 
 That's it! Unicom can now register and manage public-facing webhooks (e.g., for Telegram bots) based on your defined base URL and can automatically sync with email clients.
 
@@ -272,3 +288,21 @@ To release a new version to PyPI:
    This will use the current date/time as the version (e.g., 2024.06.13.1530).
 
 The version is automatically managed by setuptools_scm from Git tags and is available at runtime as `unicom.__version__`.
+
+## ⚠️ Additional Setup Notes
+
+- **Audio File Conversion:**
+  - `ffmpeg` is required for converting audio files (e.g., Telegram voice notes) to formats compatible with OpenAI and other services. Make sure `ffmpeg` is installed on your system or Docker image.
+
+- **Media Files:**
+  - In your Django `settings.py`, add:
+    ```python
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, '')
+    ```
+  - In your main project `urls.py`, add:
+    ```python
+    from django.conf import settings
+    from django.conf.urls.static import static
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    ```
