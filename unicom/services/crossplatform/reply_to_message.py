@@ -8,6 +8,7 @@ from unicom.services.decode_base64_image import decode_base64_media
 from unicom.models import Message, Channel
 import uuid
 import os
+import warnings
 
 if TYPE_CHECKING:
     from unicom.models import Message, Channel
@@ -68,6 +69,16 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
     # Dispatch by platform
     platform = message.platform
     if platform == 'Telegram':
+        # Ensure file_path is present for media messages
+        if response.get('type') in ['audio', 'image'] and 'file_path' not in response:
+            # Fallback: send as text message with warning
+            warnings.warn(f"Attempted to send {response.get('type')} message without file_path. Falling back to text.")
+            return send_telegram_message(channel, {
+                "chat_id": message.chat_id,
+                "reply_to_message_id": message.id,
+                "parse_mode": "Markdown",
+                "text": response.get('text', '[Media file missing]')
+            })
         return send_telegram_message(channel, {
             "chat_id": message.chat_id,
             "reply_to_message_id": message.id,
