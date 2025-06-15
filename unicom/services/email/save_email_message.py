@@ -12,6 +12,7 @@ from unicom.services.email.email_tracking import remove_tracking
 from django.urls import reverse
 from unicom.services.get_public_origin import get_public_origin
 from unicom.services.html_inline_images import html_base64_images_to_shortlinks
+from unicom.services.email.replace_cid_images_with_base64 import replace_cid_images_with_base64
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,12 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
 
     body_text = "\n".join(text_parts).strip()
     body_html = "\n".join(html_parts).strip() or None
+
+    # --- PATCH: Replace cid: images with base64 in HTML ---
+    if body_html:
+        patched_html = replace_cid_images_with_base64(raw_message_bytes)
+        if patched_html:
+            body_html = patched_html
 
     # Filter redundant quoted content before any further HTML processing
     if body_html and chat_obj and hdr_references:
