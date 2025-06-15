@@ -338,7 +338,6 @@ class Message(models.Model):
         else:
             reply_dict = {'type': 'text', 'text': llm_msg.content}
         # Reply using reply_with
-        print(reply_dict)
         return self.reply_with(reply_dict)
 
     class Meta:
