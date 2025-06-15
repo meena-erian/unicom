@@ -22,7 +22,7 @@ setup(
         'dnspython>=2.7.0,<3.0',
         'Pillow>=10.4.0',
         'django-ace>=1.39.2',
-        'fa2svg==0.1.8',
+        'fa2svg==0.1.9',
         'pytz>=2024.1',
         'openai',
         'pydub>=0.25.1',
