@@ -1,5 +1,4 @@
 from unicom.services.email.save_email_message import save_email_message
-from unicom.services.email.replace_cid_images_with_base64 import replace_cid_images_with_base64
 from imapclient import IMAPClient, SEEN
 from imapclient.exceptions import IMAPClientError
 from django.db import connections
@@ -38,11 +37,6 @@ def listen_to_IMAP(channel):
                     try:
                         resp = server.fetch(uid, ['BODY.PEEK[]'])
                         raw = resp[uid][b'BODY[]']
-                        # --- Patch HTML with base64 images for cid: links ---
-                        patched_html = replace_cid_images_with_base64(raw)
-                        if patched_html:
-                            raw = patched_html
-                        #    logger.info(f"Channel {channel.pk}: Patched HTML for CID images in UID {uid}")
                         msg = save_email_message(channel, raw, uid=uid)
                         # logger.info(f"Channel {channel.pk}: Found email {msg.id} (uid={uid})")
                     except Exception as e:
@@ -85,11 +79,6 @@ def listen_to_IMAP(channel):
                         try:
                             resp = server.fetch(uid, ['BODY.PEEK[]'])
                             raw = resp[uid][b'BODY[]']
-                            # --- Patch HTML with base64 images for cid: links ---
-                            patched_html = replace_cid_images_with_base64(raw)
-                            if patched_html:
-                                raw = patched_html
-                            #    logger.info(f"Channel {channel.pk}: Patched HTML for CID images in UID {uid}")
                             msg = save_email_message(channel, raw, uid=uid)
                             logger.info(f"Channel {channel.pk}: Saved email {msg.id} (uid={uid})")
                             if mark_seen_on == 'on_save':
