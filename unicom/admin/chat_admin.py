@@ -13,6 +13,7 @@ from ..views.compose_view import compose_view
 from .filters import LastMessageTypeFilter, LastMessageTimeFilter, MessageHistoryFilter, ArchiveStatusFilter
 
 class ChatAdmin(admin.ModelAdmin):
+    ordering = ['-last_message__timestamp']
     list_filter = (
         LastMessageTypeFilter,
         LastMessageTimeFilter,
