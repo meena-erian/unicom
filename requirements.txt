@@ -17,3 +17,4 @@ openai
 # ffmpeg is required for audio conversion, but is installed at the system level in Dockerfile
 
 pydub>=0.25.1
+WeasyPrint==52.5

@@ -37,6 +37,9 @@
       {% endif %}
     {% endif %}
     <button class="menu-action message-action-copy-id" data-message-id="{{ message.id }}">Copy Message ID</button>
+    {% if message.platform == 'Email' %}
+      <button class="menu-action message-action-download-pdf" data-message-id="{{ message.id }}">Download PDF</button>
+    {% endif %}
     <a href="/admin/unicom/message/{{ message.id }}/change/" target="_blank" class="menu-action">View Message Details</a>
   </div>
 </div>
@@ -124,6 +127,16 @@
     if (e.target.classList.contains('message-action-copy-id')) {
       var msgId = e.target.getAttribute('data-message-id');
       navigator.clipboard.writeText(msgId);
+      e.target.closest('.message-actions-menu').style.display = 'none';
+      e.stopPropagation();
+    }
+  });
+  // Download PDF
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('message-action-download-pdf')) {
+      var msgId = e.target.getAttribute('data-message-id');
+      // Download from backend endpoint (to be implemented)
+      window.open(`/admin/unicom/message/${msgId}/download_pdf/`, '_blank');
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }

@@ -26,6 +26,7 @@ setup(
         'pytz>=2024.1',
         'openai',
         'pydub>=0.25.1',
+        'WeasyPrint==52.5',
     ],
     extras_require={
         'dev': [
