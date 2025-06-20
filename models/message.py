@@ -104,7 +104,7 @@ class Message(models.Model):
 
     @property
     def original_content(self):
-        return revert_to_original_fa(self.html) if self.platform == 'Email' else self.text
+        return revert_to_original_fa(self.html_with_base64_images) if self.platform == 'Email' else self.text
 
     @property
     def html_with_base64_images(self):
@@ -115,7 +115,7 @@ class Message(models.Model):
             return self.html
         soup = BeautifulSoup(self.html, 'html.parser')
         # Map shortlink src to base64 for all inline images
-        images = {img.get_short_id(): img for img in getattr(self, 'inline_images', [])}
+        images = {img.get_short_id(): img for img in self.inline_images.all()}
         for img_tag in soup.find_all('img'):
             src = img_tag.get('src', '')
             # Extract short id from src (e.g., /i/abc123 or full URL)

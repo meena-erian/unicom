@@ -11,6 +11,7 @@ from .request_admin import RequestCategoryAdmin, RequestAdmin
 from .message_template_admin import MessageTemplateAdmin, MessageTemplateInlineImageAdmin
 from .draft_message_admin import DraftMessageAdmin
 from .email_inline_image_admin import EmailInlineImageAdmin
+from .message_admin import MessageAdmin
 from .filters import *
 
 admin.site.register(Chat, ChatAdmin)
@@ -25,7 +26,7 @@ admin.site.register(MessageTemplate, MessageTemplateAdmin)
 admin.site.register(MessageTemplateInlineImage, MessageTemplateInlineImageAdmin)
 admin.site.register(DraftMessage, DraftMessageAdmin)
 admin.site.register(EmailInlineImage, EmailInlineImageAdmin)
-admin.site.register(Message)
+admin.site.register(Message, MessageAdmin)
 admin.site.register(Update)
 
 # Other admin registrations will be added here as they are modularized. 
