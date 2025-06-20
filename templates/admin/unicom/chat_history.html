@@ -385,7 +385,8 @@
   
   <div class="chat-messages">
     {% for message in chat_messages_list %}
-    <div id="message_{{ message.id }}" class="message {% if message.is_outgoing %}message-bot{% else %}message-user{% endif %}">
+    <div id="message_{{ message.id }}" class="message {% if message.is_outgoing %}message-bot{% else %}message-user{% endif %}" style="position: relative;">
+      {% include "admin/unicom/includes/message_actions_menu.html" with message=message %}
       {% if message.reply_to_message %}
       <a href="#message_{{ message.reply_to_message.id }}">
         <div class="reply-to {% if message.reply_to_message.platform == 'Email' %}email-content{% endif %}">
