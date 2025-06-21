@@ -1,4 +1,4 @@
-django>=4.2
+django>=4.2,<5.0
 psycopg2-binary>=2.9,<3.0
 requests>=2.31.0,<3.0
 urllib3>=2.4.0,<3.0
@@ -8,6 +8,9 @@ fa2svg==0.1.9
 dnspython>=2.7.0,<3.0
 django-ace>=1.39.2
 pytz>=2024.1
+pydub>=0.25.1
+WeasyPrint==52.5
+playwright>=1.45.0,<2.0
 
 # Only required by unicom_project not unicom app
 python-dotenv>=1.0,<2.0
@@ -15,6 +18,3 @@ charset-normalizer>=3.1.0,<4.0
 openai
 
 # ffmpeg is required for audio conversion, but is installed at the system level in Dockerfile
-
-pydub>=0.25.1
-WeasyPrint==52.5

@@ -6,9 +6,11 @@
 
 ## 🚀 Quick Start
 
-1. **Install the package:**
+1. **Install the package (plus Playwright browser binaries):**
    ```bash
    pip install django-unicom
+   # Install the headless Chromium browser that powers PDF export
+   python -m playwright install --with-deps
    ```
 
 2. **Add required apps to your Django settings:**

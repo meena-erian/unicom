@@ -13,7 +13,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     include_package_data=True,
     install_requires=[
-        'Django>=3.2',
+        'Django>=3.2,<5.0',
         'psycopg2-binary>=2.9,<3.0',
         'urllib3>=2.4.0,<3.0',
         'dnspython>=2.7.0,<3.0',
@@ -27,6 +27,7 @@ setup(
         'openai',
         'pydub>=0.25.1',
         'WeasyPrint==52.5',
+        'playwright>=1.45.0,<2.0',
     ],
     extras_require={
         'dev': [
