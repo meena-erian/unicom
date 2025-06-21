@@ -13,9 +13,15 @@ ifndef VERSION
 	$(MAKE) release-auto
 else
 	rm -rf dist/*
-	git tag v$(VERSION)
-	git push origin v$(VERSION)
-	python -m build
+	# Ensure we're on a clean state
+	git pull
+	# Create and push the tag
+	git tag -f v$(VERSION)
+	git push -f origin v$(VERSION)
+	# Clean any previous builds
+	rm -rf build/ *.egg-info
+	# Build from the tagged state
+	SETUPTOOLS_SCM_PRETEND_VERSION=$(VERSION) python -m build
 	twine upload dist/* --config-file .pypirc
 endif
 
