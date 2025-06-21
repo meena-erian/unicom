@@ -103,8 +103,46 @@ class Message(models.Model):
         return reply_to_message(self.channel, self, msg_dict)
 
     @property
-    def original_content(self):
-        return revert_to_original_fa(self.html_with_base64_images) if self.platform == 'Email' else self.text
+    def original_content_with_base64_icons(self):
+        """
+        Returns the HTML content with inline images as base64 and Font Awesome icons converted to base64 PNG images.
+        This is the most portable format as it doesn't require any external dependencies.
+        """
+        from fa2svg.converter import to_inline_png_img
+        html = self.html_with_base64_images if self.platform == 'Email' else self.text
+        return to_inline_png_img(html) if self.platform == 'Email' else html
+
+    @property
+    def original_content_with_svg_icons(self):
+        """
+        Returns the HTML content with inline images as base64 and Font Awesome icons converted to inline SVG.
+        This preserves vector graphics quality but may increase the HTML size.
+        """
+        from fa2svg.converter import revert_to_original_fa
+        html = self.html_with_base64_images if self.platform == 'Email' else self.text
+        return revert_to_original_fa(html) if self.platform == 'Email' else html
+
+    @property
+    def original_content_with_cdn_icons(self):
+        """
+        Returns the HTML content with inline images as base64 and Font Awesome icons using CDN.
+        This is the lightest option but requires internet connection to load icons.
+        """
+        html = self.html_with_base64_images if self.platform == 'Email' else self.text
+        if self.platform == 'Email' and html:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            # Add Font Awesome CDN if not already present
+            head = soup.find('head')
+            if not head:
+                head = soup.new_tag('head')
+                soup.insert(0, head)
+            if not soup.find('link', {'href': lambda x: x and 'font-awesome' in x}):
+                fa_link = soup.new_tag('link', rel='stylesheet', 
+                    href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css')
+                head.append(fa_link)
+            return str(soup)
+        return html
 
     @property
     def html_with_base64_images(self):
