@@ -56,7 +56,7 @@ def download_pdf_view(request, message_id):
         raise Http404("PDF download is only available for email messages.")
 
     # Use original_content as requested, with a fallback
-    html_string = message.original_content
+    html_string = message.original_content_with_cdn_icons
     if not html_string and message.text:
         # Simple text-to-html for plaintext emails
         html_string = f"<html><body><pre>{message.text}</pre></body></html>"
