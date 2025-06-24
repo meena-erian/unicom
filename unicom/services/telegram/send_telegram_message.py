@@ -42,11 +42,15 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
             if ext in ['.oga', '.ogg']:
                 url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/sendVoice"
                 files = {"voice": open(file_path, 'rb')}
+                # Store audio_id before popping file_path
+                audio_id = params.get('audio_id')
                 params.pop('file_path', None)
                 params.pop('type', None)
             else:
                 url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/sendAudio"
                 files = {"audio": open(file_path, 'rb')}
+                # Store audio_id before popping file_path
+                audio_id = params.get('audio_id')
                 params.pop('file_path', None)
                 params.pop('type', None)
 
@@ -78,11 +82,14 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
 
     retries = 0
     while retries <= max_retries:
-        print(f"Attempt {retries} to send telegram message")
+        print(f"DEBUG: Attempt {retries} to send telegram message with params: {params}")
         response = requests.post(url, data=params, files=files)
         ret = response.json()
 
         if ret.get('ok'):
+            # Preserve audio_id if it exists
+            if msg_type == 'audio' and 'audio_id' in locals():
+                ret['result']['audio_id'] = audio_id
             # If media was sent, ensure the file is saved to media folder and pass its path
             # locals() returns a dictionary of the current local symbol table, containing all local variables.
             # Here we check if 'file_path' exists as a local variable in the current function scope

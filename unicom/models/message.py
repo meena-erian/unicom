@@ -224,7 +224,17 @@ class Message(models.Model):
             elif msg.media_type == "audio":
                 content_list = []
                 audio_processed = False
-                if msg.media and multimodal:
+                
+                # First check if we have an audio_id in raw field
+                if msg.is_outgoing and msg.raw and msg.raw.get('audio_id'):
+                    audio_id = msg.raw['audio_id']
+                    # For assistant messages, we include the audio_id as text since OpenAI doesn't accept audio references
+                    # in assistant messages
+                    content = msg.text or ""
+                    if content == "**Voice Message**":
+                        content = ""  # Don't include the default voice message text
+                # If no audio_id and we have media file, process it as before
+                elif msg.media and multimodal:
                     # Convert audio to mp3 using pydub before base64 encoding
                     try:
                         msg.media.open('rb')
@@ -243,28 +253,23 @@ class Message(models.Model):
                         audio.export(mp3_io, format='mp3')
                         mp3_data = mp3_io.getvalue()
                         b64 = base64.b64encode(mp3_data).decode('ascii')
+                        content_list = []
+                        if msg.text and msg.text != "**Voice Message**":
+                            content_list.append({
+                                "type": "text",
+                                "text": msg.text
+                            })
                         content_list.append({
                             "type": "input_audio",
                             "input_audio": {"data": b64, "format": "mp3"}
                         })
+                        content = content_list
                         audio_processed = True
                     except Exception as e:
                         # Re-enable for debugging if needed
                         # print(f"DEBUG: Could not process audio file for message {msg.id}. Error: {e}")
-                        pass  # Optionally log error
-                
-                if msg.text:
-                    # If audio was processed, don't include the default "**Voice Message**" text
-                    if not (audio_processed and msg.text == "**Voice Message**"):
-                        content_list.insert(0, {
-                            "type": "text",
-                            "text": msg.text
-                        })
-
-                if content_list:
-                    content = content_list
+                        content = msg.text or ""  # Fallback to text
                 else:
-                    # Fallback for non-multimodal or if everything failed
                     content = msg.text or ""
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
