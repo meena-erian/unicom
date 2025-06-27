@@ -34,6 +34,14 @@ class RequestCategoryAdmin(admin.ModelAdmin):
         if obj:
             form.base_fields['parent'].queryset = RequestCategory.objects.exclude(pk=obj.pk)
         
+        # Ensure all choices are visible in M2M fields regardless of Channel/Member admin permissions
+        if 'allowed_channels' in form.base_fields:
+            form.base_fields['allowed_channels'].queryset = Channel.objects.all()
+        if 'authorized_members' in form.base_fields:
+            form.base_fields['authorized_members'].queryset = Member.objects.all()
+        if 'authorized_groups' in form.base_fields:
+            form.base_fields['authorized_groups'].queryset = MemberGroup.objects.all()
+        
         # Set template code as initial value for new categories
         if not obj and 'processing_function' in form.base_fields:
             form.base_fields['processing_function'].initial = obj.get_template_code() if obj else RequestCategory().get_template_code()
