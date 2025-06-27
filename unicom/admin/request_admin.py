@@ -1,7 +1,15 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django_ace import AceWidget
-from ..models import Request, RequestCategory
+
+# Import related models for unfiltered M2M querysets
+from ..models import (
+    Request,
+    RequestCategory,
+    Channel,
+    Member,
+    MemberGroup,
+)
 
 class RequestCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'parent', 'sequence', 'is_active', 'is_public')
@@ -31,6 +39,22 @@ class RequestCategoryAdmin(admin.ModelAdmin):
             form.base_fields['processing_function'].initial = obj.get_template_code() if obj else RequestCategory().get_template_code()
         
         return form
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        """Ensure all related objects are visible regardless of the requesting user's permissions.
+
+        This allows any user who can add/change a RequestCategory to freely select values
+        for the allowed_channels, authorized_members and authorized_groups fields, even
+        if they lack explicit view permissions on those related models.
+        """
+        if db_field.name == 'allowed_channels':
+            kwargs['queryset'] = Channel.objects.all()
+        elif db_field.name == 'authorized_members':
+            kwargs['queryset'] = Member.objects.all()
+        elif db_field.name == 'authorized_groups':
+            kwargs['queryset'] = MemberGroup.objects.all()
+
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     class Media:
         css = {
