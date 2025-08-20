@@ -173,13 +173,13 @@ def process(request, metadata):
         self._wait_request(cond={'email': EMAIL_CONFIG3['EMAIL_ADDRESS']})
 
         # Check member request
-        member_request = Request.objects.get(email=EMAIL_CONFIG2['EMAIL_ADDRESS'])
+        member_request = Request.objects.filter(email=EMAIL_CONFIG2['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert member_request.member == self.member
         assert member_request.status == 'QUEUED'
         assert member_request.category == public_cat
 
         # Check non-member request
-        non_member_request = Request.objects.get(email=EMAIL_CONFIG3['EMAIL_ADDRESS'])
+        non_member_request = Request.objects.filter(email=EMAIL_CONFIG3['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert non_member_request.member is None
         assert non_member_request.status == 'QUEUED'
         assert non_member_request.category == public_cat
@@ -219,13 +219,13 @@ def process(request, metadata):
         self._wait_request(cond={'email': EMAIL_CONFIG3['EMAIL_ADDRESS']})
 
         # Check member request
-        member_request = Request.objects.get(email=EMAIL_CONFIG2['EMAIL_ADDRESS'])
+        member_request = Request.objects.filter(email=EMAIL_CONFIG2['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert member_request.member == self.member
         assert member_request.status == 'QUEUED'
         assert member_request.category == member_cat
 
         # Check non-member request
-        non_member_request = Request.objects.get(email=EMAIL_CONFIG3['EMAIL_ADDRESS'])
+        non_member_request = Request.objects.filter(email=EMAIL_CONFIG3['EMAIL_ADDRESS']).order_by('-created_at').first()
         assert non_member_request.member is None
         assert non_member_request.status == 'QUEUED'
         assert non_member_request.category is None  # Should not get member-only category
@@ -289,7 +289,7 @@ def process(request, metadata):
 
         # Check member request
         print("\nChecking member request...")
-        member_request = Request.objects.get(email=EMAIL_CONFIG2['EMAIL_ADDRESS'])
+        member_request = Request.objects.filter(email=EMAIL_CONFIG2['EMAIL_ADDRESS']).order_by('-created_at').first()
         print(f"Member request status: {member_request.status}")
         print(f"Member request category: {member_request.category.name if member_request.category else 'None'}")
         assert member_request.member == self.member
@@ -298,7 +298,7 @@ def process(request, metadata):
 
         # Check non-member request
         print("\nChecking non-member request...")
-        non_member_request = Request.objects.get(email=EMAIL_CONFIG3['EMAIL_ADDRESS'])
+        non_member_request = Request.objects.filter(email=EMAIL_CONFIG3['EMAIL_ADDRESS']).order_by('-created_at').first()
         print(f"Non-member request status: {non_member_request.status}")
         print(f"Non-member request category: {non_member_request.category.name if non_member_request.category else 'None'}")
         assert non_member_request.member is None

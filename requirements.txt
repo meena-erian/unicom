@@ -7,6 +7,11 @@ IMAPClient>=3.0.1
 fa2svg==0.1.9
 dnspython>=2.7.0,<3.0
 django-ace>=1.39.2
+
+# Email authentication dependencies
+authheaders>=0.15.0
+pyspf>=2.0.0
+dkimpy>=1.1.0
 pytz>=2024.1
 pydub>=0.25.1
 WeasyPrint==52.5
