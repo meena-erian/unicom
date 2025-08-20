@@ -49,4 +49,19 @@ class Member(models.Model):
         ]
 
     def __str__(self):
-        return self.name 
+        return self.name
+
+    def save(self, *args, **kwargs):
+        """Override save to automatically add new members to 'All Members' group."""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        if is_new:
+            # Add to 'All Members' group if it exists
+            from .member_group import MemberGroup
+            try:
+                all_members_group = MemberGroup.objects.get(name='All Members')
+                all_members_group.members.add(self)
+            except MemberGroup.DoesNotExist:
+                # Group doesn't exist yet, skip (e.g., during initial migration)
+                pass 
