@@ -30,6 +30,8 @@ class Message(models.Model):
         ('html', 'HTML'),
         ('image', 'Image'),
         ('audio', 'Audio'),
+        ('tool_call', 'Tool Call'),
+        ('tool_response', 'Tool Response'),
     ]
     id = models.CharField(max_length=500, primary_key=True)
     channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
@@ -75,7 +77,7 @@ class Message(models.Model):
     seen = models.BooleanField(default=False)
     raw = models.JSONField()
     media_type = models.CharField(
-        max_length=10,
+        max_length=15,
         choices=TYPE_CHOICES,
         default='text'
     )
@@ -273,6 +275,36 @@ class Message(models.Model):
                     content = msg.text or ""
             elif msg.media_type == "html" and msg.html:
                 content = msg.html
+            elif msg.media_type == "tool_call":
+                # Tool call messages - format for LLM API
+                tool_call_data = msg.raw.get('tool_call', {})
+                # Convert arguments to JSON string if it's a dict
+                arguments = tool_call_data.get('arguments', {})
+                if isinstance(arguments, dict):
+                    import json
+                    arguments = json.dumps(arguments)
+                d = {
+                    "role": role,
+                    "content": msg.text or "",
+                    "tool_calls": [{
+                        "id": tool_call_data.get('id', f"call_{msg.id}"),
+                        "type": "function",
+                        "function": {
+                            "name": tool_call_data.get('name', ''),
+                            "arguments": arguments
+                        }
+                    }]
+                }
+                return d
+            elif msg.media_type == "tool_response":
+                # Tool response messages - format for LLM API
+                tool_response_data = msg.raw.get('tool_response', {})
+                d = {
+                    "role": "tool",
+                    "tool_call_id": tool_response_data.get('call_id', ''),
+                    "content": str(tool_response_data.get('result', msg.text or ''))
+                }
+                return d
             else:
                 content = msg.text or ""
             d = {"role": role, "content": content}
@@ -301,6 +333,73 @@ class Message(models.Model):
         if system_instruction:
             messages = [{"role": "system", "content": system_instruction}] + messages
         return messages
+
+    def log_tool_interaction(self, tool_call=None, tool_response=None, user=None):
+        """
+        Save tool call and/or response as replies to this message
+        
+        Args:
+            tool_call: Dict with tool call data (e.g., {"name": "search", "arguments": {...}, "id": "call_123"})
+            tool_response: Dict with response data (e.g., {"call_id": "call_123", "result": {...}})
+            user: User making the call (optional)
+        
+        Returns:
+            Tuple of (tool_call_message, tool_response_message) or single message if only one provided
+        """
+        from unicom.services.llm.tool_calls import save_tool_call, save_tool_response
+        
+        if not tool_call and not tool_response:
+            raise ValueError("At least one of tool_call or tool_response must be provided")
+        
+        messages = []
+        
+        if tool_call:
+            tool_name = tool_call.get('name')
+            tool_args = tool_call.get('arguments', {})
+            call_id = tool_call.get('id')
+            
+            if not tool_name:
+                raise ValueError("tool_call must include 'name' field")
+            
+            tool_call_msg = save_tool_call(
+                self.chat, tool_name, tool_args, user, call_id, reply_to_message=self
+            )
+            messages.append(tool_call_msg)
+        
+        if tool_response:
+            call_id = tool_response.get('call_id')
+            result = tool_response.get('result')
+            
+            if not call_id:
+                raise ValueError("tool_response must include 'call_id' field")
+            
+            # If we have both tool_call and tool_response, get tool_name from call
+            # Otherwise, we need to find the original tool call to get the name
+            if tool_call:
+                tool_name = tool_call.get('name')
+            else:
+                # Look up the original tool call message to get the tool name
+                try:
+                    original_call = self.chat.messages.filter(
+                        media_type='tool_call',
+                        raw__tool_call__id=call_id
+                    ).first()
+                    if original_call:
+                        tool_name = original_call.raw['tool_call']['name']
+                    else:
+                        raise ValueError(f"Could not find original tool call with id: {call_id}")
+                except Exception:
+                    raise ValueError(f"Could not find original tool call with id: {call_id}")
+            
+            # If we saved a tool_call above, reply to that, otherwise reply to self
+            reply_to = messages[0] if messages else self
+            
+            tool_response_msg = save_tool_response(
+                self.chat, call_id, result, tool_name, user, reply_to_message=reply_to
+            )
+            messages.append(tool_response_msg)
+        
+        return tuple(messages) if len(messages) > 1 else messages[0]
 
     def reply_using_llm(self, model: str, depth=10, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
         """

@@ -363,6 +363,30 @@
     border-collapse: collapse;
     width: auto;
   }
+
+  /* Tool call message styling */
+  .tool-call-message, .tool-response-message {
+    background: rgba(108, 117, 125, 0.1);
+    border-left: 3px solid #6c757d;
+    padding: 8px 12px;
+    margin: 8px 0;
+    border-radius: 4px;
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  .tool-response-message {
+    border-left-color: #28a745;
+  }
+
+  .tool-call-message details, .tool-response-message details {
+    margin-top: 8px;
+  }
+
+  .tool-call-message summary, .tool-response-message summary {
+    padding: 4px 0;
+    font-weight: 500;
+  }
 </style>
 {% endblock %}
 
@@ -417,6 +441,28 @@
       {% else %}
       <p>File not found</p>
       {% endif %}
+      {% elif message.media_type == "tool_call" %}
+        <div class="tool-call-message">
+          <i class="fas fa-cog" style="color: #6c757d;"></i>
+          <strong>Tool Call:</strong> {{ message.raw.tool_call.name }}
+          {% if message.raw.tool_call.arguments %}
+            <details style="margin-top: 5px;">
+              <summary style="cursor: pointer; color: #6c757d;">Arguments</summary>
+              <pre style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px; font-size: 0.8em;">{{ message.raw.tool_call.arguments|pprint }}</pre>
+            </details>
+          {% endif %}
+        </div>
+      {% elif message.media_type == "tool_response" %}
+        <div class="tool-response-message">
+          <i class="fas fa-check-circle" style="color: #28a745;"></i>
+          <strong>Tool Response:</strong>
+          {% if message.raw.tool_response.result %}
+            <details style="margin-top: 5px;">
+              <summary style="cursor: pointer; color: #6c757d;">Result</summary>
+              <pre style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px; font-size: 0.8em;">{{ message.raw.tool_response.result|pprint }}</pre>
+            </details>
+          {% endif %}
+        </div>
       {% endif %}
 
       {% if message.html %}
