@@ -364,15 +364,14 @@
     width: auto;
   }
 
-  /* Tool call message styling */
+  /* Tool call message content styling */
   .tool-call-message, .tool-response-message {
-    background: rgba(108, 117, 125, 0.1);
+    background: rgba(108, 117, 125, 0.05);
     border-left: 3px solid #6c757d;
     padding: 8px 12px;
-    margin: 8px 0;
+    margin: 0;
     border-radius: 4px;
     font-size: 0.9em;
-    opacity: 0.8;
   }
 
   .tool-response-message {
@@ -386,6 +385,36 @@
   .tool-call-message summary, .tool-response-message summary {
     padding: 4px 0;
     font-weight: 500;
+  }
+
+  /* Tool message specific styling - distinct from user/bot messages */
+  .message-tool {
+    align-self: center;
+    max-width: 70%;
+    background: linear-gradient(135deg, rgba(108, 117, 125, 0.08), rgba(108, 117, 125, 0.12));
+    border: 1px solid rgba(108, 117, 125, 0.2);
+    color: var(--body-fg);
+    border-radius: 8px;
+    opacity: 0.85;
+    margin: 12px auto;
+    position: relative;
+  }
+
+  .message-tool::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: linear-gradient(to bottom, #6c757d, #28a745);
+    border-radius: 2px;
+  }
+
+  /* Remove speech bubble triangles for tool messages */
+  .message-tool::after {
+    display: none;
   }
 </style>
 {% endblock %}
@@ -409,7 +438,7 @@
   
   <div class="chat-messages">
     {% for message in chat_messages_list %}
-    <div id="message_{{ message.id }}" class="message {% if message.is_outgoing %}message-bot{% else %}message-user{% endif %}" style="position: relative;">
+    <div id="message_{{ message.id }}" class="message {% if message.media_type == 'tool_call' or message.media_type == 'tool_response' %}message-tool{% elif message.is_outgoing %}message-bot{% else %}message-user{% endif %}" style="position: relative;">
       {% include "admin/unicom/includes/message_actions_menu.html" with message=message %}
       {% if message.reply_to_message %}
       <a href="#message_{{ message.reply_to_message.id }}">
