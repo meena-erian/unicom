@@ -131,7 +131,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
     # headers
     hdr_id        = msg.get('Message-ID')            # primary key
     hdr_in_reply  = msg.get('In-Reply-To')           # parent Message-ID
-    hdr_references = msg.get('References', '').split()  # all referenced messages
+    hdr_references = (msg.get('References') or '').split()  # all referenced messages
     hdr_subject   = msg.get('Subject', '')
     date_hdr      = msg.get('Date')
 
