@@ -93,6 +93,11 @@
         var htmlElem = msgElem.querySelector('.message-content');
         if (htmlElem) text = htmlElem.innerText;
       }
+      if (!text && msgElem) {
+        // fallback: try tool call/response messages
+        var toolElem = msgElem.querySelector('.tool-call-message, .tool-response-message');
+        if (toolElem) text = toolElem.innerText;
+      }
       if (text) navigator.clipboard.writeText(text);
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
