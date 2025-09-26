@@ -8,6 +8,7 @@ from .member import Member
 from .member_group import MemberGroup
 from .request_category import RequestCategory
 from .request import Request
+from .tool_call import ToolCall
 from .message_template import MessageTemplate
 from .draft_message import DraftMessage
 
@@ -20,6 +21,7 @@ __all__ = [
     'Update',
     'Channel',
     'Request',
+    'ToolCall',
     'RequestCategory',
     'Member',
     'MemberGroup',

@@ -78,6 +78,36 @@ class Request(models.Model):
     )
     metadata = models.JSONField(default=dict)
     
+    # Hierarchy and LLM tracking fields
+    parent_request = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='child_requests',
+        help_text="Parent request that spawned this request"
+    )
+    initial_request = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='descendant_requests',
+        help_text="Root request that started this chain"
+    )
+    tool_call_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of tool calls made from this request"
+    )
+    llm_calls_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of LLM calls made for this request"
+    )
+    llm_token_usage = models.PositiveIntegerField(
+        default=0,
+        help_text="Total tokens used by LLM for this request"
+    )
+    
     # Timestamps for request lifecycle
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -460,4 +490,55 @@ class Request(models.Model):
             self.status = 'FAILED'
             self.error = f"Error during category processing: {str(e)}"
             self.save()
-            raise 
+            raise
+    
+    def submit_tool_calls(self, tool_calls_data):
+        """
+        Submit multiple tool calls atomically from this request.
+        
+        Args:
+            tool_calls_data: List of dicts, each containing:
+                - name: str
+                - arguments: dict
+                - id: str (optional, will be generated if not provided)
+        
+        Returns:
+            List of ToolCall objects created
+        """
+        import uuid
+        from django.db import transaction
+        from .tool_call import ToolCall
+        
+        if not tool_calls_data:
+            return []
+        
+        tool_calls = []
+        
+        with transaction.atomic():
+            for call_data in tool_calls_data:
+                tool_name = call_data['name']
+                arguments = call_data.get('arguments', {})
+                call_id = call_data.get('id') or f"call_{uuid.uuid4().hex[:8]}"
+                
+                # Create tool call message for LLM context
+                tool_call_msg = self.message.log_tool_interaction(
+                    tool_call={"name": tool_name, "arguments": arguments, "id": call_id}
+                )
+                
+                # Create ToolCall record
+                tool_call = ToolCall.objects.create(
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    request=self,
+                    status='PENDING'
+                )
+                
+                tool_calls.append(tool_call)
+            
+            # Update request status and count
+            self.tool_call_count += len(tool_calls_data)
+            self.status = 'PROCESSING'  # Reuse existing status
+            self.save(update_fields=['tool_call_count', 'status'])
+        
+        return tool_calls

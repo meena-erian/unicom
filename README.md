@@ -16,6 +16,7 @@
   - [Email-Specific Features](#email-specific-features)
   - [Telegram-Specific Features](#telegram-specific-features)
   - [LLM Integration](#llm-integration)
+  - [Delayed Tool Calls](#delayed-tool-calls)
   - [Message Scheduling](#message-scheduling)
 - [Production Setup](#-production-setup)
   - [IMAP Listeners](#imap-listeners)
@@ -659,6 +660,78 @@ chat.log_tool_interaction(
     tool_call={"name": "fetch_data", "arguments": {"user_id": 123}, "id": "call_789"},
     reply_to=some_message
 )
+```
+
+### Delayed Tool Calls
+
+#### 🤖 Request-Based Tool Call Management
+
+The LLM system supports delayed tool calls that can take hours or days to complete, perfect for reminders, monitoring, and long-running processes.
+
+```python
+from unicom.models import Request, ToolCall
+
+# Submit multiple tool calls from a request (atomic operation)
+request = Request.objects.get(id='request_id')
+tool_calls = request.submit_tool_calls([
+    {
+        "name": "set_reminder",
+        "arguments": {"text": "Meeting tomorrow", "delay_hours": 24},
+        "id": "call_123"  # Optional, auto-generated if omitted
+    },
+    {
+        "name": "monitor_system", 
+        "arguments": {"threshold": 90}
+    }
+])
+
+# Days later... respond to tool calls
+reminder_call = ToolCall.objects.get(call_id="call_123")
+msg, child_request = reminder_call.respond("Reminder: Meeting in 1 hour")
+# Creates new child request for further processing
+
+# For periodic/ongoing tools, set status to ACTIVE
+monitor_call = tool_calls[1]  
+monitor_call.status = 'ACTIVE'
+monitor_call.save()
+# Now it can respond indefinitely without creating child requests
+monitor_call.respond("CPU usage: 95%")  # Just logs, no child request
+monitor_call.respond("CPU usage: 92%")  # Just logs, no child request
+```
+
+#### 🤖 Request Hierarchy and Final Response Logic
+
+```python
+# Only when ALL pending tool calls respond does system create child request
+request = Request.objects.get(id='parent_request')
+
+# Submit 3 tool calls
+calls = request.submit_tool_calls([
+    {"name": "search", "arguments": {"query": "data"}},
+    {"name": "analyze", "arguments": {"input": "results"}}, 
+    {"name": "report", "arguments": {"format": "pdf"}}
+])
+
+# Respond to each (no child request yet)
+calls[0].respond("search results")     # No child - not final
+calls[1].respond("analysis complete")  # No child - not final  
+calls[2].respond("report generated")   # Child request created!
+
+# Child request inherits context from initial request
+child = Request.objects.filter(parent_request=request).first()
+print(f"Child inherits: {child.account}, {child.category}, {child.member}")
+```
+
+#### 🤖 Request Tracking Fields
+
+New fields added to Request model for LLM and tool call tracking:
+
+```python
+request.parent_request     # Parent request that spawned this one
+request.initial_request    # Root request that started the chain
+request.tool_call_count    # Number of tool calls made from this request
+request.llm_calls_count    # Number of LLM API calls made
+request.llm_token_usage    # Total tokens consumed by LLM
 ```
 
 ### Message Scheduling
