@@ -284,8 +284,8 @@ class Message(models.Model):
                     import json
                     arguments = json.dumps(arguments)
                 d = {
-                    "role": role,
-                    "content": msg.text or "",
+                    "role": "assistant",  # Tool calls are always from assistant
+                    "content": None,      # Tool calls should have null content
                     "tool_calls": [{
                         "id": tool_call_data.get('id', f"call_{msg.id}"),
                         "type": "function",
@@ -316,6 +316,28 @@ class Message(models.Model):
             idx = list(qs.values_list("id", flat=True)).index(self.id)
             start = max(0, idx - depth + 1)
             selected = list(qs[start:idx+1])
+            
+            # Handle user interruption for tool response messages in chat mode
+            if self.media_type == "tool_response":
+                # Find any user message that came chronologically after any tool call in our range
+                tool_call_timestamps = [m.timestamp for m in selected if m.media_type == "tool_call"]
+                if tool_call_timestamps:
+                    latest_tool_call_time = max(tool_call_timestamps)
+                    # Look for user messages after the latest tool call but before this tool response
+                    user_interrupt = self.chat.messages.filter(
+                        is_outgoing=False,
+                        timestamp__gt=latest_tool_call_time,
+                        timestamp__lt=self.timestamp
+                    ).exclude(
+                        media_type__in=['tool_call', 'tool_response']
+                    ).order_by('-timestamp').first()
+                    
+                    if user_interrupt:
+                        # Found user interrupt - get conversation from that user message
+                        return user_interrupt.as_llm_chat(depth=depth, mode=mode,
+                                                        system_instruction=system_instruction,
+                                                        multimodal=multimodal)
+            
             for m in selected:
                 messages.append(msg_to_dict(m))
         elif mode == "thread":
@@ -326,6 +348,33 @@ class Message(models.Model):
                     break
                 chain.append(cur)
                 cur = cur.reply_to_message
+            
+            # Handle user interruption for tool response messages in thread mode
+            if self.media_type == "tool_response":
+                # Find any user message that came chronologically after any tool call in our chain
+                # AND that replies to one of the messages in our chain
+                tool_call_timestamps = [m.timestamp for m in chain if m.media_type == "tool_call"]
+                if tool_call_timestamps:
+                    latest_tool_call_time = max(tool_call_timestamps)
+                    chain_message_ids = [m.id for m in chain]
+                    
+                    # Look for user messages after the latest tool call, before this tool response,
+                    # that reply to any message in our chain
+                    user_interrupt = self.chat.messages.filter(
+                        is_outgoing=False,
+                        timestamp__gt=latest_tool_call_time,
+                        timestamp__lt=self.timestamp,
+                        reply_to_message_id__in=chain_message_ids
+                    ).exclude(
+                        media_type__in=['tool_call', 'tool_response']
+                    ).order_by('-timestamp').first()
+                    
+                    if user_interrupt:
+                        # Found user interrupt - get conversation from that user message
+                        return user_interrupt.as_llm_chat(depth=depth, mode=mode,
+                                                        system_instruction=system_instruction,
+                                                        multimodal=multimodal)
+            
             for m in reversed(chain):
                 messages.append(msg_to_dict(m))
         else:

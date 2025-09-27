@@ -1,5 +1,6 @@
 from django.db import models, transaction
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 import uuid
 
 
@@ -28,6 +29,14 @@ class ToolCall(models.Model):
     # Reference to the request that created this tool call
     request = models.ForeignKey('unicom.Request', on_delete=models.CASCADE, related_name='tool_calls')
     
+    # Reference to the tool call message (for proper reply chain)
+    tool_call_message = models.ForeignKey(
+        'unicom.Message', 
+        on_delete=models.CASCADE, 
+        related_name='tool_call_record',
+        help_text="The tool_call message that this ToolCall object represents"
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
@@ -42,6 +51,15 @@ class ToolCall(models.Model):
     
     def __str__(self):
         return f"{self.tool_name}:{self.call_id} ({self.status})"
+    
+    def clean(self):
+        """Validate that tool_call_message is actually a tool call message"""
+        if self.tool_call_message and self.tool_call_message.media_type != 'tool_call':
+            raise ValidationError("tool_call_message must have media_type='tool_call'")
+    
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
     
     def start_processing(self):
         """Mark tool call as in progress"""
@@ -87,8 +105,8 @@ class ToolCall(models.Model):
         if self.status not in ['PENDING', 'ACTIVE']:
             raise ValueError(f"Cannot respond to tool call with status: {self.status}")
         
-        # Create tool response message for LLM context
-        tool_response_msg = self.request.message.log_tool_interaction(
+        # Create tool response message for LLM context - reply to the tool call message
+        tool_response_msg = self.tool_call_message.log_tool_interaction(
             tool_response={"call_id": self.call_id, "result": result}
         )
         

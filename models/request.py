@@ -525,12 +525,13 @@ class Request(models.Model):
                     tool_call={"name": tool_name, "arguments": arguments, "id": call_id}
                 )
                 
-                # Create ToolCall record
+                # Create ToolCall record with atomic linkage
                 tool_call = ToolCall.objects.create(
                     call_id=call_id,
                     tool_name=tool_name,
                     arguments=arguments,
                     request=self,
+                    tool_call_message=tool_call_msg,  # Link to the tool call message
                     status='PENDING'
                 )
                 
