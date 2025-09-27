@@ -532,6 +532,7 @@ class Request(models.Model):
                     arguments=arguments,
                     request=self,
                     tool_call_message=tool_call_msg,  # Link to the tool call message
+                    initial_user_message=self.message,  # Link to the original user message
                     status='PENDING'
                 )
                 
