@@ -68,6 +68,11 @@ class Message(models.Model):
     media = models.FileField(upload_to='media/', blank=True, null=True)
     reply_to_message = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies')
+    response_to_tool_call = models.ForeignKey(
+        'unicom.ToolCall', on_delete=models.SET_NULL, null=True, blank=True, 
+        related_name='response_messages',
+        help_text="The ToolCall that this message is responding to (for assistant messages from tool responses)"
+    )
     timestamp = models.DateTimeField()
     time_sent = models.DateTimeField(null=True, blank=True)
     time_delivered = models.DateTimeField(null=True, blank=True)
@@ -100,7 +105,33 @@ class Message(models.Model):
         """
         Reply to this message with a dictionary containing the response.
         The dictionary can contain 'text', 'html', 'file_path', etc.
+        
+        For tool response messages, this will send the reply to the original user message
+        while maintaining the chain by setting reply_to_message to this tool response.
         """
+        # Handle tool response messages - send to original user but maintain chain
+        if self.media_type == 'tool_response':
+            # Get the request using reverse lookup
+            request = self.request_set.first()  # tool response message -> request
+            if request:
+                initial_request = request.initial_request or request
+                target_message = initial_request.message
+                
+                # Get the ToolCall that this response came from
+                tool_call = request.tool_calls.first()
+                
+                # Send reply to original user message
+                reply_msg = target_message.reply_with(msg_dict)
+                
+                # Set the reply chain and tool call reference
+                reply_msg.reply_to_message = self
+                if tool_call:
+                    reply_msg.response_to_tool_call = tool_call
+                reply_msg.save(update_fields=['reply_to_message', 'response_to_tool_call'])
+                
+                return reply_msg
+        
+        # Normal case - reply to this message directly
         from unicom.services.crossplatform.reply_to_message import reply_to_message
         return reply_to_message(self.channel, self, msg_dict)
 
@@ -176,6 +207,71 @@ class Message(models.Model):
                     b64 = base64.b64encode(data).decode('ascii')
                     img_tag['src'] = f'data:{mime};base64,{b64}'
         return str(soup)
+
+    def _process_chain_with_tool_grouping(self, chain, msg_to_dict):
+        """
+        Process message chain with intelligent tool call grouping.
+        Groups parallel tool calls (same initial_user_message, unique call_id) into single LLM messages.
+        """
+        messages = []
+        i = 0
+        
+        while i < len(chain):
+            msg = chain[i]
+            
+            # Check if this is an assistant message responding to a tool call
+            if (msg.is_outgoing and msg.response_to_tool_call and 
+                msg.response_to_tool_call.initial_user_message):
+                
+                # This assistant message was created from a tool response
+                # Find all parallel tool calls from the same initial user message
+                initial_user_msg = msg.response_to_tool_call.initial_user_message
+                
+                # Get all tool calls triggered by the same initial user message
+                # Group by unique call_id to handle periodic responses properly
+                tool_calls_dict = {}
+                for tool_call in initial_user_msg.triggered_tool_calls.all():
+                    if tool_call.call_id not in tool_calls_dict:
+                        tool_calls_dict[tool_call.call_id] = tool_call
+                
+                # Create grouped tool call message
+                if tool_calls_dict:
+                    tool_calls_list = []
+                    for tool_call in tool_calls_dict.values():
+                        arguments = tool_call.arguments
+                        if isinstance(arguments, dict):
+                            import json
+                            arguments = json.dumps(arguments)
+                        
+                        tool_calls_list.append({
+                            "id": tool_call.call_id,
+                            "type": "function", 
+                            "function": {
+                                "name": tool_call.tool_name,
+                                "arguments": arguments
+                            }
+                        })
+                    
+                    # Create single assistant message with all parallel tool calls
+                    grouped_msg = {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": tool_calls_list
+                    }
+                    messages.append(grouped_msg)
+                
+                # Add the current assistant message (response to tool calls)
+                messages.append(msg_to_dict(msg))
+                
+            else:
+                # Regular message - just convert normally
+                # Skip tool_call and tool_response messages as they're handled above
+                if msg.media_type not in ['tool_call', 'tool_response']:
+                    messages.append(msg_to_dict(msg))
+            
+            i += 1
+        
+        return messages
 
     def as_llm_chat(self, depth=10, mode="chat", system_instruction=None, multimodal=True):
         """
@@ -338,8 +434,8 @@ class Message(models.Model):
                                                         system_instruction=system_instruction,
                                                         multimodal=multimodal)
             
-            for m in selected:
-                messages.append(msg_to_dict(m))
+            # Process selected messages with tool call grouping
+            messages = self._process_chain_with_tool_grouping(selected, msg_to_dict)
         elif mode == "thread":
             chain = []
             cur = self
@@ -375,8 +471,8 @@ class Message(models.Model):
                                                         system_instruction=system_instruction,
                                                         multimodal=multimodal)
             
-            for m in reversed(chain):
-                messages.append(msg_to_dict(m))
+            # Process chain with tool call grouping
+            messages = self._process_chain_with_tool_grouping(chain, msg_to_dict)
         else:
             raise ValueError(f"Unknown mode: {mode}")
         if system_instruction:

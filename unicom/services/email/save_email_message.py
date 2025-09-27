@@ -22,10 +22,19 @@ def _is_email_authenticated(msg, from_email: str) -> bool:
     Professional email authentication using battle-tested libraries.
     Uses authheaders library for comprehensive SPF/DKIM/DMARC validation.
     """
+    # TODO: Temporarily skip authheaders due to 'NoneType' split() crashes
+    return _basic_email_check(msg, from_email)
     try:
         from authheaders import authenticate_message
         import io
-        
+
+        # Defensive check: ensure critical headers are not None
+        critical_headers = ['From', 'Message-ID', 'Date']
+        for header in critical_headers:
+            if msg.get(header) is None:
+                logger.warning(f"Critical header {header} is None, skipping authheaders")
+                return _basic_email_check(msg, from_email)
+
         # Convert email message back to bytes for authheaders library
         msg_bytes = msg.as_bytes()
         msg_fp = io.BytesIO(msg_bytes)
@@ -71,10 +80,13 @@ def _is_email_authenticated(msg, from_email: str) -> bool:
         return False
         
     except ImportError:
-        logger.error("authheaders library not installed - falling back to basic checks")
+        logger.error("authheaders library not installed - falling back to basic checks. Install with 'pip install authheaders>=0.15.0'")
         return _basic_email_check(msg, from_email)
     except Exception as e:
+        import traceback
         logger.error(f"Email authentication error for {from_email}: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Email headers causing the issue: {dict(msg.items())}")
         return _basic_email_check(msg, from_email)
 
 

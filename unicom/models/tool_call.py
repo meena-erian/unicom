@@ -37,6 +37,14 @@ class ToolCall(models.Model):
         help_text="The tool_call message that this ToolCall object represents"
     )
     
+    # Reference to the initial user message that triggered this tool call
+    initial_user_message = models.ForeignKey(
+        'unicom.Message',
+        on_delete=models.CASCADE,
+        related_name='triggered_tool_calls',
+        help_text="The original user message that this tool call is responding to"
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     started_at = models.DateTimeField(null=True, blank=True)
