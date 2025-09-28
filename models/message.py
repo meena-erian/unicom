@@ -398,6 +398,7 @@ class Message(models.Model):
                 d = {
                     "role": "tool",
                     "tool_call_id": tool_response_data.get('call_id', ''),
+                    "name": tool_response_data.get('tool_name', ''),
                     "content": str(tool_response_data.get('result', msg.text or ''))
                 }
                 return d
@@ -471,6 +472,8 @@ class Message(models.Model):
                                                         system_instruction=system_instruction,
                                                         multimodal=multimodal)
             
+            # Reverse chain to get chronological order
+            chain.reverse()
             # Process chain with tool call grouping
             messages = self._process_chain_with_tool_grouping(chain, msg_to_dict)
         else:
