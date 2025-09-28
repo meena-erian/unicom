@@ -90,7 +90,8 @@ def save_tool_response(chat, call_id, result, tool_name, user=None, reply_to_mes
     tool_response_data = {
         "tool_response": {
             "call_id": call_id,
-            "result": result
+            "result": result,
+            "tool_name": tool_name
         }
     }
     
