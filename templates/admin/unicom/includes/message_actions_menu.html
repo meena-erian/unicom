@@ -53,7 +53,14 @@
 <script>
 (function() {
   // Toggle menu directly on button click
-  document.querySelectorAll('.message-actions-btn').forEach(function(btn) {
+  var buttons = document.querySelectorAll('.message-actions-btn');
+
+  buttons.forEach(function(btn) {
+    // Check if button already has our event listener
+    if (btn.hasAttribute('data-listener-attached')) {
+      return;
+    }
+
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var container = btn.closest('.message-actions-menu-container');
@@ -67,7 +74,11 @@
         menu.style.display = isOpen ? 'none' : 'block';
       }
     });
+
+    // Mark button as having event listener
+    btn.setAttribute('data-listener-attached', 'true');
   });
+
   // Hide all menus if clicking outside
   document.addEventListener('click', function(e) {
     document.querySelectorAll('.message-actions-menu').forEach(function(m) {
