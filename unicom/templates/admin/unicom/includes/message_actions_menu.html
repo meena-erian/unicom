@@ -13,6 +13,11 @@
   font: inherit;
   transition: background 0.15s;
 }
+/* Ensure the actions button is visible on tool messages */
+.message-tool .message-actions-btn {
+  opacity: 1 !important;
+  z-index: 15;
+}
 .message-actions-menu .menu-action:hover {
   background: var(--selected-row, #f0f0f0);
   text-decoration: none;
@@ -37,6 +42,8 @@
       {% endif %}
     {% endif %}
     <button class="menu-action message-action-copy-id" data-message-id="{{ message.id }}">Copy Message ID</button>
+    <button class="menu-action message-action-copy-llm-chat" data-message-id="{{ message.id }}" data-mode="chat">Copy As LLM Chat (Chat Mode)</button>
+    <button class="menu-action message-action-copy-llm-thread" data-message-id="{{ message.id }}" data-mode="thread">Copy As LLM Chat (Thread Mode)</button>
     {% if message.platform == 'Email' %}
       <button class="menu-action message-action-download-pdf" data-message-id="{{ message.id }}">Download PDF</button>
     {% endif %}
@@ -142,6 +149,42 @@
       var msgId = e.target.getAttribute('data-message-id');
       // Download from backend endpoint (to be implemented)
       window.open(`/admin/unicom/message/${msgId}/download_pdf/`, '_blank');
+      e.target.closest('.message-actions-menu').style.display = 'none';
+      e.stopPropagation();
+    }
+  });
+  // Copy As LLM Chat
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('message-action-copy-llm-chat') || e.target.classList.contains('message-action-copy-llm-thread')) {
+      var msgId = e.target.getAttribute('data-message-id');
+      var mode = e.target.getAttribute('data-mode');
+      var url = `/unicom/api/message/${msgId}/as_llm_chat/?mode=${mode}`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            navigator.clipboard.writeText(data.formatted_json).then(() => {
+              // Show brief success feedback
+              var originalText = e.target.textContent;
+              e.target.textContent = 'Copied!';
+              setTimeout(() => {
+                e.target.textContent = originalText;
+              }, 1000);
+            }).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+              alert('Failed to copy to clipboard');
+            });
+          } else {
+            console.error('API error:', data.error);
+            alert('Error: ' + data.error);
+          }
+        })
+        .catch(err => {
+          console.error('Fetch error:', err);
+          alert('Failed to fetch LLM chat data');
+        });
+
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }
