@@ -29,6 +29,12 @@ UNICOM_TINYMCE_API_KEY = "47omvjk8csmi1w7xy7tew3vgivvfsut62b1zjsmm8p9ya95z"
 # Load OpenAI API key from .env
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
+# Credential encryption key (URL-safe base64-encoded 32-byte key)
+CREDENTIAL_ENCRYPTION_KEY = os.environ.get('CREDENTIAL_ENCRYPTION_KEY')
+
+# Directory containing tool and bot definitions for sync command
+UNIBOT_DEFINITIONS_DIR = BASE_DIR / 'unicom_project' / 'definitions'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, '')
 
@@ -61,7 +67,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_ace',
-    'unicom',
+    'unicom',  # Required dependency for unibot
+    'unibot',
+    'reversion',  # Required for model versioning
 ]
 
 MIDDLEWARE = [
@@ -72,6 +80,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'reversion.middleware.RevisionMiddleware',
 ]
 
 ROOT_URLCONF = 'unicom_project.urls'

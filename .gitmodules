@@ -1,0 +1,3 @@
+[submodule "unibot"]
+	path = unibot
+	url = git@github.com:meena-erian/unibot.git

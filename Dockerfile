@@ -21,8 +21,9 @@ RUN apt-get update && apt-get install -y \
         libasound2 libdrm2 fonts-liberation libappindicator3-1 lsb-release xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r requirements.txt \
-    && python -m playwright install --with-deps
+RUN pip install --no-cache-dir -r requirements.txt
+
+# RUN python -m playwright install --with-deps
 
 # Copy the current directory contents into the container at /app
 COPY . /app/
