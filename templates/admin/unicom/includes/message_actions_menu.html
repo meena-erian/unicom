@@ -165,31 +165,34 @@
     }
   });
   // Copy As LLM Chat
-  document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('message-action-copy-llm-chat') || e.target.classList.contains('message-action-copy-llm-thread')) {
-      var msgId = e.target.getAttribute('data-message-id');
-      var mode = e.target.getAttribute('data-mode');
-      var url = `/unicom/api/message/${msgId}/as_llm_chat/?mode=${mode}`;
+  if (!window.llmChatListenerAttached) {
+    document.addEventListener('click', function(e) {
+      if (e.target.classList.contains('message-action-copy-llm-chat') || e.target.classList.contains('message-action-copy-llm-thread')) {
+        var msgId = e.target.getAttribute('data-message-id');
+        var mode = e.target.getAttribute('data-mode');
+        var url = `/unicom/api/message/${msgId}/as_llm_chat/?mode=${mode}`;
 
-      fetch(url)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Show the text in a prompt for manual copying
-            prompt('Copy this text manually:', data.formatted_json);
-          } else {
-            console.error('API error:', data.error);
-            alert('Error: ' + data.error);
-          }
-        })
-        .catch(err => {
-          console.error('Fetch error:', err);
-          alert('Failed to fetch LLM chat data');
-        });
+        fetch(url)
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Show the text in a prompt for manual copying
+              prompt('Copy this text manually:', data.formatted_json);
+            } else {
+              console.error('API error:', data.error);
+              alert('Error: ' + data.error);
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Failed to fetch LLM chat data');
+          });
 
-      e.target.closest('.message-actions-menu').style.display = 'none';
-      e.stopPropagation();
-    }
-  });
+        e.target.closest('.message-actions-menu').style.display = 'none';
+        e.stopPropagation();
+      }
+    });
+    window.llmChatListenerAttached = true;
+  }
 })();
 </script> 
