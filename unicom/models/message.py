@@ -208,69 +208,6 @@ class Message(models.Model):
                     img_tag['src'] = f'data:{mime};base64,{b64}'
         return str(soup)
 
-    def _process_chain_with_tool_grouping(self, chain, msg_to_dict):
-        """
-        Process message chain with intelligent tool call grouping.
-        Groups parallel tool calls (same initial_user_message, unique call_id) into single LLM messages.
-        """
-        messages = []
-        i = 0
-        while i < len(chain):
-            msg = chain[i]
-            
-            # Check if this is an assistant message responding to a tool call
-            if (msg.is_outgoing and msg.response_to_tool_call and 
-                msg.response_to_tool_call.initial_user_message):
-                
-                # This assistant message was created from a tool response
-                # Find all parallel tool calls from the same initial user message
-                initial_user_msg = msg.response_to_tool_call.initial_user_message
-                
-                # Get all tool calls triggered by the same initial user message
-                # Group by unique call_id to handle periodic responses properly
-                tool_calls_dict = {}
-                for tool_call in initial_user_msg.triggered_tool_calls.all():
-                    if tool_call.call_id not in tool_calls_dict:
-                        tool_calls_dict[tool_call.call_id] = tool_call
-                
-                # Create grouped tool call message
-                if tool_calls_dict:
-                    tool_calls_list = []
-                    for tool_call in tool_calls_dict.values():
-                        arguments = tool_call.arguments
-                        if isinstance(arguments, dict):
-                            import json
-                            arguments = json.dumps(arguments)
-                        
-                        tool_calls_list.append({
-                            "id": tool_call.call_id,
-                            "type": "function", 
-                            "function": {
-                                "name": tool_call.tool_name,
-                                "arguments": arguments
-                            }
-                        })
-                    
-                    # Create single assistant message with all parallel tool calls
-                    grouped_msg = {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": tool_calls_list
-                    }
-                    messages.append(grouped_msg)
-                
-                # Add the current assistant message (response to tool calls)
-                messages.append(msg_to_dict(msg))
-                
-            else:
-                # Regular message - just convert normally
-                # Skip tool_call and tool_response messages as they're handled above
-                if msg.media_type not in ['tool_call', 'tool_response']:
-                    messages.append(msg_to_dict(msg))
-            i += 1
-
-        return messages
-
     def debug_thread_chain(self, depth=10):
         """Debug method to see the thread chain"""
         chain = []
@@ -413,7 +350,6 @@ class Message(models.Model):
                 d = {
                     "role": "tool",
                     "tool_call_id": tool_response_data.get('call_id', ''),
-                    "name": tool_response_data.get('tool_name', ''),
                     "content": str(tool_response_data.get('result', msg.text or ''))
                 }
                 return d
@@ -450,8 +386,8 @@ class Message(models.Model):
                                                         system_instruction=system_instruction,
                                                         multimodal=multimodal)
             
-            # Process selected messages with tool call grouping
-            messages = self._process_chain_with_tool_grouping(selected, msg_to_dict)
+            for m in selected:
+                messages.append(msg_to_dict(m))
         elif mode == "thread":
             chain = []
             cur = self
@@ -460,7 +396,7 @@ class Message(models.Model):
                     break
                 chain.append(cur)
                 cur = cur.reply_to_message
-
+            
             # Handle user interruption for tool response messages in thread mode
             if self.media_type == "tool_response":
                 # Find any user message that came chronologically after any tool call in our chain
@@ -487,16 +423,14 @@ class Message(models.Model):
                                                         system_instruction=system_instruction,
                                                         multimodal=multimodal)
             
-            # Reverse chain to get chronological order
-            chain.reverse()
-            # Process chain with tool call grouping
-            messages = self._process_chain_with_tool_grouping(chain, msg_to_dict)
+            for m in reversed(chain):
+                messages.append(msg_to_dict(m))
         else:
             raise ValueError(f"Unknown mode: {mode}")
         if system_instruction:
             messages = [{"role": "system", "content": system_instruction}] + messages
         return messages
-
+    
     def log_tool_interaction(self, tool_call=None, tool_response=None, user=None):
         """
         Save tool call and/or response as replies to this message
