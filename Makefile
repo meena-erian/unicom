@@ -3,7 +3,7 @@
 .PHONY: release
 
 release:
-	@echo "Usage: make release VERSION=x.y.z [or just 'make release' for date-based version]"
+	$(MAKE) release-real
 
 release-auto:
 	$(MAKE) release VERSION=$(shell date +%Y.%m.%d.%H%M%S)
@@ -13,11 +13,13 @@ ifndef VERSION
 	$(MAKE) release-auto
 else
 	rm -rf dist/*
+ifndef SKIP_GIT
 	# Ensure we're on a clean state
 	git pull
 	# Create and push the tag
 	git tag -f v$(VERSION)
 	git push -f origin v$(VERSION)
+endif
 	# Clean any previous builds
 	rm -rf build/ *.egg-info
 	# Build from the tagged state
@@ -25,5 +27,3 @@ else
 	twine upload dist/* --config-file .pypirc
 endif
 
-# Default target
-release: release-real 
