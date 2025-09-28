@@ -2,11 +2,11 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from unicom.models import Message, Chat
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 import json
 
 
-@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def chat_history_view(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id)
     message_list = list(
@@ -82,7 +82,7 @@ def chat_history_view(request, chat_id):
     )
 
 
-@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def message_as_llm_chat(request, message_id):
     """
     API endpoint to get message as LLM chat format

@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.views.generic import View
 from django.utils.decorators import method_decorator
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -14,7 +14,7 @@ This view is an API endpoint used to serve message templates to TinyMCE.
 It allows for filtering templates by channel.
 """
 
-@method_decorator(login_required, name='dispatch')
+@method_decorator(user_passes_test(lambda u: u.is_superuser), name='dispatch')
 class MessageTemplateListView(View):
     """View to serve message templates to TinyMCE."""
     
@@ -47,7 +47,7 @@ class MessageTemplateListView(View):
 
 @csrf_exempt
 @require_POST
-@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def populate_message_template(request):
     """
     API endpoint to populate a message template using AI.
