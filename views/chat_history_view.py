@@ -1,8 +1,9 @@
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.conf import settings
 from unicom.models import Message, Chat
 from django.contrib.auth.decorators import login_required
+import json
 
 
 @login_required
@@ -79,3 +80,34 @@ def chat_history_view(request, chat_id):
             'channel_id': chat.channel_id if hasattr(chat, 'channel_id') else None,
         },
     )
+
+
+@login_required
+def message_as_llm_chat(request, message_id):
+    """
+    API endpoint to get message as LLM chat format
+    Returns JSON formatted for clipboard copy
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    message = get_object_or_404(Message, id=message_id)
+    mode = request.GET.get('mode', 'chat')  # 'chat' or 'thread'
+    depth = int(request.GET.get('depth', 10))
+
+    if mode not in ['chat', 'thread']:
+        return JsonResponse({'error': 'Mode must be "chat" or "thread"'}, status=400)
+
+    try:
+        llm_chat = message.as_llm_chat(mode=mode)
+        formatted_json = json.dumps(llm_chat, indent=2, ensure_ascii=False)
+        return JsonResponse({
+            'success': True,
+            'mode': mode,
+            'depth': depth,
+            'message_count': len(llm_chat),
+            'data': llm_chat,
+            'formatted_json': formatted_json
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

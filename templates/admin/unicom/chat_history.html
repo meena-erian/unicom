@@ -399,6 +399,14 @@
     margin: 12px auto;
     position: relative;
   }
+  /* Ensure the actions button is fully visible on tool messages */
+  .message-tool .message-actions-menu-container {
+    opacity: 1;
+    z-index: 20;
+  }
+  .message-tool:hover .message-actions-btn {
+    opacity: 1 !important;
+  }
 
   .message-tool::before {
     content: '';
