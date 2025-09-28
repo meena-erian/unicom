@@ -15,19 +15,6 @@ def chat_history_view(request, chat_id):
             .order_by('-timestamp')[:100]
     )[::-1]
 
-    # Pre-calculate LLM chat data for each message to avoid API calls in frontend
-    for message in message_list:
-        try:
-            message.llm_chat_json = json.dumps(message.as_llm_chat(mode='chat'), indent=2, ensure_ascii=True)
-            message.llm_thread_json = json.dumps(message.as_llm_chat(mode='thread'), indent=2, ensure_ascii=True)
-            # Debug: Add chain info for debugging
-            if hasattr(message, 'debug_thread_chain'):
-                message.debug_chain = message.debug_thread_chain()
-        except Exception as e:
-            print(f"Error generating LLM chat for message {message.id}: {e}")
-            message.llm_chat_json = json.dumps([], indent=2)
-            message.llm_thread_json = json.dumps([], indent=2)
-
     if request.method == 'POST':
         message_type = request.POST.get('message_type', 'text')
         reply_to_id = request.POST.get('reply_to_id')
