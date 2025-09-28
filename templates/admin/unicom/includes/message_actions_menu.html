@@ -42,8 +42,8 @@
       {% endif %}
     {% endif %}
     <button class="menu-action message-action-copy-id" data-message-id="{{ message.id }}">Copy Message ID</button>
-    <button class="menu-action message-action-copy-llm-chat" data-message-id="{{ message.id }}" data-mode="chat">Copy As LLM Chat (Chat Mode)</button>
-    <button class="menu-action message-action-copy-llm-thread" data-message-id="{{ message.id }}" data-mode="thread">Copy As LLM Chat (Thread Mode)</button>
+    <button class="menu-action message-action-copy-llm-chat" data-message-id="{{ message.id }}" data-mode="chat" data-llm-data="{{ message.llm_chat_json }}">Copy As LLM Chat (Chat Mode)</button>
+    <button class="menu-action message-action-copy-llm-thread" data-message-id="{{ message.id }}" data-mode="thread" data-llm-data="{{ message.llm_thread_json }}">Copy As LLM Chat (Thread Mode)</button>
     {% if message.platform == 'Email' %}
       <button class="menu-action message-action-download-pdf" data-message-id="{{ message.id }}">Download PDF</button>
     {% endif %}
@@ -93,7 +93,17 @@
       var htmlElem = msgElem ? msgElem.querySelector('.message-content') : null;
       if (htmlElem) {
         var html = htmlElem.innerHTML;
-        navigator.clipboard.writeText(html);
+        window.focus();
+        navigator.clipboard.writeText(html).catch(err => {
+          console.error('Copy failed:', err);
+          // Fallback method
+          var textArea = document.createElement('textarea');
+          textArea.value = html;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        });
       }
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
@@ -116,7 +126,18 @@
         var toolElem = msgElem.querySelector('.tool-call-message, .tool-response-message');
         if (toolElem) text = toolElem.innerText;
       }
-      if (text) navigator.clipboard.writeText(text);
+      if (text) {
+        window.focus();
+        navigator.clipboard.writeText(text).catch(err => {
+          console.error('Copy failed:', err);
+          var textArea = document.createElement('textarea');
+          textArea.value = text;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        });
+      }
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }
@@ -125,7 +146,18 @@
   document.addEventListener('click', function(e) {
     if (e.target.classList.contains('message-action-copy-subject')) {
       var subject = e.target.getAttribute('data-subject');
-      if (subject) navigator.clipboard.writeText(subject);
+      if (subject) {
+        window.focus();
+        navigator.clipboard.writeText(subject).catch(err => {
+          console.error('Copy failed:', err);
+          var textArea = document.createElement('textarea');
+          textArea.value = subject;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        });
+      }
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }
@@ -140,7 +172,18 @@
       if (to) recipients += 'To: ' + to + '\n';
       if (cc) recipients += 'Cc: ' + cc + '\n';
       if (bcc) recipients += 'Bcc: ' + bcc + '\n';
-      if (recipients) navigator.clipboard.writeText(recipients.trim());
+      if (recipients) {
+        window.focus();
+        navigator.clipboard.writeText(recipients.trim()).catch(err => {
+          console.error('Copy failed:', err);
+          var textArea = document.createElement('textarea');
+          textArea.value = recipients.trim();
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        });
+      }
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }
@@ -149,7 +192,16 @@
   document.addEventListener('click', function(e) {
     if (e.target.classList.contains('message-action-copy-id')) {
       var msgId = e.target.getAttribute('data-message-id');
-      navigator.clipboard.writeText(msgId);
+      window.focus();
+      navigator.clipboard.writeText(msgId).catch(err => {
+        console.error('Copy failed:', err);
+        var textArea = document.createElement('textarea');
+        textArea.value = msgId;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      });
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }
@@ -167,35 +219,39 @@
   // Copy As LLM Chat
   document.addEventListener('click', function(e) {
     if (e.target.classList.contains('message-action-copy-llm-chat') || e.target.classList.contains('message-action-copy-llm-thread')) {
-      var msgId = e.target.getAttribute('data-message-id');
-      var mode = e.target.getAttribute('data-mode');
-      var url = `/unicom/api/message/${msgId}/as_llm_chat/?mode=${mode}`;
+      var llmData = e.target.getAttribute('data-llm-data');
+      if (llmData) {
+        window.focus();
+        navigator.clipboard.writeText(llmData).then(() => {
+          // Show brief success feedback
+          var originalText = e.target.textContent;
+          e.target.textContent = 'Copied!';
+          setTimeout(() => {
+            e.target.textContent = originalText;
+          }, 1000);
+        }).catch(err => {
+          console.error('Copy failed:', err);
+          // Fallback method
+          try {
+            var textArea = document.createElement('textarea');
+            textArea.value = llmData;
+            document.body.appendChild(textArea);
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
 
-      fetch(url)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            navigator.clipboard.writeText(data.formatted_json).then(() => {
-              // Show brief success feedback
-              var originalText = e.target.textContent;
-              e.target.textContent = 'Copied!';
-              setTimeout(() => {
-                e.target.textContent = originalText;
-              }, 1000);
-            }).catch(err => {
-              console.error('Failed to copy to clipboard:', err);
-              alert('Failed to copy to clipboard');
-            });
-          } else {
-            console.error('API error:', data.error);
-            alert('Error: ' + data.error);
+            var originalText = e.target.textContent;
+            e.target.textContent = 'Copied!';
+            setTimeout(() => {
+              e.target.textContent = originalText;
+            }, 1000);
+          } catch (fallbackErr) {
+            console.error('Fallback copy also failed:', fallbackErr);
+            alert('Failed to copy to clipboard. Please try clicking directly on the page first.');
           }
-        })
-        .catch(err => {
-          console.error('Fetch error:', err);
-          alert('Failed to fetch LLM chat data');
         });
-
+      }
       e.target.closest('.message-actions-menu').style.display = 'none';
       e.stopPropagation();
     }

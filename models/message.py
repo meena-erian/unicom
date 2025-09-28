@@ -215,9 +215,12 @@ class Message(models.Model):
         """
         messages = []
         i = 0
-        
+
+        print(f"DEBUG: Processing chain of {len(chain)} messages")
+
         while i < len(chain):
             msg = chain[i]
+            print(f"DEBUG: Processing message {i}: {msg.id} ({msg.media_type}, outgoing={msg.is_outgoing})")
             
             # Check if this is an assistant message responding to a tool call
             if (msg.is_outgoing and msg.response_to_tool_call and 
@@ -265,13 +268,30 @@ class Message(models.Model):
                 
             else:
                 # Regular message - just convert normally
-                # Skip tool_call and tool_response messages as they're handled above
-                if msg.media_type not in ['tool_call', 'tool_response']:
-                    messages.append(msg_to_dict(msg))
-            
+                print(f"DEBUG: Adding message {msg.id} ({msg.media_type}) to output")
+                messages.append(msg_to_dict(msg))
+
             i += 1
-        
+
+        print(f"DEBUG: Returning {len(messages)} messages")
         return messages
+
+    def debug_thread_chain(self, depth=10):
+        """Debug method to see the thread chain"""
+        chain = []
+        cur = self
+        for i in range(depth):
+            if not cur:
+                break
+            chain.append({
+                'id': cur.id,
+                'text': cur.text[:50] + '...' if len(cur.text) > 50 else cur.text,
+                'media_type': cur.media_type,
+                'is_outgoing': cur.is_outgoing,
+                'reply_to_message_id': cur.reply_to_message_id if cur.reply_to_message else None
+            })
+            cur = cur.reply_to_message
+        return chain
 
     def as_llm_chat(self, depth=10, mode="chat", system_instruction=None, multimodal=True):
         """
@@ -445,6 +465,11 @@ class Message(models.Model):
                     break
                 chain.append(cur)
                 cur = cur.reply_to_message
+
+            # Debug: Log the chain being built
+            print(f"DEBUG: Thread chain for message {self.id}:")
+            for i, msg in enumerate(chain):
+                print(f"  {i}: {msg.id} ({msg.media_type}) -> reply_to: {msg.reply_to_message_id if msg.reply_to_message else None}")
             
             # Handle user interruption for tool response messages in thread mode
             if self.media_type == "tool_response":
@@ -474,8 +499,11 @@ class Message(models.Model):
             
             # Reverse chain to get chronological order
             chain.reverse()
-            # Process chain with tool call grouping
-            messages = self._process_chain_with_tool_grouping(chain, msg_to_dict)
+            # For thread mode, include all messages in proper LLM format
+            messages = []
+            for msg in chain:
+                messages.append(msg_to_dict(msg))
+            print(f"DEBUG: Thread mode - included {len(messages)} out of {len(chain)} messages")
         else:
             raise ValueError(f"Unknown mode: {mode}")
         if system_instruction:
