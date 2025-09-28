@@ -175,17 +175,8 @@
         .then(response => response.json())
         .then(data => {
           if (data.success) {
-            navigator.clipboard.writeText(data.formatted_json).then(() => {
-              // Show brief success feedback
-              var originalText = e.target.textContent;
-              e.target.textContent = 'Copied!';
-              setTimeout(() => {
-                e.target.textContent = originalText;
-              }, 1000);
-            }).catch(err => {
-              console.error('Failed to copy to clipboard:', err);
-              alert('Failed to copy to clipboard');
-            });
+            // Show the text in a prompt for manual copying
+            prompt('Copy this text manually:', data.formatted_json);
           } else {
             console.error('API error:', data.error);
             alert('Error: ' + data.error);
