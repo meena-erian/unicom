@@ -15,6 +15,8 @@
 - [Advanced Features](#-advanced-features)
   - [Email-Specific Features](#email-specific-features)
   - [Telegram-Specific Features](#telegram-specific-features)
+    - [Interactive Messages with Action Buttons](#-interactive-messages-with-action-buttons)
+    - [File Downloads and Voice Messages](#-file-downloads-and-voice-messages)
   - [LLM Integration](#llm-integration)
   - [Delayed Tool Calls](#delayed-tool-calls)
   - [Message Scheduling](#message-scheduling)
@@ -585,6 +587,45 @@ message = telegram_channel.send_message({
 })
 ```
 
+#### 📱 Interactive Messages with Action Buttons
+
+Telegram channels support inline keyboard buttons for interactive messages:
+
+```python
+from unicom.services.telegram.create_inline_keyboard import (
+    create_inline_keyboard, create_callback_button, create_url_button, create_simple_keyboard
+)
+
+# Send message with custom inline keyboard
+reply_markup = create_inline_keyboard([
+    [create_callback_button("Yes", "yes_action"), create_callback_button("No", "no_action")],
+    [create_url_button("Visit Website", "https://example.com")]
+])
+
+message = telegram_channel.send_message({
+    'chat_id': 'telegram_chat_id',
+    'text': 'Do you want to continue?',
+    'reply_markup': reply_markup
+})
+
+# Quick helper for simple button layouts
+simple_keyboard = create_simple_keyboard("Option 1", "opt1", "Option 2", "opt2")
+message = telegram_channel.send_message({
+    'chat_id': 'telegram_chat_id',
+    'text': 'Choose an option:',
+    'reply_markup': simple_keyboard
+})
+
+# Works with all wrapper functions like reply_with
+reply = message.reply_with({
+    'text': 'Here are your options:',
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button("Confirm", "confirm_action")],
+        [create_callback_button("Cancel", "cancel_action")]
+    ])
+})
+```
+
 #### 📱 File Downloads and Voice Messages
 
 Telegram channels automatically handle file downloads and voice message processing:
@@ -596,7 +637,7 @@ if message.media_type == 'audio':
     # Voice message is available in message.media
     # Converted to MP3 format for compatibility
     llm_response = message.reply_using_llm(
-        model="gpt-4-vision-preview", 
+        model="gpt-4-vision-preview",
         multimodal=True  # Enables audio processing
     )
 ```
