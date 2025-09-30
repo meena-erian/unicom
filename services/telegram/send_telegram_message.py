@@ -22,6 +22,7 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
     Params must include at least chat_id and text (if sending a text message or caption).
     If 'type' == 'audio', we send an audio file.
     If 'type' == 'image', we send a photo, with optional caption in 'text'.
+    If 'reply_markup' is provided, it will be sent as inline keyboard buttons.
     """
     if not "parse_mode" in params:
         params["parse_mode"] = "Markdown"
@@ -83,7 +84,14 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
     retries = 0
     while retries <= max_retries:
         print(f"DEBUG: Attempt {retries} to send telegram message with params: {params}")
-        response = requests.post(url, data=params, files=files)
+
+        # Convert reply_markup to JSON string for the API call if it exists
+        request_params = params.copy()
+        if 'reply_markup' in request_params:
+            import json
+            request_params['reply_markup'] = json.dumps(request_params['reply_markup'])
+
+        response = requests.post(url, data=request_params, files=files)
         ret = response.json()
 
         if ret.get('ok'):
