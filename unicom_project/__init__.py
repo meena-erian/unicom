@@ -1,0 +1,1 @@
+default_app_config = 'unicom_project.apps.UnicomProjectConfig'
