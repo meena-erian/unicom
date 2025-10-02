@@ -83,20 +83,15 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
         return False
     print(f"✅ CALLBACK DEBUG: Account is authorized")
 
-    # Create callback message
-    callback_message = create_callback_message(
-        callback_query_data,
-        execution.original_message,
-        clicking_account
-    )
-
     # Fire signal for project handlers
     try:
         print(f"📡 CALLBACK DEBUG: Firing telegram_callback_received signal")
         telegram_callback_received.send(
             sender=handle_telegram_callback,
             callback_execution=execution,
-            callback_message=callback_message
+            clicking_account=clicking_account,
+            original_message=execution.original_message,
+            tool_call=execution.tool_call  # May be None
         )
         print(f"✅ CALLBACK DEBUG: Signal fired successfully")
         logger.info(f"Successfully processed callback {callback_id}")
@@ -106,34 +101,3 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
         logger.error(f"Error processing callback {callback_id}: {str(e)}", exc_info=True)
         print(f"❌ CALLBACK DEBUG: Error processing callback: {str(e)}")
         return False
-
-
-def create_callback_message(callback_query_data: dict, original_message: Message, clicking_account: Account) -> Message:
-    """
-    Create a Message object representing the callback button click.
-    This allows projects to use familiar message.reply_with() patterns.
-    """
-    from unicom.services.telegram.save_telegram_message import save_telegram_message
-
-    # Create a minimal message-like structure for the callback
-    callback_message_data = {
-        'message_id': f"callback_{callback_query_data['id']}",
-        'from': callback_query_data['from'],
-        'chat': callback_query_data['message']['chat'],
-        'date': callback_query_data.get('date', callback_query_data['message']['date']),
-        'text': f"[Button clicked]"
-    }
-
-    # Save as a special callback message
-    callback_message = save_telegram_message(
-        original_message.channel,
-        callback_message_data,
-        user=None  # This is a system-generated message
-    )
-
-    # Mark it as a callback type and link to original
-    callback_message.media_type = 'callback'
-    callback_message.reply_to_message = original_message
-    callback_message.save(update_fields=['media_type', 'reply_to_message'])
-
-    return callback_message

@@ -5,6 +5,7 @@ class CallbackExecution(models.Model):
     """
     Stores callback button data and metadata.
     Links button clicks to the original message and intended account.
+    Optionally links to a ToolCall if the button was created from a tool response.
     """
     original_message = models.ForeignKey('unicom.Message', on_delete=models.CASCADE,
                                          related_name='button_callbacks',
@@ -12,6 +13,9 @@ class CallbackExecution(models.Model):
     callback_data = models.JSONField(help_text="Button callback data (any JSON-serializable type)")
     intended_account = models.ForeignKey('unicom.Account', on_delete=models.CASCADE,
                                          help_text="The account this button is intended for")
+    tool_call = models.ForeignKey('unicom.ToolCall', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='button_callbacks',
+                                  help_text="Optional: The ToolCall that created this button (if from a tool)")
     expires_at = models.DateTimeField(null=True, blank=True,
                                       help_text="Optional expiration time for this callback")
     created_at = models.DateTimeField(auto_now_add=True)
