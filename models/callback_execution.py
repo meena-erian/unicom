@@ -15,8 +15,8 @@ class CallbackExecution(models.Model):
                                          related_name='button_callbacks',
                                          help_text="The message containing the buttons")
     callback_data = models.CharField(max_length=500, help_text="Button callback data")
-    authorized_user = models.ForeignKey('unicom.Account', on_delete=models.CASCADE,
-                                        help_text="Only this user can trigger this callback")
+    intended_account = models.ForeignKey('unicom.Account', on_delete=models.CASCADE,
+                                         help_text="Only this account can trigger this callback")
     processed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -36,4 +36,4 @@ class CallbackExecution(models.Model):
 
     def __str__(self):
         status = "✅ Processed" if self.is_processed() else "⏳ Pending"
-        return f"{status} - {self.callback_data} by {self.authorized_user.username}"
+        return f"{status} - {self.callback_data} by {self.intended_account.name}"
