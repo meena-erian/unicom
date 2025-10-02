@@ -101,6 +101,29 @@ class Message(models.Model):
     )
     imap_uid = models.BigIntegerField(null=True, blank=True, db_index=True, help_text="IMAP UID for marking as seen")
 
+    def edit_original_message(self, msg_dict: dict) -> bool:
+        """
+        Edit the original message (for callback messages that want to update the button message).
+        For callback messages, this edits the message that contained the buttons.
+
+        Args:
+            msg_dict: Dictionary with new content (text, reply_markup, etc.)
+
+        Returns:
+            bool: True if edit was successful
+        """
+        if self.platform == 'Telegram':
+            from unicom.services.telegram.edit_telegram_message import edit_telegram_message
+
+            # For callback messages, edit the original message
+            target_message = self.reply_to_message if self.reply_to_message else self
+
+            return edit_telegram_message(self.channel, target_message, msg_dict)
+
+        # For other platforms, fall back to sending a new message
+        self.reply_with(msg_dict)
+        return True
+
     def reply_with(self, msg_dict:dict) -> Message:
         """
         Reply to this message with a dictionary containing the response.

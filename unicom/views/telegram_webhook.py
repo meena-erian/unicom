@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from unicom.models import Update, Channel
 from unicom.services.telegram.save_telegram_message import save_telegram_message
+from unicom.services.telegram.handle_telegram_callback import handle_telegram_callback
 from django.db import transaction
 import json
 
@@ -29,20 +30,28 @@ def telegram_webhook(request, bot_id: int):
     except json.JSONDecodeError:
         return HttpResponse('Invalid JSON.', status=400)
 
-    # Save the raw update
-    update = Update(
-        channel=channel,
-        platform='Telegram',
+    # Save the raw update (use get_or_create to handle duplicate updates from Telegram)
+    update, created = Update.objects.get_or_create(
         id=f'Telegram.{data_dict.get("update_id")}',
-        payload=data_dict
+        defaults={
+            'channel': channel,
+            'platform': 'Telegram',
+            'payload': data_dict
+        }
     )
-    update.save()
+
+    if not created:
+        print(f"⚠️ Duplicate update received: {update.id}")
+        # If it's a duplicate, just return success without reprocessing
+        return HttpResponse('Duplicate update ignored.', status=200)
 
     # Handle callback queries (buttons)
     if 'callback_query' in data_dict:
-        # TODO: Add handler for interactive button clicks
-        print("User Interaction ignored")
-        return HttpResponse('Interaction received.', status=200)
+        with transaction.atomic():
+            processed = handle_telegram_callback(channel, data_dict['callback_query'])
+            update.callback_processed = processed
+            update.save()
+        return HttpResponse('Callback processed.' if processed else 'Callback ignored.', status=200)
 
     # Handle incoming messages
     if 'message' in data_dict:

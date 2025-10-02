@@ -15,7 +15,9 @@
 - [Advanced Features](#-advanced-features)
   - [Email-Specific Features](#email-specific-features)
   - [Telegram-Specific Features](#telegram-specific-features)
-    - [Interactive Messages with Action Buttons](#-interactive-messages-with-action-buttons)
+    - [Typing Indicators](#-typing-indicators)
+    - [Interactive Buttons & Callbacks](#-interactive-messages-with-action-buttons)
+    - [Editing Messages](#-editing-telegram-messages)
     - [File Downloads and Voice Messages](#-file-downloads-and-voice-messages)
   - [LLM Integration](#llm-integration)
   - [Delayed Tool Calls](#delayed-tool-calls)
@@ -228,7 +230,7 @@ message = email_channel.send_message({
 message = email_channel.send_message({
     'to': ['primary@example.com'],
     'cc': ['manager@example.com'],
-    'bcc': ['archive@example.com'], 
+    'bcc': ['archive@example.com'],
     'subject': 'Team Update',
     'html': '<p>Here is the latest update...</p>'
 })
@@ -239,6 +241,19 @@ message = email_channel.send_message({
     'html': '<p>Thanks for your message!</p>'
     # Subject is automatically derived from thread
 })
+
+# 📱 Telegram only: Message with interactive buttons
+from unicom.services.telegram.create_inline_keyboard import create_simple_keyboard
+
+message = telegram_channel.send_message({
+    'chat_id': 'user_chat_id',
+    'text': 'Choose an option:',
+    'reply_markup': create_simple_keyboard(
+        "Confirm", "confirm_yes",
+        "Cancel", "confirm_no"
+    )
+})
+# See "Interactive Buttons & Callbacks" section for handling button clicks
 ```
 
 ### Message Model
@@ -380,6 +395,18 @@ reply = message.reply_with({
     'text': 'Here is the file you requested',
     'file_path': '/path/to/file.pdf'
 })
+
+# 📱 Telegram only: Reply with interactive buttons
+from unicom.services.telegram.create_inline_keyboard import create_simple_keyboard
+
+reply = message.reply_with({
+    'text': 'Would you like to continue?',
+    'reply_markup': create_simple_keyboard(
+        "Yes", "continue_yes",
+        "No", "continue_no"
+    )
+})
+# See "Interactive Buttons & Callbacks" section for handling button clicks
 ```
 
 #### Via Admin Interface
@@ -625,6 +652,155 @@ reply = message.reply_with({
     ])
 })
 ```
+
+#### 📱 Handling Button Clicks
+
+When users click buttons, handle them with Django signals - no configuration needed:
+
+```python
+from django.dispatch import receiver
+from unicom.signals import telegram_callback_received
+
+@receiver(telegram_callback_received)
+def handle_button_clicks(sender, callback_execution, **kwargs):
+    """
+    Handle all button clicks with automatic security validation and idempotency.
+    Each callback is processed exactly once across all Django processes.
+
+    Available data in callback_execution:
+    - callback_data: The button's callback_data string
+    - authorized_user: The validated user (Account object)
+    - callback_message: Message object for sending responses
+    - original_message: The message that contained the buttons
+    """
+    # Get the button data and validated user
+    button_data = callback_execution.callback_data  # e.g., "confirm_action"
+    user = callback_execution.authorized_user       # Security-validated user
+    callback_msg = callback_execution.callback_message  # For replying
+    original_msg = callback_execution.original_message  # Original message with buttons
+
+    if button_data == 'confirm_action':
+        # Process confirmation
+        process_user_confirmation(user)
+        callback_msg.reply_with({'text': '✅ Confirmed!'})
+
+    elif button_data == 'cancel_action':
+        # Process cancellation
+        callback_msg.reply_with({'text': '❌ Cancelled'})
+
+    elif button_data.startswith('product_'):
+        # Handle dynamic data (e.g., "product_123")
+        product_id = button_data.split('_')[1]
+        product = get_product(product_id)
+
+        # Send response with new buttons
+        callback_msg.reply_with({
+            'text': f'Product: {product.name}\nPrice: ${product.price}',
+            'reply_markup': create_simple_keyboard(
+                'Buy Now', f'buy_{product_id}',
+                'Add to Cart', f'cart_{product_id}'
+            )
+        })
+
+    elif button_data == 'show_menu':
+        # Update the original message (edit in place)
+        from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
+        callback_msg.edit_original_message({
+            'text': '📋 Main Menu:',
+            'reply_markup': create_inline_keyboard([
+                [create_callback_button("Option 1", "opt1")],
+                [create_callback_button("Option 2", "opt2")]
+            ])
+        })
+
+# Security is automatic:
+# - Only authorized users can click buttons (prevents group chat abuse)
+# - Each callback processes exactly once (prevents duplicate actions)
+# - Built-in protection against forwarded messages and replay attacks
+# - Loading indicators stop automatically (answerCallbackQuery)
+```
+
+**Where to put your callback handler:**
+
+Create a file like `your_app/callback_handlers.py` and import it in your app's `apps.py`:
+
+```python
+# your_app/apps.py
+from django.apps import AppConfig
+
+class YourAppConfig(AppConfig):
+    name = 'your_app'
+
+    def ready(self):
+        import your_app.callback_handlers  # Register signal handlers
+```
+
+Make sure your app is in `INSTALLED_APPS` in settings.py.
+
+**Security Features (Automatic):**
+
+- **Authorization**: Only the intended recipient can click buttons
+  - In private chats: Only that user can click
+  - In group chats: Only the original message recipient can click
+  - Forwarded messages: Buttons are automatically disabled
+
+- **Idempotency**: Each button click processes exactly once
+  - Safe across multiple Django processes
+  - Database-backed coordination
+  - Prevents duplicate actions (e.g., double charges)
+
+- **User Experience**:
+  - Loading indicators stop immediately
+  - Fast response times
+  - Graceful network error handling
+
+**For more examples and best practices**, see the [detailed Telegram buttons guide](docs/telegram_buttons_guide.md).
+
+#### 📱 Editing Telegram Messages
+
+Telegram allows you to edit messages in place instead of sending new ones:
+
+```python
+# Edit a message you sent
+message = telegram_channel.send_message({
+    'chat_id': 'user_chat_id',
+    'text': 'Processing your request...'
+})
+
+# Later, update the same message
+from unicom.services.telegram.edit_telegram_message import edit_telegram_message
+edit_telegram_message(telegram_channel, message, {
+    'text': '✅ Request completed!'
+})
+
+# Edit messages with buttons (common in callback handlers)
+# Use the edit_original_message() method on callback messages
+from django.dispatch import receiver
+from unicom.signals import telegram_callback_received
+from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
+
+@receiver(telegram_callback_received)
+def handle_navigation(sender, callback_execution, **kwargs):
+    button_data = callback_execution.callback_data
+    callback_msg = callback_execution.callback_message
+
+    if button_data == 'show_settings':
+        # Edit the original message to show settings
+        callback_msg.edit_original_message({
+            'text': '⚙️ Settings Menu',
+            'reply_markup': create_inline_keyboard([
+                [create_callback_button("Account", "settings_account")],
+                [create_callback_button("Privacy", "settings_privacy")],
+                [create_callback_button("🔙 Back", "main_menu")]
+            ])
+        })
+```
+
+**Common use cases:**
+- Updating status messages (e.g., "Processing..." → "Complete!")
+- Creating navigation menus that update in place
+- Building interactive forms without spamming the chat
+- Showing real-time progress updates
 
 #### 📱 File Downloads and Voice Messages
 
