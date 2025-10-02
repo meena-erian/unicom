@@ -20,162 +20,129 @@ RANDOM_FACTS = [
 ]
 
 @receiver(telegram_callback_received)
-def handle_interactive_menu_buttons(sender, callback_execution, callback_message, **kwargs):
+def handle_interactive_menu_buttons(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
     """
     Handle button clicks from the interactive menu tool.
+
+    Args:
+        callback_execution: The CallbackExecution instance with callback_data
+        clicking_account: The Account that clicked the button
+        original_message: The Message containing the buttons
+        tool_call: Optional ToolCall if button was from a tool (can be None)
     """
     button_data = callback_execution.callback_data
-    account = callback_execution.intended_account
-    callback_msg = callback_message
-    original_msg = callback_execution.original_message
 
-    username = account.raw.get('username', account.name)
+    username = clicking_account.raw.get('username', clicking_account.name)
     print(f"🎯 HANDLER DEBUG: Button clicked: {button_data} by {username}")
-    print(f"   - Callback Message ID: {callback_msg.id}")
-    print(f"   - Original Message ID: {original_msg.id}")
-    print(f"   - Account: {username} ({account.id})")
+    print(f"   - Original Message ID: {original_message.id}")
+    print(f"   - Account: {username} ({clicking_account.id})")
+    if tool_call:
+        print(f"   - Associated with ToolCall: {tool_call.tool_name}:{tool_call.call_id}")
 
-    # Handle menu navigation
-    if button_data == "menu_main":
-        show_main_menu(callback_msg)
+    # Handle dict-based callback_data
+    if isinstance(button_data, dict):
+        # Menu navigation
+        if button_data.get("menu") == "main":
+            show_main_menu(original_message, clicking_account)
+        elif button_data.get("menu") == "tools":
+            show_tools_menu(original_message, clicking_account)
+        elif button_data.get("menu") == "info":
+            show_info_menu(original_message, clicking_account)
 
-    elif button_data == "menu_tools":
-        show_tools_menu(callback_msg)
+        # Actions
+        elif button_data.get("action") == "random_fact":
+            show_random_fact(original_message, clicking_account)
+        elif button_data.get("action") == "timer":
+            start_timer_demo(original_message, clicking_account)
+        elif button_data.get("action") == "ip_lookup":
+            show_ip_lookup_demo(original_message, clicking_account)
+        elif button_data.get("action") == "system_info":
+            show_system_info(original_message, clicking_account)
+        elif button_data.get("action") == "performance":
+            show_performance_info(original_message, clicking_account)
+        elif button_data.get("action") == "start_timer":
+            # Handle timer with seconds from data
+            seconds = button_data.get("seconds", 10)
+            start_actual_timer(original_message, clicking_account, seconds)
+        else:
+            original_message.reply_with({'text': f'🤔 Unknown action: {button_data}'})
 
-    elif button_data == "menu_info":
-        print(f"🔧 HANDLER DEBUG: Calling show_info_menu")
-        try:
-            show_info_menu(callback_msg)
-            print(f"✅ HANDLER DEBUG: show_info_menu completed successfully")
-        except Exception as e:
-            print(f"❌ HANDLER DEBUG: Error in show_info_menu: {str(e)}")
-            import traceback
-            traceback.print_exc()
+    # Handle legacy string-based callback_data (for backwards compatibility)
+    elif isinstance(button_data, str):
+        original_message.reply_with({'text': f'Legacy button clicked: {button_data}'})
 
-    # Handle actions
-    elif button_data == "action_random_fact":
-        show_random_fact(callback_msg)
-
-    elif button_data == "action_timer":
-        start_timer_demo(callback_msg)
-
-    elif button_data == "action_ip_lookup":
-        show_ip_lookup_demo(callback_msg)
-
-    elif button_data == "action_system_info":
-        show_system_info(callback_msg)
-
-    elif button_data == "action_performance":
-        show_performance_info(callback_msg)
-
-    elif button_data.startswith("timer_"):
-        # Handle timer buttons (e.g., "timer_10", "timer_30")
-        seconds = int(button_data.split("_")[1])
-        start_actual_timer(callback_msg, seconds)
-
-    else:
-        # Unknown button
-        callback_msg.reply_with({
-            'text': f'🤔 Unknown action: {button_data}',
-            'reply_markup': create_simple_keyboard("🏠 Main Menu", "menu_main")
-        })
-
-def show_main_menu(message):
+def show_main_menu(message, account):
     """Show the main menu"""
-    buttons = create_inline_keyboard([
-        [create_callback_button("🛠️ Tools Menu", "menu_tools")],
-        [create_callback_button("ℹ️ System Info", "menu_info")],
-        [create_callback_button("🎲 Random Fact", "action_random_fact")],
-        [create_url_button("📖 Documentation", "https://github.com/meena-erian/unicom")]
-    ])
-
     message.edit_original_message({
         "text": "🏠 **Main Menu**\n\nChoose an option below:",
-        "reply_markup": buttons
-    })
-
-def show_tools_menu(message):
-    """Show the tools submenu"""
-    buttons = create_inline_keyboard([
-        [create_callback_button("⏰ Start Timer", "action_timer")],
-        [create_callback_button("🌐 IP Lookup", "action_ip_lookup")],
-        [create_callback_button("📊 System Stats", "action_system_info")],
-        [create_callback_button("🔙 Back to Main", "menu_main")]
-    ])
-
-    message.edit_original_message({
-        "text": "🛠️ **Tools Menu**\n\nSelect a tool to use:",
-        "reply_markup": buttons
-    })
-
-def show_info_menu(message):
-    """Show the info submenu"""
-    print(f"🔧 MENU DEBUG: Creating info menu buttons")
-    buttons = create_inline_keyboard([
-        [create_callback_button("💻 System Info", "action_system_info")],
-        [create_callback_button("📈 Performance", "action_performance")],
-        [create_callback_button("🔙 Back to Main", "menu_main")]
-    ])
-    print(f"✅ MENU DEBUG: Buttons created: {buttons}")
-
-    print(f"🔧 MENU DEBUG: Calling edit_original_message")
-    result = message.edit_original_message({
-        "text": "ℹ️ **Information Menu**\n\nWhat would you like to know?",
-        "reply_markup": buttons
-    })
-    print(f"✅ MENU DEBUG: edit_original_message result: {result}")
-
-def show_random_fact(message):
-    """Show a random fact"""
-    fact = random.choice(RANDOM_FACTS)
-
-    message.reply_with({
-        'text': f"🎲 **Random Fact**\n\n{fact}",
-        'reply_markup': create_inline_keyboard([
-            [create_callback_button("🎲 Another Fact", "action_random_fact")],
-            [create_callback_button("🏠 Main Menu", "menu_main")]
+        "reply_markup": create_inline_keyboard([
+            [create_callback_button("🛠️ Tools Menu", {"menu": "tools"}, message=message, account=account)],
+            [create_callback_button("ℹ️ System Info", {"menu": "info"}, message=message, account=account)],
+            [create_callback_button("🎲 Random Fact", {"action": "random_fact"}, message=message, account=account)],
+            [create_url_button("📖 Documentation", "https://github.com/meena-erian/unicom")]
         ])
     })
 
-def start_timer_demo(message):
-    """Show timer options"""
-    buttons = create_inline_keyboard([
-        [create_callback_button("⏰ 10 seconds", "timer_10"), create_callback_button("⏰ 30 seconds", "timer_30")],
-        [create_callback_button("⏰ 60 seconds", "timer_60")],
-        [create_callback_button("🔙 Back to Tools", "menu_tools")]
-    ])
+def show_tools_menu(message, account):
+    """Show the tools submenu"""
+    message.edit_original_message({
+        "text": "🛠️ **Tools Menu**\n\nSelect a tool to use:",
+        "reply_markup": create_inline_keyboard([
+            [create_callback_button("⏰ Start Timer", {"action": "timer"}, message=message, account=account)],
+            [create_callback_button("🌐 IP Lookup", {"action": "ip_lookup"}, message=message, account=account)],
+            [create_callback_button("📊 System Stats", {"action": "system_info"}, message=message, account=account)],
+            [create_callback_button("🔙 Back to Main", {"menu": "main"}, message=message, account=account)]
+        ])
+    })
 
+def show_info_menu(message, account):
+    """Show the info submenu"""
+    message.edit_original_message({
+        "text": "ℹ️ **Information Menu**\n\nWhat would you like to know?",
+        "reply_markup": create_inline_keyboard([
+            [create_callback_button("💻 System Info", {"action": "system_info"}, message=message, account=account)],
+            [create_callback_button("📈 Performance", {"action": "performance"}, message=message, account=account)],
+            [create_callback_button("🔙 Back to Main", {"menu": "main"}, message=message, account=account)]
+        ])
+    })
+
+def show_random_fact(message, account):
+    """Show a random fact"""
+    fact = random.choice(RANDOM_FACTS)
+    sent_msg = message.reply_with({'text': f"🎲 **Random Fact**\n\n{fact}"})
+    # Note: Can't add buttons to already-sent message easily, skip for now
+    # In production, you'd send with buttons initially
+
+def start_timer_demo(message, account):
+    """Show timer options"""
     message.edit_original_message({
         "text": "⏰ **Timer Demo**\n\nChoose how long to wait:",
-        "reply_markup": buttons
+        "reply_markup": create_inline_keyboard([
+            [create_callback_button("⏰ 10 seconds", {"action": "start_timer", "seconds": 10}, message=message, account=account)],
+            [create_callback_button("⏰ 30 seconds", {"action": "start_timer", "seconds": 30}, message=message, account=account)],
+            [create_callback_button("⏰ 60 seconds", {"action": "start_timer", "seconds": 60}, message=message, account=account)],
+            [create_callback_button("🔙 Back to Tools", {"menu": "tools"}, message=message, account=account)]
+        ])
     })
 
-def start_actual_timer(message, seconds):
+def start_actual_timer(message, account, seconds):
     """Start an actual timer"""
-    message.reply_with({
-        'text': f"⏰ Starting {seconds}-second timer..."
-    })
-
-    # Use the existing simple_timer tool
+    message.reply_with({'text': f"⏰ Starting {seconds}-second timer..."})
     import time
     time.sleep(seconds)
+    message.reply_with({'text': f"🔔 Timer finished! Waited {seconds} seconds."})
 
-    message.reply_with({
-        'text': f"🔔 Timer finished! Waited {seconds} seconds.",
-        'reply_markup': create_simple_keyboard("🏠 Main Menu", "menu_main")
-    })
-
-def show_ip_lookup_demo(message):
+def show_ip_lookup_demo(message, account):
     """Show IP lookup info"""
     message.edit_original_message({
         "text": "🌐 **IP Lookup Demo**\n\nThis would normally do an IP lookup.\nFor the demo, we'll just show this message!",
         "reply_markup": create_inline_keyboard([
-            [create_callback_button("🔙 Back to Tools", "menu_tools")],
-            [create_callback_button("🏠 Main Menu", "menu_main")]
+            [create_callback_button("🔙 Back to Tools", {"menu": "tools"}, message=message, account=account)],
+            [create_callback_button("🏠 Main Menu", {"menu": "main"}, message=message, account=account)]
         ])
     })
 
-def show_system_info(message):
+def show_system_info(message, account):
     """Show basic system information"""
     try:
         system_info = f"""💻 **System Information**
@@ -188,20 +155,12 @@ def show_system_info(message):
     except Exception as e:
         system_info = f"❌ Error getting system info: {str(e)}"
 
-    message.reply_with({
-        'text': system_info,
-        'reply_markup': create_inline_keyboard([
-            [create_callback_button("📈 Performance", "action_performance")],
-            [create_callback_button("🔙 Back to Info", "menu_info")]
-        ])
-    })
+    sent_msg = message.reply_with({'text': system_info})
 
-def show_performance_info(message):
+def show_performance_info(message, account):
     """Show performance information"""
     try:
-        # Simple performance info without psutil
         load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else ('N/A', 'N/A', 'N/A')
-
         performance_info = f"""📈 **Performance Information**
 
 🔥 **Load Average**: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}
@@ -212,10 +171,4 @@ def show_performance_info(message):
     except Exception as e:
         performance_info = f"❌ Error getting performance info: {str(e)}"
 
-    message.reply_with({
-        'text': performance_info,
-        'reply_markup': create_inline_keyboard([
-            [create_callback_button("💻 System Info", "action_system_info")],
-            [create_callback_button("🔙 Back to Info", "menu_info")]
-        ])
-    })
+    message.reply_with({'text': performance_info})

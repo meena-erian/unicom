@@ -15,79 +15,66 @@ def interactive_menu(menu_type: str = "main") -> str:
     """
     try:
         # message is available directly as a context variable in tool code
-        if menu_type == "main":
-            # Main menu with different options
-            buttons = create_inline_keyboard([
-                [create_callback_button("🛠️ Tools Menu", "menu_tools")],
-                [create_callback_button("ℹ️ System Info", "menu_info")],
-                [create_callback_button("🎲 Random Fact", "action_random_fact")],
-                [create_url_button("📖 Documentation", "https://github.com/meena-erian/unicom")]
-            ])
+        if not message:
+            return "Message context not available"
 
-            # Send the menu directly using message.reply_with
-            if message:
-                message.reply_with({
-                    "text": "🏠 **Main Menu**\n\nChoose an option below:",
-                    "reply_markup": buttons
-                })
-                return "Interactive main menu sent with buttons!"
-            else:
-                return "🏠 **Main Menu**\n\nChoose an option below:"
+        # Get the account (recipient of the message)
+        account = message.sender if not message.is_outgoing else message.chat.accounts.first()
+
+        # We need to use the incoming message as the reference for buttons
+        # since we can't create buttons referencing a message that doesn't exist yet
+
+        if menu_type == "main":
+            # Use the incoming message for button callbacks
+            message.reply_with({
+                "text": "🏠 **Main Menu**\n\nChoose an option below:",
+                "reply_markup": create_inline_keyboard([
+                    [create_callback_button("🛠️ Tools Menu", {"menu": "tools"}, message=message, account=account)],
+                    [create_callback_button("ℹ️ System Info", {"menu": "info"}, message=message, account=account)],
+                    [create_callback_button("🎲 Random Fact", {"action": "random_fact"}, message=message, account=account)],
+                    [create_url_button("📖 Documentation", "https://github.com/meena-erian/unicom")]
+                ])
+            })
+            return "Interactive main menu sent with buttons!"
 
         elif menu_type == "tools":
-            # Tools submenu
-            buttons = create_inline_keyboard([
-                [create_callback_button("⏰ Start Timer", "action_timer")],
-                [create_callback_button("🌐 IP Lookup", "action_ip_lookup")],
-                [create_callback_button("📊 System Stats", "action_system_info")],
-                [create_callback_button("🔙 Back to Main", "menu_main")]
-            ])
-
-            if message:
-                message.reply_with({
-                    "text": "🛠️ **Tools Menu**\n\nSelect a tool to use:",
-                    "reply_markup": buttons
-                })
-                return "Tools menu sent with buttons!"
-            else:
-                return "🛠️ **Tools Menu**\n\nSelect a tool to use:"
+            message.reply_with({
+                "text": "🛠️ **Tools Menu**\n\nSelect a tool to use:",
+                "reply_markup": create_inline_keyboard([
+                    [create_callback_button("⏰ Start Timer", {"action": "timer"}, message=message, account=account)],
+                    [create_callback_button("🌐 IP Lookup", {"action": "ip_lookup"}, message=message, account=account)],
+                    [create_callback_button("📊 System Stats", {"action": "system_info"}, message=message, account=account)],
+                    [create_callback_button("🔙 Back to Main", {"menu": "main"}, message=message, account=account)]
+                ])
+            })
+            return "Tools menu sent with buttons!"
 
         elif menu_type == "info":
-            # Info submenu
-            buttons = create_inline_keyboard([
-                [create_callback_button("💻 System Info", "action_system_info")],
-                [create_callback_button("📈 Performance", "action_performance")],
-                [create_callback_button("🔙 Back to Main", "menu_main")]
-            ])
-
-            if message:
-                message.reply_with({
-                    "text": "ℹ️ **Information Menu**\n\nWhat would you like to know?",
-                    "reply_markup": buttons
-                })
-                return "Info menu sent with buttons!"
-            else:
-                return "ℹ️ **Information Menu**\n\nWhat would you like to know?"
+            message.reply_with({
+                "text": "ℹ️ **Information Menu**\n\nWhat would you like to know?",
+                "reply_markup": create_inline_keyboard([
+                    [create_callback_button("💻 System Info", {"action": "system_info"}, message=message, account=account)],
+                    [create_callback_button("📈 Performance", {"action": "performance"}, message=message, account=account)],
+                    [create_callback_button("🔙 Back to Main", {"menu": "main"}, message=message, account=account)]
+                ])
+            })
+            return "Info menu sent with buttons!"
 
         else:
-            if message:
-                message.reply_with({
-                    "text": f"Unknown menu type: {menu_type}",
-                    "reply_markup": create_simple_keyboard("🏠 Main Menu", "menu_main")
-                })
-                return f"Unknown menu type: {menu_type} (sent error with menu button)"
-            else:
-                return f"Unknown menu type: {menu_type}"
+            message.reply_with({
+                "text": f"Unknown menu type: {menu_type}",
+                "reply_markup": create_inline_keyboard([
+                    [create_callback_button("🏠 Main Menu", {"menu": "main"}, message=message, account=account)]
+                ])
+            })
+            return f"Unknown menu type: {menu_type} (sent error with menu button)"
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if message:
-            message.reply_with({
-                "text": f"Menu error: {str(e)}",
-                "reply_markup": create_simple_keyboard("🏠 Try Main Menu", "menu_main")
-            })
-            return f"Menu error occurred: {str(e)} (sent error message with menu button)"
-        else:
-            return f"Menu error: {str(e)}"
+            message.reply_with({"text": f"Menu error: {str(e)}"})
+        return f"Menu error: {str(e)}"
 
 tool_definition = {
     "name": "interactive_menu",

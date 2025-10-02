@@ -57,7 +57,7 @@ def create_inline_keyboard(buttons: List[List[Dict[str, Any]]]) -> Dict[str, Lis
     return {"inline_keyboard": buttons}
 
 
-def create_callback_button(text: str, callback_data: Any, message=None, account=None, expires_at=None) -> Dict[str, str]:
+def create_callback_button(text: str, callback_data: Any, message=None, account=None, tool_call=None, expires_at=None) -> Dict[str, str]:
     """
     Quick helper to create a callback button.
 
@@ -66,6 +66,7 @@ def create_callback_button(text: str, callback_data: Any, message=None, account=
         callback_data: Any JSON-serializable data (dict, list, str, int, bool, None)
         message: The message this button belongs to (optional, for creating CallbackExecution)
         account: The intended account for this button (optional, defaults to message recipient)
+        tool_call: Optional ToolCall to link this button to (for tool-generated buttons)
         expires_at: Optional expiration datetime for this callback
 
     Returns:
@@ -74,6 +75,7 @@ def create_callback_button(text: str, callback_data: Any, message=None, account=
     Examples:
         create_callback_button("Yes", "confirm")
         create_callback_button("Buy", {"product_id": 123}, message=msg, account=user_account)
+        create_callback_button("Confirm", {"action": "confirm"}, message=msg, tool_call=tool_call_obj)
     """
     # If message is provided, create CallbackExecution and use its ID
     if message:
@@ -87,6 +89,7 @@ def create_callback_button(text: str, callback_data: Any, message=None, account=
             original_message=message,
             callback_data=callback_data,
             intended_account=account,
+            tool_call=tool_call,
             expires_at=expires_at
         )
         callback_data_str = str(execution.id)

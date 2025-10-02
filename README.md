@@ -661,52 +661,53 @@ from django.dispatch import receiver
 from unicom.signals import telegram_callback_received
 
 @receiver(telegram_callback_received)
-def handle_button_clicks(sender, callback_execution, callback_message, **kwargs):
+def handle_button_clicks(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
     """
     Handle button clicks.
 
     Args:
-        callback_execution: CallbackExecution instance with:
-            - callback_data: Your data (dict, list, str, int, bool, None)
-            - intended_account: The unicom.Account this button was created for
-            - original_message: The message with the buttons
-            - expires_at: Optional expiration datetime
-        callback_message: Message object for sending responses
+        callback_execution: CallbackExecution instance with callback_data
+        clicking_account: The unicom.Account that clicked the button
+        original_message: The Message containing the buttons
+        tool_call: Optional ToolCall if button was from a tool (None otherwise)
 
     Note: unicom.Account represents a platform user (e.g., Telegram user, email address).
-    To access Django auth.User: account.member.user (if account.member exists)
+    To access Django auth.User: clicking_account.member.user (if member exists)
     """
     data = callback_execution.callback_data
-    account = callback_execution.intended_account
-    original_msg = callback_execution.original_message
 
     # Handle dict callback_data
     if isinstance(data, dict):
         if data.get('action') == 'confirm':
-            process_confirmation(account)
-            callback_message.reply_with({'text': '✅ Confirmed!'})
+            process_confirmation(clicking_account)
+            original_message.reply_with({'text': '✅ Confirmed!'})
 
         elif data.get('action') == 'buy_product':
             product_id = data['product_id']
             product = get_product(product_id)
 
             # Create new buttons with callback_data
-            callback_message.reply_with({
+            original_message.reply_with({
                 'text': f'Product: {product.name}\nPrice: ${product.price}',
                 'reply_markup': create_inline_keyboard([
-                    [create_callback_button('Confirm Purchase', {'action': 'confirm_purchase', 'product_id': product_id}, message=callback_message)],
-                    [create_callback_button('Cancel', {'action': 'cancel'}, message=callback_message)]
+                    [create_callback_button('Confirm Purchase', {'action': 'confirm_purchase', 'product_id': product_id}, message=original_message, account=clicking_account)],
+                    [create_callback_button('Cancel', {'action': 'cancel'}, message=original_message, account=clicking_account)]
                 ])
             })
 
     # Handle string callback_data
     elif data == 'cancel':
-        callback_message.reply_with({'text': '❌ Cancelled'})
+        original_message.reply_with({'text': '❌ Cancelled'})
 
     # Access Django User if needed
-    if account.member and account.member.user:
-        django_user = account.member.user
+    if clicking_account.member and clicking_account.member.user:
+        django_user = clicking_account.member.user
         # Do something with django_user
+
+    # If button was from a tool, you can respond to the tool call
+    if tool_call and data.get('action') == 'confirm':
+        # Inform the LLM that the user confirmed
+        tool_call.respond({'confirmed': True, 'user_id': clicking_account.id})
 ```
 
 **Where to put your callback handler:**
@@ -733,6 +734,187 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
 - **Expiration**: Optional `expires_at` parameter for time-limited buttons
 - **Reusable**: Buttons can be clicked multiple times (developers control behavior)
 - **Efficient**: Callback data stored in DB, only ID sent to Telegram
+- **No Message Creation**: Button clicks don't create Message objects - they only trigger handlers
+- **Tool Integration**: When buttons are from tools, handlers can use `tool_call.respond()` to inform the LLM
+
+#### 📱 Tool-Generated Buttons (Advanced)
+
+When a tool sends buttons, you can link them to the ToolCall so handlers can respond to the LLM:
+
+```python
+# In your tool code (e.g., definitions/tools/my_tool.py)
+def my_interactive_tool(question: str) -> str:
+    """Ask user a question with buttons and wait for response."""
+
+    # Get the tool_call object - available in tool context
+    # This requires your tool system to pass tool_call to tools
+    from unicom.models import ToolCall
+    tool_call = ToolCall.objects.filter(
+        tool_name='my_interactive_tool',
+        status='PENDING'
+    ).order_by('-created_at').first()
+
+    # Or if your tool system provides it directly:
+    # tool_call = context.get('tool_call')  # depends on your implementation
+
+    # Send message with buttons linked to this tool call
+    message.reply_with({
+        'text': f'Question: {question}',
+        'reply_markup': create_inline_keyboard([
+            [create_callback_button(
+                "Yes",
+                {"tool": "my_interactive_tool", "action": "answer", "value": "yes"},
+                message=message,
+                tool_call=tool_call  # Link button to tool call
+            )],
+            [create_callback_button(
+                "No",
+                {"tool": "my_interactive_tool", "action": "answer", "value": "no"},
+                message=message,
+                tool_call=tool_call
+            )]
+        ])
+    })
+
+    return "Question sent to user, waiting for response..."
+
+# In your callback handler (callback_handlers.py)
+@receiver(telegram_callback_received)
+def handle_tool_buttons(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
+    data = callback_execution.callback_data
+
+    # Route to correct handler based on tool name
+    if isinstance(data, dict) and data.get('tool') == 'my_interactive_tool':
+        if data.get('action') == 'answer':
+            # User clicked a button from the tool
+            answer = data['value']
+
+            # Respond to the tool call - this will notify the LLM
+            if tool_call:
+                tool_call.respond({
+                    'question_answered': True,
+                    'answer': answer,
+                    'user_id': clicking_account.id
+                })
+
+            # Also send confirmation to user
+            original_message.reply_with({
+                'text': f'✅ You answered: {answer}'
+            })
+```
+
+#### 📱 Button Routing Best Practices
+
+When building applications with multiple button types, use a consistent routing strategy:
+
+**Recommended Pattern: Use a "type" or "handler" field**
+
+```python
+# Define button types as constants for consistency
+BUTTON_TYPES = {
+    'PRODUCT': 'product_handler',
+    'NAVIGATION': 'nav_handler',
+    'SETTINGS': 'settings_handler',
+    'TOOL': 'tool_handler'
+}
+
+# Create buttons with type field
+create_callback_button(
+    "Buy Product A",
+    {
+        "type": "product_handler",  # Routes to product handler
+        "action": "buy",
+        "product_id": 123
+    },
+    message=message
+)
+
+create_callback_button(
+    "Settings",
+    {
+        "type": "settings_handler",  # Routes to settings handler
+        "action": "show_settings"
+    },
+    message=message
+)
+
+# In your callback handler - route based on type
+@receiver(telegram_callback_received)
+def handle_all_buttons(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
+    data = callback_execution.callback_data
+
+    if not isinstance(data, dict):
+        return  # Skip non-dict data
+
+    # Route to appropriate handler based on type
+    handler_type = data.get('type')
+
+    if handler_type == 'product_handler':
+        handle_product_buttons(data, clicking_account, original_message)
+    elif handler_type == 'settings_handler':
+        handle_settings_buttons(data, clicking_account, original_message)
+    elif handler_type == 'tool_handler':
+        handle_tool_buttons(data, clicking_account, original_message, tool_call)
+    else:
+        # Unknown type - log or handle gracefully
+        print(f"Unknown button type: {handler_type}")
+
+def handle_product_buttons(data, account, message):
+    """Handle product-related button clicks"""
+    if data.get('action') == 'buy':
+        product_id = data['product_id']
+        # Process purchase...
+        message.reply_with({'text': f'Processing purchase for product {product_id}'})
+
+def handle_settings_buttons(data, account, message):
+    """Handle settings-related button clicks"""
+    if data.get('action') == 'show_settings':
+        # Show settings menu...
+        message.edit_original_message({'text': '⚙️ Settings Menu'})
+
+def handle_tool_buttons(data, account, message, tool_call):
+    """Handle tool-generated button clicks"""
+    if tool_call and data.get('action') == 'confirm':
+        tool_call.respond({'confirmed': True})
+        message.reply_with({'text': '✅ Confirmed'})
+```
+
+**Alternative Pattern: Multiple Signal Receivers**
+
+```python
+# Register separate handlers for different button types
+@receiver(telegram_callback_received)
+def handle_product_buttons(sender, callback_execution, **kwargs):
+    data = callback_execution.callback_data
+    # Only handle product buttons
+    if isinstance(data, dict) and data.get('type') == 'product':
+        # Handle product actions...
+        pass
+
+@receiver(telegram_callback_received)
+def handle_navigation_buttons(sender, callback_execution, **kwargs):
+    data = callback_execution.callback_data
+    # Only handle navigation buttons
+    if isinstance(data, dict) and data.get('type') == 'nav':
+        # Handle navigation...
+        pass
+```
+
+**Scalable Data Structure Example:**
+
+```python
+# Well-structured callback data for complex applications
+callback_data = {
+    "type": "product_handler",      # Routes to correct handler
+    "action": "add_to_cart",        # Specific action
+    "entity_type": "product",       # Type of entity
+    "entity_id": 123,               # Entity identifier
+    "metadata": {                   # Additional context
+        "source": "search_results",
+        "page": 2
+    }
+}
+```
 
 
 #### 📱 Editing Telegram Messages
@@ -753,24 +935,22 @@ edit_telegram_message(telegram_channel, message, {
 })
 
 # Edit messages with buttons (common in callback handlers)
-# Use the edit_original_message() method on callback messages
 from django.dispatch import receiver
 from unicom.signals import telegram_callback_received
 from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
 
 @receiver(telegram_callback_received)
-def handle_navigation(sender, callback_execution, **kwargs):
+def handle_navigation(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
     button_data = callback_execution.callback_data
-    callback_msg = callback_execution.callback_message
 
     if button_data == 'show_settings':
         # Edit the original message to show settings
-        callback_msg.edit_original_message({
+        original_message.edit_original_message({
             'text': '⚙️ Settings Menu',
             'reply_markup': create_inline_keyboard([
-                [create_callback_button("Account", "settings_account")],
-                [create_callback_button("Privacy", "settings_privacy")],
-                [create_callback_button("🔙 Back", "main_menu")]
+                [create_callback_button("Account", "settings_account", message=original_message, account=clicking_account)],
+                [create_callback_button("Privacy", "settings_privacy", message=original_message, account=clicking_account)],
+                [create_callback_button("🔙 Back", "main_menu", message=original_message, account=clicking_account)]
             ])
         })
 ```

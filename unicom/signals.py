@@ -62,8 +62,8 @@ def create_request_from_message(sender, instance, created, **kwargs):
     if instance.is_outgoing:
         return
     
-    # Skip request creation for tool call and tool response messages
-    if instance.media_type in ['tool_call', 'tool_response']:
+    # Skip request creation for tool call, tool response, and callback messages
+    if instance.media_type in ['tool_call', 'tool_response', 'callback']:
         return
 
     # Extract contact information based on platform
