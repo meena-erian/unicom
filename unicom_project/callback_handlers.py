@@ -26,15 +26,15 @@ def handle_interactive_menu_buttons(sender, callback_execution, **kwargs):
     Demonstrates secure, idempotent callback handling.
     """
     button_data = callback_execution.callback_data
-    user = callback_execution.authorized_user
+    account = callback_execution.intended_account
     callback_msg = callback_execution.callback_message
     original_msg = callback_execution.original_message
 
-    username = user.raw.get('username', user.name)
+    username = account.raw.get('username', account.name)
     print(f"🎯 HANDLER DEBUG: Button clicked: {button_data} by {username}")
     print(f"   - Callback Message ID: {callback_msg.id}")
     print(f"   - Original Message ID: {original_msg.id}")
-    print(f"   - User: {username} ({user.id})")
+    print(f"   - Account: {username} ({account.id})")
 
     # Handle menu navigation
     if button_data == "menu_main":

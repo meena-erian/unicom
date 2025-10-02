@@ -668,20 +668,29 @@ def handle_button_clicks(sender, callback_execution, **kwargs):
     Each callback is processed exactly once across all Django processes.
 
     Available data in callback_execution:
-    - callback_data: The button's callback_data string
-    - authorized_user: The validated user (Account object)
+    - callback_data: The button's callback_data string (max 64 bytes)
+    - intended_account: The validated unicom.Account instance
     - callback_message: Message object for sending responses
     - original_message: The message that contained the buttons
+
+    Note: unicom.Account represents a platform user (e.g., Telegram user, email address).
+    To access Django auth.User, use: account.member.user (if account.member and member.user exists)
     """
-    # Get the button data and validated user
+    # Get the button data and validated Account
     button_data = callback_execution.callback_data  # e.g., "confirm_action"
-    user = callback_execution.authorized_user       # Security-validated user
+    account = callback_execution.intended_account   # unicom.Account instance
     callback_msg = callback_execution.callback_message  # For replying
     original_msg = callback_execution.original_message  # Original message with buttons
 
     if button_data == 'confirm_action':
-        # Process confirmation
-        process_user_confirmation(user)
+        # Process confirmation with the Account
+        process_user_confirmation(account)
+
+        # Access Django User if needed (safely check if member exists)
+        if account.member and account.member.user:
+            django_user = account.member.user
+            # Do something with django_user
+
         callback_msg.reply_with({'text': '✅ Confirmed!'})
 
     elif button_data == 'cancel_action':
@@ -689,7 +698,7 @@ def handle_button_clicks(sender, callback_execution, **kwargs):
         callback_msg.reply_with({'text': '❌ Cancelled'})
 
     elif button_data.startswith('product_'):
-        # Handle dynamic data (e.g., "product_123")
+        # Handle dynamic data encoded in callback_data (e.g., "product_123")
         product_id = button_data.split('_')[1]
         product = get_product(product_id)
 
@@ -714,7 +723,7 @@ def handle_button_clicks(sender, callback_execution, **kwargs):
         })
 
 # Security is automatic:
-# - Only authorized users can click buttons (prevents group chat abuse)
+# - Only the intended account can click buttons (prevents group chat abuse)
 # - Each callback processes exactly once (prevents duplicate actions)
 # - Built-in protection against forwarded messages and replay attacks
 # - Loading indicators stop automatically (answerCallbackQuery)
@@ -739,8 +748,8 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
 
 **Security Features (Automatic):**
 
-- **Authorization**: Only the intended recipient can click buttons
-  - In private chats: Only that user can click
+- **Authorization**: Only the intended account can click buttons
+  - In private chats: Only that account can click
   - In group chats: Only the original message recipient can click
   - Forwarded messages: Buttons are automatically disabled
 
@@ -754,7 +763,6 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
   - Fast response times
   - Graceful network error handling
 
-**For more examples and best practices**, see the [detailed Telegram buttons guide](docs/telegram_buttons_guide.md).
 
 #### 📱 Editing Telegram Messages
 

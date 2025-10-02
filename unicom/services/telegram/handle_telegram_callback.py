@@ -76,14 +76,14 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
         print(f"❌ CALLBACK DEBUG: Account not found for user: {user_id}")
         return False
 
-    # Security check: Only the original recipient can click buttons
+    # Security check: Only the intended account can click buttons
     # This prevents abuse in group chats or forwarded messages
-    print(f"🔒 CALLBACK DEBUG: Checking authorization for button click")
-    if not is_authorized_to_click_button(original_message, clicking_user):
+    print(f"🔒 CALLBACK DEBUG: Checking if account is intended for button click")
+    if not is_intended_account_for_button(original_message, clicking_user):
         logger.info(f"Unauthorized button click by {username} on message {original_message.id}")
-        print(f"❌ CALLBACK DEBUG: Unauthorized button click by {username}")
+        print(f"❌ CALLBACK DEBUG: Account {username} is not intended for this button")
         return False
-    print(f"✅ CALLBACK DEBUG: User is authorized to click button")
+    print(f"✅ CALLBACK DEBUG: Account is intended for button click")
 
     # Atomic check-and-process to ensure single execution
     print(f"🔄 CALLBACK DEBUG: Starting atomic callback processing")
@@ -94,7 +94,7 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
                 'callback_message': create_callback_message(callback_query_data, original_message, clicking_user),
                 'original_message': original_message,
                 'callback_data': callback_data,
-                'authorized_user': clicking_user,
+                'intended_account': clicking_user,
             }
         )
 
@@ -138,27 +138,27 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
                 return False
 
 
-def is_authorized_to_click_button(original_message: Message, clicking_user: Account) -> bool:
+def is_intended_account_for_button(original_message: Message, clicking_user: Account) -> bool:
     """
-    Security check to ensure only authorized users can click buttons.
+    Security check to ensure only the intended account can click buttons.
     Prevents abuse in group chats, forwarded messages, etc.
 
     Args:
         original_message: The message containing the buttons
-        clicking_user: The user who clicked the button
+        clicking_user: The account who clicked the button
 
     Returns:
-        bool: True if user is authorized to click buttons on this message
+        bool: True if account is intended to click buttons on this message
     """
     # Rule 1: If it's a private chat, only the chat participant can click
     if original_message.chat.id.startswith('private_'):
         # Extract user ID from private chat ID (format: "private_{user_id}")
-        authorized_user_id = original_message.chat.id.replace('private_', '')
-        return clicking_user.id == authorized_user_id
+        intended_account_id = original_message.chat.id.replace('private_', '')
+        return clicking_user.id == intended_account_id
 
     # Rule 2: If it's an outgoing message in any chat, only the original recipient can click
     if original_message.is_outgoing:
-        # For outgoing messages, the chat participant (not the sender) is authorized
+        # For outgoing messages, the chat participant (not the sender) is the intended account
         return clicking_user.id != original_message.sender.id
 
     # Rule 3: For incoming messages in groups, only the original sender can click their own buttons
