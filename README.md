@@ -243,15 +243,15 @@ message = email_channel.send_message({
 })
 
 # 📱 Telegram only: Message with interactive buttons
-from unicom.services.telegram.create_inline_keyboard import create_simple_keyboard
+from unicom.services.telegram.create_inline_keyboard import create_callback_button, create_inline_keyboard
 
 message = telegram_channel.send_message({
     'chat_id': 'user_chat_id',
     'text': 'Choose an option:',
-    'reply_markup': create_simple_keyboard(
-        "Confirm", "confirm_yes",
-        "Cancel", "confirm_no"
-    )
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button("Confirm", {"action": "confirm"}, message=message)],
+        [create_callback_button("Cancel", {"action": "cancel"}, message=message)]
+    ])
 })
 # See "Interactive Buttons & Callbacks" section for handling button clicks
 ```
@@ -616,41 +616,40 @@ message = telegram_channel.send_message({
 
 #### 📱 Interactive Messages with Action Buttons
 
-Telegram channels support inline keyboard buttons for interactive messages:
+Telegram channels support inline keyboard buttons. Pass any JSON-serializable `callback_data`:
 
 ```python
 from unicom.services.telegram.create_inline_keyboard import (
-    create_inline_keyboard, create_callback_button, create_url_button, create_simple_keyboard
+    create_inline_keyboard, create_callback_button, create_url_button
 )
 
-# Send message with custom inline keyboard
-reply_markup = create_inline_keyboard([
-    [create_callback_button("Yes", "yes_action"), create_callback_button("No", "no_action")],
-    [create_url_button("Visit Website", "https://example.com")]
-])
-
+# Create message with buttons
 message = telegram_channel.send_message({
     'chat_id': 'telegram_chat_id',
     'text': 'Do you want to continue?',
-    'reply_markup': reply_markup
-})
-
-# Quick helper for simple button layouts
-simple_keyboard = create_simple_keyboard("Option 1", "opt1", "Option 2", "opt2")
-message = telegram_channel.send_message({
-    'chat_id': 'telegram_chat_id',
-    'text': 'Choose an option:',
-    'reply_markup': simple_keyboard
-})
-
-# Works with all wrapper functions like reply_with
-reply = message.reply_with({
-    'text': 'Here are your options:',
     'reply_markup': create_inline_keyboard([
-        [create_callback_button("Confirm", "confirm_action")],
-        [create_callback_button("Cancel", "cancel_action")]
+        [create_callback_button("Yes", {"action": "confirm"}, message=message)],
+        [create_callback_button("No", {"action": "cancel"}, message=message)],
+        [create_url_button("Visit Website", "https://example.com")]
     ])
 })
+
+# Rich data structures
+product_buttons = create_inline_keyboard([
+    [create_callback_button("Product A", {"product_id": 123, "price": 29.99}, message=message)],
+    [create_callback_button("Product B", {"product_id": 456, "price": 49.99}, message=message)]
+])
+
+# Optional expiration
+from django.utils import timezone
+from datetime import timedelta
+
+expiring_button = create_callback_button(
+    "Limited Offer",
+    {"offer_id": 789},
+    message=message,
+    expires_at=timezone.now() + timedelta(hours=24)
+)
 ```
 
 #### 📱 Handling Button Clicks
@@ -662,71 +661,52 @@ from django.dispatch import receiver
 from unicom.signals import telegram_callback_received
 
 @receiver(telegram_callback_received)
-def handle_button_clicks(sender, callback_execution, **kwargs):
+def handle_button_clicks(sender, callback_execution, callback_message, **kwargs):
     """
-    Handle all button clicks with automatic security validation and idempotency.
-    Each callback is processed exactly once across all Django processes.
+    Handle button clicks.
 
-    Available data in callback_execution:
-    - callback_data: The button's callback_data string (max 64 bytes)
-    - intended_account: The validated unicom.Account instance
-    - callback_message: Message object for sending responses
-    - original_message: The message that contained the buttons
+    Args:
+        callback_execution: CallbackExecution instance with:
+            - callback_data: Your data (dict, list, str, int, bool, None)
+            - intended_account: The unicom.Account this button was created for
+            - original_message: The message with the buttons
+            - expires_at: Optional expiration datetime
+        callback_message: Message object for sending responses
 
     Note: unicom.Account represents a platform user (e.g., Telegram user, email address).
-    To access Django auth.User, use: account.member.user (if account.member and member.user exists)
+    To access Django auth.User: account.member.user (if account.member exists)
     """
-    # Get the button data and validated Account
-    button_data = callback_execution.callback_data  # e.g., "confirm_action"
-    account = callback_execution.intended_account   # unicom.Account instance
-    callback_msg = callback_execution.callback_message  # For replying
-    original_msg = callback_execution.original_message  # Original message with buttons
+    data = callback_execution.callback_data
+    account = callback_execution.intended_account
+    original_msg = callback_execution.original_message
 
-    if button_data == 'confirm_action':
-        # Process confirmation with the Account
-        process_user_confirmation(account)
+    # Handle dict callback_data
+    if isinstance(data, dict):
+        if data.get('action') == 'confirm':
+            process_confirmation(account)
+            callback_message.reply_with({'text': '✅ Confirmed!'})
 
-        # Access Django User if needed (safely check if member exists)
-        if account.member and account.member.user:
-            django_user = account.member.user
-            # Do something with django_user
+        elif data.get('action') == 'buy_product':
+            product_id = data['product_id']
+            product = get_product(product_id)
 
-        callback_msg.reply_with({'text': '✅ Confirmed!'})
+            # Create new buttons with callback_data
+            callback_message.reply_with({
+                'text': f'Product: {product.name}\nPrice: ${product.price}',
+                'reply_markup': create_inline_keyboard([
+                    [create_callback_button('Confirm Purchase', {'action': 'confirm_purchase', 'product_id': product_id}, message=callback_message)],
+                    [create_callback_button('Cancel', {'action': 'cancel'}, message=callback_message)]
+                ])
+            })
 
-    elif button_data == 'cancel_action':
-        # Process cancellation
-        callback_msg.reply_with({'text': '❌ Cancelled'})
+    # Handle string callback_data
+    elif data == 'cancel':
+        callback_message.reply_with({'text': '❌ Cancelled'})
 
-    elif button_data.startswith('product_'):
-        # Handle dynamic data encoded in callback_data (e.g., "product_123")
-        product_id = button_data.split('_')[1]
-        product = get_product(product_id)
-
-        # Send response with new buttons
-        callback_msg.reply_with({
-            'text': f'Product: {product.name}\nPrice: ${product.price}',
-            'reply_markup': create_simple_keyboard(
-                'Buy Now', f'buy_{product_id}',
-                'Add to Cart', f'cart_{product_id}'
-            )
-        })
-
-    elif button_data == 'show_menu':
-        # Update the original message (edit in place)
-        from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
-        callback_msg.edit_original_message({
-            'text': '📋 Main Menu:',
-            'reply_markup': create_inline_keyboard([
-                [create_callback_button("Option 1", "opt1")],
-                [create_callback_button("Option 2", "opt2")]
-            ])
-        })
-
-# Security is automatic:
-# - Only the intended account can click buttons (prevents group chat abuse)
-# - Each callback processes exactly once (prevents duplicate actions)
-# - Built-in protection against forwarded messages and replay attacks
-# - Loading indicators stop automatically (answerCallbackQuery)
+    # Access Django User if needed
+    if account.member and account.member.user:
+        django_user = account.member.user
+        # Do something with django_user
 ```
 
 **Where to put your callback handler:**
@@ -746,22 +726,13 @@ class YourAppConfig(AppConfig):
 
 Make sure your app is in `INSTALLED_APPS` in settings.py.
 
-**Security Features (Automatic):**
+**Key Features:**
 
-- **Authorization**: Only the intended account can click buttons
-  - In private chats: Only that account can click
-  - In group chats: Only the original message recipient can click
-  - Forwarded messages: Buttons are automatically disabled
-
-- **Idempotency**: Each button click processes exactly once
-  - Safe across multiple Django processes
-  - Database-backed coordination
-  - Prevents duplicate actions (e.g., double charges)
-
-- **User Experience**:
-  - Loading indicators stop immediately
-  - Fast response times
-  - Graceful network error handling
+- **Flexible Data**: Store any JSON-serializable data (dict, list, str, int, bool, None)
+- **Security**: Only the intended account can click the button
+- **Expiration**: Optional `expires_at` parameter for time-limited buttons
+- **Reusable**: Buttons can be clicked multiple times (developers control behavior)
+- **Efficient**: Callback data stored in DB, only ID sent to Telegram
 
 
 #### 📱 Editing Telegram Messages

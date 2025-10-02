@@ -20,14 +20,13 @@ RANDOM_FACTS = [
 ]
 
 @receiver(telegram_callback_received)
-def handle_interactive_menu_buttons(sender, callback_execution, **kwargs):
+def handle_interactive_menu_buttons(sender, callback_execution, callback_message, **kwargs):
     """
     Handle button clicks from the interactive menu tool.
-    Demonstrates secure, idempotent callback handling.
     """
     button_data = callback_execution.callback_data
     account = callback_execution.intended_account
-    callback_msg = callback_execution.callback_message
+    callback_msg = callback_message
     original_msg = callback_execution.original_message
 
     username = account.raw.get('username', account.name)

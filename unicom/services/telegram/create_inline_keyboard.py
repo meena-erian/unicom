@@ -57,18 +57,48 @@ def create_inline_keyboard(buttons: List[List[Dict[str, Any]]]) -> Dict[str, Lis
     return {"inline_keyboard": buttons}
 
 
-def create_callback_button(text: str, callback_data: str) -> Dict[str, str]:
+def create_callback_button(text: str, callback_data: Any, message=None, account=None, expires_at=None) -> Dict[str, str]:
     """
     Quick helper to create a callback button.
 
     Args:
         text: Button text to display
-        callback_data: Data to be sent in callback query
+        callback_data: Any JSON-serializable data (dict, list, str, int, bool, None)
+        message: The message this button belongs to (optional, for creating CallbackExecution)
+        account: The intended account for this button (optional, defaults to message recipient)
+        expires_at: Optional expiration datetime for this callback
 
     Returns:
         Button dictionary ready for Telegram API
+
+    Examples:
+        create_callback_button("Yes", "confirm")
+        create_callback_button("Buy", {"product_id": 123}, message=msg, account=user_account)
     """
-    return create_inline_keyboard_button(text, callback_data=callback_data)
+    # If message is provided, create CallbackExecution and use its ID
+    if message:
+        from unicom.models import CallbackExecution
+
+        # Default to message sender if no account specified
+        if not account:
+            account = message.sender if not message.is_outgoing else message.chat.accounts.first()
+
+        execution = CallbackExecution.objects.create(
+            original_message=message,
+            callback_data=callback_data,
+            intended_account=account,
+            expires_at=expires_at
+        )
+        callback_data_str = str(execution.id)
+    else:
+        # Legacy: just convert callback_data to string
+        import json
+        if not isinstance(callback_data, str):
+            callback_data_str = json.dumps(callback_data, separators=(',', ':'))
+        else:
+            callback_data_str = callback_data
+
+    return create_inline_keyboard_button(text, callback_data=callback_data_str)
 
 
 def create_url_button(text: str, url: str) -> Dict[str, str]:
