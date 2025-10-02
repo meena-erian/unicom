@@ -1,4 +1,5 @@
 from unicom.models import Message, AccountChat, Channel, Request
+from django.dispatch import Signal
 from django.db import transaction
 from django.db.models.signals import post_save, pre_save, post_delete
 from unicom.services.email.IMAP_thread_manager import imap_manager
@@ -12,6 +13,9 @@ from imapclient import IMAPClient, SEEN
 import imaplib
 
 
+# Callback signals for button click handling
+telegram_callback_received = Signal()
+callback_received = Signal()  # Future extension for other platforms
 
 
 @receiver(pre_save, sender=Channel)
