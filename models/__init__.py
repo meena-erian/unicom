@@ -11,6 +11,7 @@ from .request import Request
 from .tool_call import ToolCall
 from .message_template import MessageTemplate
 from .draft_message import DraftMessage
+from .callback_execution import CallbackExecution
 
 __all__ = [
     'AccountChat',
@@ -26,5 +27,6 @@ __all__ = [
     'Member',
     'MemberGroup',
     'MessageTemplate',
-    'DraftMessage'
+    'DraftMessage',
+    'CallbackExecution'
 ]
