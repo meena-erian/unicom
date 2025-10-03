@@ -106,11 +106,12 @@ class ToolCall(models.Model):
             
         Behavior:
         - For PENDING status: Marks as COMPLETED, creates child request if final
+        - For IN_PROGRESS status: Marks as COMPLETED, creates child request if final
         - For ACTIVE status: Logs response but keeps ACTIVE, no child request
         - For other statuses: Raises ValueError
         """
         # Validate current status
-        if self.status not in ['PENDING', 'ACTIVE']:
+        if self.status not in ['PENDING', 'IN_PROGRESS', 'ACTIVE']:
             raise ValueError(f"Cannot respond to tool call with status: {self.status}")
         
         # Create tool response message for LLM context - reply to the tool call message
@@ -119,15 +120,12 @@ class ToolCall(models.Model):
         )
         
         # Handle response based on current status
-        if self.status == 'ACTIVE':
-            # Periodic response - just log, don't change status or create child
-            return tool_response_msg, None
-        
-        # PENDING status - mark as completed and check for final response
         with transaction.atomic():
-            self.status = 'COMPLETED'
-            self.completed_at = timezone.now()
-            self.save(update_fields=['status', 'completed_at'])
+            # Only mark as completed if not ACTIVE (ACTIVE stays active for reusable buttons)
+            if self.status != 'ACTIVE':
+                self.status = 'COMPLETED'
+                self.completed_at = timezone.now()
+                self.save(update_fields=['status', 'completed_at'])
             
             # Check if this is the final response (all PENDING tool calls now COMPLETED)
             pending_calls = self.request.tool_calls.filter(status='PENDING').count()

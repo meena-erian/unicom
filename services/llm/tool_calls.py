@@ -104,8 +104,9 @@ def save_tool_response(chat, call_id, result, tool_name, user=None, reply_to_mes
         result_summary = result_summary[:97] + "..."
     
     # Create the tool response message
+    timestamp = int(timezone.now().timestamp() * 1000)
     message = Message.objects.create(
-        id=f"tool_response_{chat.id}_{call_id}",
+        id=f"tool_response_{chat.id}_{call_id}_{timestamp}",
         channel=chat.channel,
         platform=chat.platform,
         sender=system_account,
