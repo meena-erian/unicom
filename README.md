@@ -17,6 +17,9 @@
   - [Telegram-Specific Features](#telegram-specific-features)
     - [Typing Indicators](#-typing-indicators)
     - [Interactive Buttons & Callbacks](#-interactive-messages-with-action-buttons)
+      - [Handling Button Clicks](#-handling-button-clicks)
+      - [Tool-Generated Buttons](#-tool-generated-buttons-advanced)
+      - [Button Routing Best Practices](#-button-routing-best-practices)
     - [Editing Messages](#-editing-telegram-messages)
     - [File Downloads and Voice Messages](#-file-downloads-and-voice-messages)
   - [LLM Integration](#llm-integration)
@@ -245,15 +248,17 @@ message = email_channel.send_message({
 # 📱 Telegram only: Message with interactive buttons
 from unicom.services.telegram.create_inline_keyboard import create_callback_button, create_inline_keyboard
 
+# For initial messages, use legacy mode (no message parameter)
+# Buttons will work but won't be linked to CallbackExecution
 message = telegram_channel.send_message({
     'chat_id': 'user_chat_id',
     'text': 'Choose an option:',
     'reply_markup': create_inline_keyboard([
-        [create_callback_button("Confirm", {"action": "confirm"}, message=message)],
-        [create_callback_button("Cancel", {"action": "cancel"}, message=message)]
+        [create_callback_button("Confirm", {"action": "confirm"})],
+        [create_callback_button("Cancel", {"action": "cancel"})]
     ])
 })
-# See "Interactive Buttons & Callbacks" section for handling button clicks
+# See "Interactive Buttons & Callbacks" section for full details
 ```
 
 ### Message Model
@@ -397,14 +402,14 @@ reply = message.reply_with({
 })
 
 # 📱 Telegram only: Reply with interactive buttons
-from unicom.services.telegram.create_inline_keyboard import create_simple_keyboard
+from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
 
 reply = message.reply_with({
     'text': 'Would you like to continue?',
-    'reply_markup': create_simple_keyboard(
-        "Yes", "continue_yes",
-        "No", "continue_no"
-    )
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button("Yes", {"action": "continue", "value": True}, message=message)],
+        [create_callback_button("No", {"action": "continue", "value": False}, message=message)]
+    ])
 })
 # See "Interactive Buttons & Callbacks" section for handling button clicks
 ```
@@ -623,33 +628,41 @@ from unicom.services.telegram.create_inline_keyboard import (
     create_inline_keyboard, create_callback_button, create_url_button
 )
 
-# Create message with buttons
-message = telegram_channel.send_message({
-    'chat_id': 'telegram_chat_id',
+# When replying to existing messages, pass message and account for full features
+# This creates CallbackExecution records and enables security + tool integration
+incoming_message.reply_with({
     'text': 'Do you want to continue?',
     'reply_markup': create_inline_keyboard([
-        [create_callback_button("Yes", {"action": "confirm"}, message=message)],
-        [create_callback_button("No", {"action": "cancel"}, message=message)],
+        [create_callback_button("Yes", {"action": "confirm"}, message=incoming_message)],
+        [create_callback_button("No", {"action": "cancel"}, message=incoming_message)],
         [create_url_button("Visit Website", "https://example.com")]
     ])
 })
 
-# Rich data structures
-product_buttons = create_inline_keyboard([
-    [create_callback_button("Product A", {"product_id": 123, "price": 29.99}, message=message)],
-    [create_callback_button("Product B", {"product_id": 456, "price": 49.99}, message=message)]
-])
+# Rich data structures with any JSON-serializable data
+incoming_message.reply_with({
+    'text': 'Choose a product:',
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button("Product A", {"product_id": 123, "price": 29.99, "stock": 5}, message=incoming_message)],
+        [create_callback_button("Product B", {"product_id": 456, "price": 49.99, "stock": 12}, message=incoming_message)]
+    ])
+})
 
-# Optional expiration
+# Optional expiration for time-limited offers
 from django.utils import timezone
 from datetime import timedelta
 
-expiring_button = create_callback_button(
-    "Limited Offer",
-    {"offer_id": 789},
-    message=message,
-    expires_at=timezone.now() + timedelta(hours=24)
-)
+incoming_message.reply_with({
+    'text': 'Limited time offer!',
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button(
+            "Claim Offer",
+            {"offer_id": 789, "discount": 0.5},
+            message=incoming_message,
+            expires_at=timezone.now() + timedelta(hours=24)
+        )]
+    ])
+})
 ```
 
 #### 📱 Handling Button Clicks
@@ -742,20 +755,12 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
 When a tool sends buttons, you can link them to the ToolCall so handlers can respond to the LLM:
 
 ```python
-# In your tool code (e.g., definitions/tools/my_tool.py)
+# In your tool code (e.g., unibot Tool model)
 def my_interactive_tool(question: str) -> str:
     """Ask user a question with buttons and wait for response."""
 
-    # Get the tool_call object - available in tool context
-    # This requires your tool system to pass tool_call to tools
-    from unicom.models import ToolCall
-    tool_call = ToolCall.objects.filter(
-        tool_name='my_interactive_tool',
-        status='PENDING'
-    ).order_by('-created_at').first()
-
-    # Or if your tool system provides it directly:
-    # tool_call = context.get('tool_call')  # depends on your implementation
+    # tool_call is available in tool context - no need to query!
+    # Just use it directly
 
     # Send message with buttons linked to this tool call
     message.reply_with({
@@ -765,7 +770,7 @@ def my_interactive_tool(question: str) -> str:
                 "Yes",
                 {"tool": "my_interactive_tool", "action": "answer", "value": "yes"},
                 message=message,
-                tool_call=tool_call  # Link button to tool call
+                tool_call=tool_call  # Use the context variable
             )],
             [create_callback_button(
                 "No",
@@ -776,7 +781,8 @@ def my_interactive_tool(question: str) -> str:
         ])
     })
 
-    return "Question sent to user, waiting for response..."
+    # Return None to defer response - tool will respond when user clicks
+    return None
 
 # In your callback handler (callback_handlers.py)
 @receiver(telegram_callback_received)
@@ -1044,35 +1050,78 @@ chat.log_tool_interaction(
 
 The LLM system supports delayed tool calls that can take hours or days to complete, perfect for reminders, monitoring, and long-running processes.
 
+**Tool Implementation - Return `None` to Defer Response:**
+
 ```python
-from unicom.models import Request, ToolCall
+# In your tool definition (e.g., unibot Tool model)
+def set_reminder(text: str, delay_hours: int) -> str:
+    """Schedule a reminder for later"""
+    from django.utils import timezone
+    from datetime import timedelta
 
-# Submit multiple tool calls from a request (atomic operation)
-request = Request.objects.get(id='request_id')
-tool_calls = request.submit_tool_calls([
-    {
-        "name": "set_reminder",
-        "arguments": {"text": "Meeting tomorrow", "delay_hours": 24},
-        "id": "call_123"  # Optional, auto-generated if omitted
+    # Schedule the reminder using the tool_call context variable
+    reminder_time = timezone.now() + timedelta(hours=delay_hours)
+
+    # Store tool_call.id for later response
+    # (e.g., in a database, Redis, or scheduler)
+    schedule_reminder(
+        tool_call_id=tool_call.call_id,
+        message=text,
+        scheduled_time=reminder_time
+    )
+
+    # Return None to defer the response
+    # System automatically marks tool_call as IN_PROGRESS
+    return None
+
+tool_definition = {
+    "name": "set_reminder",
+    "description": "Set a reminder for a specific time in the future",
+    "parameters": {
+        "text": {"type": "string", "description": "Reminder text"},
+        "delay_hours": {"type": "integer", "description": "Hours to wait"}
     },
-    {
-        "name": "monitor_system", 
-        "arguments": {"threshold": 90}
-    }
-])
+    "run": set_reminder
+}
+```
 
-# Days later... respond to tool calls
-reminder_call = ToolCall.objects.get(call_id="call_123")
-msg, child_request = reminder_call.respond("Reminder: Meeting in 1 hour")
-# Creates new child request for further processing
+**Responding Later from Any Process:**
 
-# For periodic/ongoing tools, set status to ACTIVE
-monitor_call = tool_calls[1]  
-monitor_call.status = 'ACTIVE'
-monitor_call.save()
-# Now it can respond indefinitely without creating child requests
-monitor_call.respond("CPU usage: 95%")  # Just logs, no child request
-monitor_call.respond("CPU usage: 92%")  # Just logs, no child request
+```python
+from unicom.models import ToolCall
+
+# Hours or days later, in a background job or scheduled task...
+tool_call = ToolCall.objects.get(call_id="call_123")
+
+# Respond to the tool call
+msg, child_request = tool_call.respond("Reminder: Meeting in 1 hour")
+# This creates a new child request for the LLM to process
+
+# The LLM receives the response and can continue the conversation
+```
+
+**For Periodic/Ongoing Tools (e.g., Monitoring):**
+
+```python
+def monitor_system(threshold: int) -> str:
+    """Monitor system continuously and report status"""
+
+    # Mark as ACTIVE for periodic responses
+    tool_call.mark_active()
+
+    # Start background monitoring
+    start_monitoring_task(tool_call_id=tool_call.call_id, threshold=threshold)
+
+    return None  # Or return initial status
+
+# Later, in your monitoring task...
+tool_call = ToolCall.objects.get(call_id="monitor_123", status='ACTIVE')
+
+# Send periodic updates without creating child requests
+tool_call.respond("CPU usage: 95%")  # Just logs, no child request
+tool_call.respond("CPU usage: 92%")  # Just logs, no child request
+
+# Tool call remains ACTIVE and can respond indefinitely
 ```
 
 #### 🤖 Request Hierarchy and Final Response Logic
