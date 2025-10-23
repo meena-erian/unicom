@@ -91,6 +91,7 @@ def send_webchat_message_api(request):
         # Return response
         return JsonResponse({
             'success': True,
+            'chat_id': message.chat_id,
             'message': {
                 'id': message.id,
                 'text': message.text,
@@ -98,6 +99,8 @@ def send_webchat_message_api(request):
                 'chat_id': message.chat_id,
                 'media_type': message.media_type,
                 'media_url': message.media.url if message.media else None,
+                'is_outgoing': message.is_outgoing,
+                'sender_name': message.sender_name,
             }
         })
 
@@ -135,10 +138,20 @@ def get_webchat_messages_api(request):
         account = get_or_create_account(channel, request)
 
         # Get parameters
-        chat_id = request.GET.get('chat_id') or account.id
+        chat_id = request.GET.get('chat_id')
         limit = min(int(request.GET.get('limit', 50)), 100)
         before = request.GET.get('before')
         after = request.GET.get('after')
+
+        # If no chat_id provided, return empty list
+        if not chat_id:
+            return JsonResponse({
+                'success': True,
+                'chat_id': None,
+                'messages': [],
+                'has_more': False,
+                'next_cursor': None
+            })
 
         # Verify access to chat
         try:
@@ -270,6 +283,128 @@ def list_webchat_chats_api(request):
         return JsonResponse({
             'success': True,
             'chats': chats_data
+        })
+
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "PUT"])
+def update_webchat_chat_api(request, chat_id):
+    """
+    Update chat (rename title or archive status).
+
+    PATCH/PUT /unicom/webchat/chat/<chat_id>/
+
+    Request body:
+        - title: New chat title (optional)
+        - is_archived: Archive status (optional)
+
+    Returns:
+        JSON with updated chat details
+    """
+    try:
+        _ensure_session(request)
+
+        # Get channel
+        channel = _get_webchat_channel()
+
+        # Get account
+        account = get_or_create_account(channel, request)
+
+        # Parse request body
+        import json
+        data = json.loads(request.body)
+
+        # Verify access to chat
+        try:
+            chat = Chat.objects.get(id=chat_id, platform='WebChat')
+            AccountChat.objects.get(account=account, chat=chat)
+        except (Chat.DoesNotExist, AccountChat.DoesNotExist):
+            return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
+
+        # Update fields
+        updated_fields = []
+
+        if 'title' in data:
+            chat.name = data['title']
+            updated_fields.append('name')
+
+        if 'is_archived' in data:
+            chat.is_archived = data['is_archived']
+            updated_fields.append('is_archived')
+
+        if updated_fields:
+            chat.save(update_fields=updated_fields)
+
+        return JsonResponse({
+            'success': True,
+            'chat': {
+                'id': chat.id,
+                'name': chat.name,
+                'is_archived': chat.is_archived,
+            }
+        })
+
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_webchat_chat_api(request, chat_id):
+    """
+    Delete/archive a chat.
+
+    DELETE /unicom/webchat/chat/<chat_id>/
+
+    Query parameters:
+        - hard_delete: If 'true', permanently delete. Otherwise archive (default).
+
+    Returns:
+        JSON with success message
+    """
+    try:
+        _ensure_session(request)
+
+        # Get channel
+        channel = _get_webchat_channel()
+
+        # Get account
+        account = get_or_create_account(channel, request)
+
+        # Verify access to chat
+        try:
+            chat = Chat.objects.get(id=chat_id, platform='WebChat')
+            AccountChat.objects.get(account=account, chat=chat)
+        except (Chat.DoesNotExist, AccountChat.DoesNotExist):
+            return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
+
+        # Check if hard delete requested
+        hard_delete = request.GET.get('hard_delete', 'false').lower() == 'true'
+
+        if hard_delete:
+            # Permanently delete chat and all messages
+            chat.delete()
+            message = 'Chat permanently deleted'
+        else:
+            # Soft delete: archive
+            chat.is_archived = True
+            chat.save(update_fields=['is_archived'])
+            message = 'Chat archived'
+
+        return JsonResponse({
+            'success': True,
+            'message': message
         })
 
     except ValueError as e:

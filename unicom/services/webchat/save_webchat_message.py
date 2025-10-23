@@ -41,16 +41,31 @@ def save_webchat_message(channel, message_data, request, user=None):
         return None
 
     # Get or create chat
-    chat_id = message_data.get('chat_id') or account.id
-    chat, created = Chat.objects.get_or_create(
-        id=chat_id,
-        defaults={
-            'platform': platform,
-            'channel': channel,
-            'is_private': True,
-            'name': f"Chat with {account.name}"
-        }
-    )
+    chat_id = message_data.get('chat_id')
+
+    if chat_id:
+        # Use existing chat
+        try:
+            chat = Chat.objects.get(id=chat_id, platform=platform)
+            # Verify account has access to this chat
+            if not AccountChat.objects.filter(account=account, chat=chat).exists():
+                # Account doesn't have access - this shouldn't happen
+                return None
+            created = False
+        except Chat.DoesNotExist:
+            return None
+    else:
+        # Create new chat with UUID
+        import uuid
+        chat_id = f"webchat_{uuid.uuid4()}"
+        chat = Chat.objects.create(
+            id=chat_id,
+            platform=platform,
+            channel=channel,
+            is_private=True,
+            name=f"Chat with {account.name}"
+        )
+        created = True
 
     # Link account to chat if not already linked
     AccountChat.objects.get_or_create(account=account, chat=chat)
@@ -101,6 +116,11 @@ def save_webchat_message(channel, message_data, request, user=None):
         'first_message', 'first_incoming_message',
         'last_message', 'last_incoming_message'
     ])
+
+    # Auto-generate chat title from first message if needed
+    if created and chat.name == f"Chat with {account.name}":
+        from unicom.services.webchat.generate_chat_title import generate_chat_title
+        generate_chat_title(chat)
 
     # Create Request object for incoming messages
     # Check if request already exists for this message (avoid duplicates)
