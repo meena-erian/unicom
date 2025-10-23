@@ -10,7 +10,10 @@ from unicom.views.webchat_views import (
     send_webchat_message_api,
     get_webchat_messages_api,
     list_webchat_chats_api,
+    update_webchat_chat_api,
+    delete_webchat_chat_api,
 )
+from unicom.views.webchat_demo_view import webchat_demo_view
 
 urlpatterns = [
     path('telegram/<int:bot_id>', telegram_webhook),
@@ -26,4 +29,8 @@ urlpatterns = [
     path('webchat/send/', send_webchat_message_api, name='webchat_send'),
     path('webchat/messages/', get_webchat_messages_api, name='webchat_messages'),
     path('webchat/chats/', list_webchat_chats_api, name='webchat_chats'),
+    path('webchat/chat/<str:chat_id>/', update_webchat_chat_api, name='webchat_update_chat'),
+    path('webchat/chat/<str:chat_id>/delete/', delete_webchat_chat_api, name='webchat_delete_chat'),
+    # WebChat demo page
+    path('webchat/demo/', webchat_demo_view, name='webchat_demo'),
 ]
