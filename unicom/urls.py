@@ -6,6 +6,11 @@ from .views.message_template import MessageTemplateListView, populate_message_te
 from unicom.views.inline_image import serve_inline_image
 from unicom.views.inline_image import serve_template_inline_image
 from unicom.views.chat_history_view import message_as_llm_chat
+from unicom.views.webchat_views import (
+    send_webchat_message_api,
+    get_webchat_messages_api,
+    list_webchat_chats_api,
+)
 
 urlpatterns = [
     path('telegram/<int:bot_id>', telegram_webhook),
@@ -17,4 +22,8 @@ urlpatterns = [
     path('api/message/<str:message_id>/as_llm_chat/', message_as_llm_chat, name='message_as_llm_chat'),
     path('i/<str:shortid>/', serve_inline_image, name='inline_image'),
     path('t/<str:shortid>/', serve_template_inline_image, name='template_inline_image'),
+    # WebChat API endpoints
+    path('webchat/send/', send_webchat_message_api, name='webchat_send'),
+    path('webchat/messages/', get_webchat_messages_api, name='webchat_messages'),
+    path('webchat/chats/', list_webchat_chats_api, name='webchat_chats'),
 ]

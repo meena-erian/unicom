@@ -111,6 +111,12 @@ class Channel(models.Model):
         elif self.platform == 'Email':
             self.validate_SMTP_and_IMAP()
 
+        elif self.platform == 'WebChat':
+            # WebChat doesn't need external validation
+            # Just mark as active
+            self.active = True
+            self.error = None
+
         # Determine changed fields and update via QuerySet.update() to avoid signals
         changes = {}
         for field in attributes_monitored_for_change:
