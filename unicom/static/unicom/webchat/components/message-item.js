@@ -84,12 +84,17 @@ export class MessageItem extends LitElement {
     if (!this.message) return html``;
 
     const message = this.message;
-    const isOutgoing = message.is_outgoing;
-    const alignment = isOutgoing ? 'outgoing' : 'incoming';
+    const isUserMessage = message.is_outgoing === false;
+    const alignment = isUserMessage ? 'outgoing' : 'incoming';
+    const classes = ['message-item', alignment];
+
+    if (message.is_outgoing === null) {
+      classes.push('system');
+    }
 
     return html`
-      <div class="message-item ${alignment}">
-        ${!isOutgoing && message.sender_name ? html`
+      <div class="${classes.join(' ')}">
+        ${!isUserMessage && message.sender_name ? html`
           <div class="sender-name">${message.sender_name}</div>
         ` : ''}
         <div class="message-bubble">
