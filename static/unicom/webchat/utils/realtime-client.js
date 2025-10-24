@@ -6,15 +6,29 @@
 import { WebChatAPI } from './api-client.js';
 
 export class RealTimeWebChatClient {
-  constructor(baseURL = '/unicom/webchat', wsURL = null) {
+  constructor(baseURL = '/unicom/webchat', wsURL = null, options = {}) {
     this.baseURL = baseURL;
     this.wsURL = wsURL || this._getWebSocketURL();
     this.api = new WebChatAPI(baseURL);
 
+    const normalizedOptions = options || {};
+    const explicitlyEnable = normalizedOptions.enableWebsocket ?? normalizedOptions.enableWebSocket;
+    const explicitlyDisable =
+      normalizedOptions.disableWebsocket ||
+      normalizedOptions.disableWebSocket ||
+      normalizedOptions.forcePolling ||
+      false;
+
     // Connection state
     this.ws = null;
     this.connected = false;
-    this.useWebSocket = true;  // Try WebSocket first
+    if (explicitlyEnable === true) {
+      this.useWebSocket = true;
+    } else if (explicitlyEnable === false) {
+      this.useWebSocket = false;
+    } else {
+      this.useWebSocket = !explicitlyDisable;  // Try WebSocket first unless disabled
+    }
     this.pollingInterval = null;
     this.pollingRate = 5000;  // 5 seconds default
 
@@ -31,6 +45,25 @@ export class RealTimeWebChatClient {
 
     // Message cache for polling
     this.lastMessageId = null;
+  }
+
+  /**
+   * Enable or disable WebSocket usage dynamically.
+   * Disconnects and reconnects using the requested transport.
+   */
+  setWebSocketEnabled(enabled) {
+    const shouldUseWebSocket = Boolean(enabled);
+    if (this.useWebSocket === shouldUseWebSocket) {
+      return;
+    }
+
+    this.useWebSocket = shouldUseWebSocket;
+    const wasConnected = this.connected;
+
+    if (wasConnected) {
+      this.disconnect();
+      this.connect();
+    }
   }
 
   /**

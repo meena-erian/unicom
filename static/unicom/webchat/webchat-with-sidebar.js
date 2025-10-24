@@ -19,6 +19,7 @@ export class UnicomChatWithSidebar extends LitElement {
     theme: { type: String },
     autoRefresh: { type: Number, attribute: 'auto-refresh' },
     filters: { type: Object },  // Custom filters (e.g., {metadata__project_id: 123})
+    disableWebsocket: { type: Boolean, attribute: 'disable-websocket' },
 
     // Internal state
     chats: { type: Array, state: true },
@@ -97,6 +98,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.theme = 'light';
     this.autoRefresh = 5;
     this.filters = {};
+    this.disableWebsocket = false;
 
     this.chats = [];
     this.currentChatId = null;
@@ -117,7 +119,9 @@ export class UnicomChatWithSidebar extends LitElement {
     super.connectedCallback();
 
     // Initialize real-time client
-    this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl);
+    this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl, {
+      disableWebsocket: this.disableWebsocket,
+    });
 
     // Set up event handlers
     this.client.onMessage = (message, chatId) => this._handleNewMessage(message, chatId);
@@ -142,6 +146,14 @@ export class UnicomChatWithSidebar extends LitElement {
 
     // Connect and load initial data
     this._initializeConnection();
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+
+    if (changedProperties.has('disableWebsocket') && this.client) {
+      this.client.setWebSocketEnabled(!this.disableWebsocket);
+    }
   }
 
   disconnectedCallback() {
