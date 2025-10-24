@@ -156,7 +156,7 @@ export const messageStyles = css`
 
   .message-item.outgoing .message-bubble {
     margin-left: auto;
-    background: var(--message-bg-outgoing);
+    background: var(--primary-color);
     color: var(--message-text-outgoing);
     border-bottom-right-radius: clamp(4px, calc(var(--bubble-radius) / 2), var(--bubble-radius));
   }
