@@ -17,10 +17,11 @@ export const baseStyles = css`
     --border-color: var(--unicom-border-color, #dee2e6);
     --border-radius: var(--unicom-border-radius, 8px);
     --font-family: var(--unicom-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-    --input-height: var(--unicom-input-height, 48px);
+    --input-height: var(--unicom-input-height, 44px);
     --max-width: var(--unicom-max-width, 800px);
 
     display: block;
+    width: 100%;
     font-family: var(--font-family);
     max-width: var(--max-width);
     margin: 0 auto;
@@ -29,12 +30,27 @@ export const baseStyles = css`
   .unicom-chat-container {
     display: flex;
     flex-direction: column;
-    height: 600px;
+    width: 100%;
+    height: min(var(--unicom-container-height, 600px), 100vh);
+    max-height: min(var(--unicom-container-height, 600px), 100vh);
+    min-height: 0;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     background: var(--background-color);
     overflow: hidden;
+    position: relative;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  @supports (height: 100dvh) {
+    .unicom-chat-container {
+      height: min(var(--unicom-container-height, 600px), 100dvh);
+      max-height: min(var(--unicom-container-height, 600px), 100dvh);
+    }
   }
 
   .unicom-chat-container.dark {
@@ -64,10 +80,12 @@ export const baseStyles = css`
 
 export const messageStyles = css`
   .message-item {
-    padding: 8px 16px;
+    padding: 8px 8px;
     display: flex;
     flex-direction: column;
+    width: 100%;
     animation: fadeIn 0.3s ease-in;
+    box-sizing: border-box;
   }
 
   @keyframes fadeIn {
@@ -97,20 +115,24 @@ export const messageStyles = css`
   }
 
   .message-bubble {
-    max-width: 70%;
+    display: inline-block;
+    max-width: calc(100% - 32px);
     padding: 12px 16px;
     border-radius: var(--border-radius);
     word-wrap: break-word;
+    word-break: break-word;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
   }
 
-  .outgoing .message-bubble {
+  .message-item.outgoing .message-bubble {
+    margin-left: auto;
     background: var(--message-bg-outgoing);
     color: var(--message-text-outgoing);
     border-bottom-right-radius: 4px;
   }
 
-  .incoming .message-bubble {
+  .message-item.incoming .message-bubble {
     background: var(--message-bg-incoming);
     color: var(--message-text-incoming);
     border-bottom-left-radius: 4px;
@@ -166,34 +188,44 @@ export const messageStyles = css`
 
   @media (max-width: 768px) {
     .message-bubble {
-      max-width: 85%;
+      max-width: calc(100% - 24px);
     }
   }
 `;
 
 export const inputStyles = css`
+  :host {
+    display: block;
+    flex-shrink: 0;
+  }
+
   .message-input-container {
     border-top: 1px solid var(--border-color);
     background: var(--background-color);
     padding: 12px;
+    box-sizing: border-box;
   }
 
   .input-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 8px;
   }
 
   .attach-btn,
   .send-btn {
     flex-shrink: 0;
-    padding: 12px 16px;
+    height: var(--input-height);
+    padding: 0 16px;
     border: none;
     border-radius: var(--border-radius);
     cursor: pointer;
     font-size: 0.95em;
     font-weight: 500;
     transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .attach-btn {
@@ -225,17 +257,19 @@ export const inputStyles = css`
 
   textarea {
     flex: 1;
-    padding: 12px;
+    padding: 10px 12px;
+    min-height: var(--input-height);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     font-family: inherit;
     font-size: 0.95em;
     resize: none;
-    min-height: var(--input-height);
     max-height: 120px;
     background: var(--background-color);
     color: var(--text-color);
     overflow-y: auto;
+    line-height: 1.35;
+    box-sizing: border-box;
   }
 
   textarea:focus {
@@ -250,13 +284,24 @@ export const inputStyles = css`
 `;
 
 export const listStyles = css`
-  .message-list {
-    flex: 1;
-    overflow-y: auto;
+  :host {
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .message-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
   }
 
   .loading-spinner {

@@ -10,6 +10,9 @@ import './components/chat-list.js';
 import './components/message-list.js';
 import './components/message-input.js';
 
+const WEBCHAT_UI_VERSION = '2025.02.15-rc4';
+console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
+
 export class UnicomChatWithSidebar extends LitElement {
   static properties = {
     apiBase: { type: String, attribute: 'api-base' },
@@ -37,9 +40,25 @@ export class UnicomChatWithSidebar extends LitElement {
   static styles = [
     baseStyles,
     css`
+      .bundle-version-tag {
+        font-size: 0.75em;
+        color: var(--secondary-color);
+        position: absolute;
+        top: 6px;
+        right: 12px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 12px;
+        padding: 4px 10px;
+        pointer-events: none;
+      }
+
       .chat-with-sidebar-container {
         display: flex;
-        height: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-width: 100%;
+        width: 100%;
+        overflow: hidden;
       }
 
       .sidebar {
@@ -53,6 +72,8 @@ export class UnicomChatWithSidebar extends LitElement {
         display: flex;
         flex-direction: column;
         height: 100%;
+        width: 100%;
+        min-height: 0;
       }
 
       @media (max-width: 768px) {
@@ -346,6 +367,9 @@ export class UnicomChatWithSidebar extends LitElement {
   render() {
     return html`
       <div class="unicom-chat-container ${this.theme}">
+        <div class="bundle-version-tag">
+          WebChat UI v${WEBCHAT_UI_VERSION}
+        </div>
         ${this.error ? html`
           <div class="error-banner">${this.error}</div>
         ` : ''}
