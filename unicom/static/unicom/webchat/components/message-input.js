@@ -2,15 +2,17 @@
  * Message Input Component
  * Textarea, send button, and media upload
  */
-import { LitElement, html, css } from 'lit';
+import { LitElement, html } from 'lit';
 import { inputStyles } from '../webchat-styles.js';
 import './media-preview.js';
+import './voice-recorder.js';
 
 export class MessageInput extends LitElement {
   static properties = {
     disabled: { type: Boolean },
     inputText: { type: String, state: true },
     previewFile: { type: Object, state: true },
+    isRecording: { type: Boolean, state: true },
   };
 
   static styles = [inputStyles];
@@ -20,6 +22,7 @@ export class MessageInput extends LitElement {
     this.disabled = false;
     this.inputText = '';
     this.previewFile = null;
+    this.isRecording = false;
   }
 
   _handleInput(e) {
@@ -67,7 +70,17 @@ export class MessageInput extends LitElement {
     if (!file) return;
 
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'audio/mpeg', 'audio/ogg', 'audio/wav'];
+    const validTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'audio/mpeg',
+      'audio/ogg',
+      'audio/wav',
+      'audio/webm',
+      'audio/mp4',
+    ];
     if (!validTypes.includes(file.type)) {
       alert('Please select a valid image or audio file');
       return;
@@ -88,7 +101,41 @@ export class MessageInput extends LitElement {
     this.previewFile = null;
   }
 
+  _openFilePicker() {
+    const fileInput = this.shadowRoot.getElementById('media-upload');
+    if (fileInput && !this.disabled) {
+      fileInput.click();
+    }
+  }
+
+  _handleVoiceRecordingStarted() {
+    this.isRecording = true;
+  }
+
+  _handleVoiceRecordingStopped() {
+    this.isRecording = false;
+  }
+
+  _handleVoiceRecorded(e) {
+    this.isRecording = false;
+    if (this.disabled) return;
+
+    const file = e.detail?.file;
+    if (!file) return;
+
+    this.previewFile = file;
+    this.requestUpdate();
+  }
+
+  _handleVoiceRecorderError() {
+    this.isRecording = false;
+  }
+
   render() {
+    const hasText = Boolean(this.inputText.trim());
+    const hasAttachment = Boolean(this.previewFile);
+    const showSend = !this.isRecording && (hasText || hasAttachment);
+
     return html`
       <div class="message-input-container">
         ${this.previewFile ? html`
@@ -98,22 +145,14 @@ export class MessageInput extends LitElement {
           </media-preview>
         ` : ''}
 
+        <input
+          type="file"
+          id="media-upload"
+          accept="image/*,audio/*"
+          @change=${this._handleFileSelect}
+          style="display: none;">
+
         <div class="input-row">
-          <input
-            type="file"
-            id="media-upload"
-            accept="image/*,audio/*"
-            @change=${this._handleFileSelect}
-            style="display: none;">
-
-          <button
-            class="attach-btn"
-            @click=${() => this.shadowRoot.getElementById('media-upload').click()}
-            ?disabled=${this.disabled}
-            title="Attach media">
-            📎
-          </button>
-
           <textarea
             .value=${this.inputText}
             @input=${this._handleInput}
@@ -122,12 +161,31 @@ export class MessageInput extends LitElement {
             ?disabled=${this.disabled}
             rows="1"></textarea>
 
-          <button
-            class="send-btn"
-            @click=${this._handleSend}
-            ?disabled=${this.disabled || (!this.inputText.trim() && !this.previewFile)}>
-            Send
-          </button>
+          <div class="actions">
+            ${showSend ? html`
+              <button
+                class="send-btn"
+                @click=${this._handleSend}
+                ?disabled=${this.disabled || (!hasText && !hasAttachment)}>
+                Send
+              </button>
+            ` : html`
+              <voice-recorder
+                @voice-recording-started=${this._handleVoiceRecordingStarted}
+                @voice-recording-stopped=${this._handleVoiceRecordingStopped}
+                @voice-recorded=${this._handleVoiceRecorded}
+                @voice-recorder-error=${this._handleVoiceRecorderError}
+                ?disabled=${this.disabled}>
+              </voice-recorder>
+              <button
+                class="icon-btn attach-btn"
+                @click=${this._openFilePicker}
+                ?disabled=${this.disabled}
+                title="Attach media">
+                📎
+              </button>
+            `}
+          </div>
         </div>
       </div>
     `;

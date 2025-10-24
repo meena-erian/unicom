@@ -15,6 +15,19 @@ export class MediaPreview extends LitElement {
   constructor() {
     super();
     this.file = null;
+    this._objectUrl = null;
+  }
+
+  updated(changedProps) {
+    if (changedProps.has('file')) {
+      if (this._objectUrl) {
+        URL.revokeObjectURL(this._objectUrl);
+        this._objectUrl = null;
+      }
+      if (this.file) {
+        this._objectUrl = URL.createObjectURL(this.file);
+      }
+    }
   }
 
   _formatFileSize(bytes) {
@@ -33,16 +46,22 @@ export class MediaPreview extends LitElement {
   render() {
     if (!this.file) return html``;
 
-    const isImage = this.file.type.startsWith('image/');
-    const previewUrl = isImage ? URL.createObjectURL(this.file) : null;
+    const type = this.file.type || '';
+    const isImage = type.startsWith('image/');
+    const isAudio = type.startsWith('audio/');
+    const previewUrl = this._objectUrl;
 
     return html`
-      <div class="media-preview">
-        ${isImage ? html`
+      <div class="media-preview ${isAudio ? 'audio' : ''}">
+        ${isImage && previewUrl ? html`
           <img class="preview-thumbnail" src="${previewUrl}" alt="Preview">
+        ` : isAudio && previewUrl ? html`
+          <div class="preview-audio-container">
+            <audio class="preview-audio" controls src="${previewUrl}"></audio>
+          </div>
         ` : html`
-          <div class="preview-thumbnail" style="display: flex; align-items: center; justify-content: center; background: var(--border-color);">
-            🎵
+          <div class="preview-thumbnail icon">
+            ${isAudio ? '🎵' : '📎'}
           </div>
         `}
         <div class="preview-info">
@@ -54,6 +73,14 @@ export class MediaPreview extends LitElement {
         </button>
       </div>
     `;
+  }
+
+  disconnectedCallback() {
+    if (this._objectUrl) {
+      URL.revokeObjectURL(this._objectUrl);
+      this._objectUrl = null;
+    }
+    super.disconnectedCallback();
   }
 }
 
