@@ -1,10 +1,11 @@
 /**
  * WebChat Component with Sidebar
  * Multi-chat support with chat list sidebar
+ * Supports both WebSocket (if available) and polling fallback
  */
 import { LitElement, html, css } from 'lit';
 import { baseStyles } from './webchat-styles.js';
-import { WebChatAPI } from './utils/api-client.js';
+import { RealTimeWebChatClient } from './utils/realtime-client.js';
 import './components/chat-list.js';
 import './components/message-list.js';
 import './components/message-input.js';
@@ -12,10 +13,12 @@ import './components/message-input.js';
 export class UnicomChatWithSidebar extends LitElement {
   static properties = {
     apiBase: { type: String, attribute: 'api-base' },
+    wsUrl: { type: String, attribute: 'ws-url' },
     channelId: { type: Number, attribute: 'channel-id' },
     maxMessages: { type: Number, attribute: 'max-messages' },
     theme: { type: String },
     autoRefresh: { type: Number, attribute: 'auto-refresh' },
+    filters: { type: Object },  // Custom filters (e.g., {metadata__project_id: 123})
 
     // Internal state
     chats: { type: Array, state: true },
@@ -26,6 +29,8 @@ export class UnicomChatWithSidebar extends LitElement {
     sending: { type: Boolean, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
+    connectionStatus: { type: String, state: true },  // 'connected', 'disconnected'
+    connectionType: { type: String, state: true },     // 'websocket', 'polling'
   };
 
   static styles = [
@@ -86,10 +91,12 @@ export class UnicomChatWithSidebar extends LitElement {
   constructor() {
     super();
     this.apiBase = '/unicom/webchat';
+    this.wsUrl = null;
     this.channelId = null;
     this.maxMessages = 50;
     this.theme = 'light';
     this.autoRefresh = 5;
+    this.filters = {};
 
     this.chats = [];
     this.currentChatId = null;
@@ -99,25 +106,62 @@ export class UnicomChatWithSidebar extends LitElement {
     this.sending = false;
     this.error = null;
     this.hasMore = false;
+    this.connectionStatus = 'disconnected';
+    this.connectionType = 'polling';
 
-    this.api = null;
-    this._refreshInterval = null;
+    this.client = null;
     this._showSidebar = true;
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this.api = new WebChatAPI(this.apiBase);
-    this.loadChats();
 
+    // Initialize real-time client
+    this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl);
+
+    // Set up event handlers
+    this.client.onMessage = (message, chatId) => this._handleNewMessage(message, chatId);
+    this.client.onChatsUpdate = (chats) => this._handleChatsUpdate(chats);
+    this.client.onConnectionChange = (connected, type) => {
+      this.connectionStatus = connected ? 'connected' : 'disconnected';
+      this.connectionType = type;
+    };
+    this.client.onError = (error) => {
+      console.error('WebChat error:', error);
+    };
+
+    // Set polling rate from autoRefresh
     if (this.autoRefresh > 0) {
-      this._startAutoRefresh();
+      this.client.setPollingRate(this.autoRefresh * 1000);
     }
+
+    // Set filters
+    if (Object.keys(this.filters).length > 0) {
+      this.client.setFilters(this.filters);
+    }
+
+    // Connect and load initial data
+    this._initializeConnection();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this._stopAutoRefresh();
+    if (this.client) {
+      this.client.disconnect();
+    }
+  }
+
+  /**
+   * Initialize connection and load data
+   */
+  async _initializeConnection() {
+    try {
+      await this.client.connect();
+      await this.loadChats();
+    } catch (err) {
+      this.error = 'Failed to connect: ' + err.message;
+      console.error('Connection failed:', err);
+    }
   }
 
   /**
@@ -127,8 +171,8 @@ export class UnicomChatWithSidebar extends LitElement {
     this.loadingChats = true;
 
     try {
-      const data = await this.api.getChats();
-      this.chats = data.chats || [];
+      const chats = await this.client.getChats(this.filters);
+      this.chats = chats || [];
 
       // If no chat selected, select the first one
       if (!this.currentChatId && this.chats.length > 0) {
@@ -156,9 +200,13 @@ export class UnicomChatWithSidebar extends LitElement {
     this.error = null;
 
     try {
-      const data = await this.api.getMessages(this.currentChatId, this.maxMessages);
-      this.messages = data.messages || [];
-      this.hasMore = data.has_more || false;
+      // Subscribe to chat for real-time updates
+      this.client.subscribeToChat(this.currentChatId);
+
+      const messages = await this.client.getMessages(this.currentChatId, this.maxMessages);
+      this.messages = messages || [];
+      // Note: hasMore not supported in current getMessages - could be added later
+      this.hasMore = false;
     } catch (err) {
       this.error = err.message;
       console.error('Failed to load messages:', err);
@@ -172,6 +220,12 @@ export class UnicomChatWithSidebar extends LitElement {
    */
   async _handleChatSelected(e) {
     const { chatId } = e.detail;
+
+    // Unsubscribe from old chat
+    if (this.currentChatId) {
+      this.client.unsubscribeFromChat(this.currentChatId);
+    }
+
     this.currentChatId = chatId;
     this._showSidebar = false; // Hide sidebar on mobile
     await this.loadMessages();
@@ -181,6 +235,11 @@ export class UnicomChatWithSidebar extends LitElement {
    * Handle new chat
    */
   _handleNewChat() {
+    // Unsubscribe from current chat
+    if (this.currentChatId) {
+      this.client.unsubscribeFromChat(this.currentChatId);
+    }
+
     this.currentChatId = null;
     this.messages = [];
     this._showSidebar = false; // Hide sidebar on mobile
@@ -190,27 +249,9 @@ export class UnicomChatWithSidebar extends LitElement {
    * Load more (older) messages
    */
   async _handleLoadMore() {
-    if (this.loading || !this.hasMore || this.messages.length === 0) return;
-
-    this.loading = true;
-    this.error = null;
-
-    try {
-      const oldestMessage = this.messages[0];
-      const data = await this.api.getMessages(
-        this.currentChatId,
-        this.maxMessages,
-        oldestMessage.id
-      );
-
-      this.messages = [...(data.messages || []), ...this.messages];
-      this.hasMore = data.has_more || false;
-    } catch (err) {
-      this.error = err.message;
-      console.error('Failed to load more messages:', err);
-    } finally {
-      this.loading = false;
-    }
+    // Pagination not implemented in real-time client yet
+    // Could be added later
+    console.log('Load more not implemented yet');
   }
 
   /**
@@ -226,26 +267,30 @@ export class UnicomChatWithSidebar extends LitElement {
     this.error = null;
 
     try {
-      const response = await this.api.sendMessage(text, this.currentChatId, file);
+      // Include filter metadata when creating a new chat
+      const metadata = !this.currentChatId ? this.filters : null;
+
+      const response = await this.client.sendMessage(text, this.currentChatId, file, metadata);
 
       // Update or set current chat ID
       if (response.chat_id) {
         const isNewChat = !this.currentChatId;
         this.currentChatId = response.chat_id;
 
-        // If it's a new chat, reload chat list
+        // If it's a new chat, reload chat list and subscribe to it
         if (isNewChat) {
           await this.loadChats();
+          this.client.subscribeToChat(this.currentChatId);
         }
       }
 
-      // Add the sent message to the list
+      // Add the sent message to the list (if not already added by real-time update)
       if (response.message) {
-        this.messages = [...this.messages, response.message];
+        const messageExists = this.messages.some(m => m.id === response.message.id);
+        if (!messageExists) {
+          this.messages = [...this.messages, response.message];
+        }
       }
-
-      // Trigger a refresh to get bot response
-      setTimeout(() => this._refreshMessages(), 500);
     } catch (err) {
       this.error = err.message;
       console.error('Failed to send message:', err);
@@ -255,66 +300,27 @@ export class UnicomChatWithSidebar extends LitElement {
   }
 
   /**
-   * Start auto-refresh timer
+   * Handle new message from real-time updates
    */
-  _startAutoRefresh() {
-    if (this.autoRefresh <= 0) return;
-
-    this._refreshInterval = setInterval(() => {
-      if (!document.hidden) {
-        this._refreshMessages();
-        this._refreshChats();
+  _handleNewMessage(message, chatId) {
+    // Only add message if it's for the current chat
+    if (chatId === this.currentChatId) {
+      // Check if message already exists (avoid duplicates)
+      const messageExists = this.messages.some(m => m.id === message.id);
+      if (!messageExists) {
+        this.messages = [...this.messages, message];
       }
-    }, this.autoRefresh * 1000);
+    }
+
+    // Update chat list to reflect new message
+    this.loadChats();
   }
 
   /**
-   * Stop auto-refresh timer
+   * Handle chats update from real-time updates
    */
-  _stopAutoRefresh() {
-    if (this._refreshInterval) {
-      clearInterval(this._refreshInterval);
-      this._refreshInterval = null;
-    }
-  }
-
-  /**
-   * Refresh to get new messages
-   */
-  async _refreshMessages() {
-    if (this.loading || this.sending || !this.currentChatId) return;
-
-    try {
-      const lastMessage = this.messages[this.messages.length - 1];
-      const afterId = lastMessage ? lastMessage.id : null;
-
-      const data = await this.api.getMessages(
-        this.currentChatId,
-        this.maxMessages,
-        null,
-        afterId
-      );
-
-      if (data.messages && data.messages.length > 0) {
-        this.messages = [...this.messages, ...data.messages];
-      }
-    } catch (err) {
-      console.error('Refresh failed:', err);
-    }
-  }
-
-  /**
-   * Refresh chat list
-   */
-  async _refreshChats() {
-    if (this.loadingChats) return;
-
-    try {
-      const data = await this.api.getChats();
-      this.chats = data.chats || [];
-    } catch (err) {
-      console.error('Chat list refresh failed:', err);
-    }
+  _handleChatsUpdate(chats) {
+    this.chats = chats || [];
   }
 
   /**
@@ -330,6 +336,16 @@ export class UnicomChatWithSidebar extends LitElement {
       <div class="unicom-chat-container ${this.theme}">
         ${this.error ? html`
           <div class="error-banner">${this.error}</div>
+        ` : ''}
+
+        ${this.connectionStatus === 'connected' && this.connectionType === 'websocket' ? html`
+          <div class="connection-status" style="padding: 4px 8px; background: #28a745; color: white; font-size: 0.8em; text-align: center;">
+            🟢 Real-time (WebSocket)
+          </div>
+        ` : this.connectionStatus === 'connected' ? html`
+          <div class="connection-status" style="padding: 4px 8px; background: #ffc107; color: #000; font-size: 0.8em; text-align: center;">
+            🔄 Polling mode (${this.autoRefresh}s refresh)
+          </div>
         ` : ''}
 
         <div class="chat-with-sidebar-container">

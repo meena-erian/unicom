@@ -58,12 +58,17 @@ def save_webchat_message(channel, message_data, request, user=None):
         # Create new chat with UUID
         import uuid
         chat_id = f"webchat_{uuid.uuid4()}"
+
+        # Extract metadata for chat (if provided)
+        chat_metadata = message_data.get('metadata', {})
+
         chat = Chat.objects.create(
             id=chat_id,
             platform=platform,
             channel=channel,
             is_private=True,
-            name=f"Chat with {account.name}"
+            name=f"Chat with {account.name}",
+            metadata=chat_metadata
         )
         created = True
 
