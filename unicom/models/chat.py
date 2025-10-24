@@ -16,6 +16,7 @@ class Chat(models.Model):
     is_private = models.BooleanField(default=True)
     name = models.CharField(max_length=100, null=True, blank=True)
     is_archived = models.BooleanField(default=False, help_text="Archived chats are hidden from the main list view")
+    metadata = models.JSONField(default=dict, blank=True, help_text="Custom properties for filtering (e.g., project_id, department_id)")
     
     # Message cache fields
     first_message = models.ForeignKey('unicom.Message', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')

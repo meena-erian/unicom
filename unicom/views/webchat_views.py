@@ -74,12 +74,27 @@ def send_webchat_message_api(request):
             elif content_type.startswith('audio/'):
                 media_type = 'audio'
 
+        # Extract optional metadata for chat creation
+        chat_metadata = {}
+        if request.content_type and 'application/json' in request.content_type:
+            chat_metadata = data.get('metadata', {})
+        else:
+            # Parse metadata from form data if provided as JSON string
+            metadata_str = request.POST.get('metadata')
+            if metadata_str:
+                import json
+                try:
+                    chat_metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    pass
+
         # Build message data
         message_data = {
             'text': text or f'**{media_type.title()}**',
             'chat_id': chat_id,
             'media_type': media_type,
             'file': media_file,
+            'metadata': chat_metadata,  # Pass metadata for new chat creation
         }
 
         # Save message
@@ -115,7 +130,7 @@ def send_webchat_message_api(request):
 @require_http_methods(["GET"])
 def get_webchat_messages_api(request):
     """
-    Get messages for a chat.
+    Get messages for a chat with optional filtering.
 
     GET /unicom/webchat/messages/
 
@@ -124,6 +139,9 @@ def get_webchat_messages_api(request):
         - limit: Max messages to return (default: 50, max: 100)
         - before: Message ID cursor for pagination (get messages before this)
         - after: Message ID cursor for pagination (get messages after this)
+        - is_outgoing: Filter by message direction (true/false)
+        - media_type: Filter by media type (text/image/audio)
+        - sender_name: Filter by sender name
 
     Returns:
         JSON with list of messages
@@ -162,6 +180,20 @@ def get_webchat_messages_api(request):
 
         # Build query
         messages = Message.objects.filter(chat=chat).order_by('-timestamp')
+
+        # Apply custom filters
+        reserved_params = {'chat_id', 'limit', 'before', 'after'}
+        for key, value in request.GET.items():
+            if key in reserved_params:
+                continue
+
+            # Convert booleans
+            if value.lower() in ['true', 'false']:
+                value = value.lower() == 'true'
+
+            # Apply filter if it's a valid Message field
+            if hasattr(Message, key):
+                messages = messages.filter(**{key: value})
 
         # Apply cursor pagination
         if before:
@@ -218,13 +250,21 @@ def get_webchat_messages_api(request):
 @require_http_methods(["GET"])
 def list_webchat_chats_api(request):
     """
-    List chats for current user.
+    List chats for current user with custom filtration support.
 
     GET /unicom/webchat/chats/
 
     Query parameters:
         - channel_id: Filter by channel (optional)
-        - Any Chat model field for custom filtering (e.g., is_archived=false)
+        - Any Chat model field for filtering (e.g., is_archived=false)
+        - metadata__<key>: Filter by metadata fields (e.g., metadata__project_id=123)
+        - metadata__<key>__<lookup>: Advanced lookups (e.g., metadata__priority__gte=5)
+
+    Examples:
+        - ?is_archived=false - Only non-archived chats
+        - ?metadata__project_id=123 - Chats for project 123
+        - ?metadata__department=sales - Chats for sales department
+        - ?metadata__priority__gte=5 - Chats with priority >= 5
 
     Returns:
         JSON with list of chats
@@ -249,11 +289,30 @@ def list_webchat_chats_api(request):
         if channel_id:
             chats = chats.filter(channel_id=channel_id)
 
-        # Apply additional custom filters
+        # Apply standard Chat model field filters and metadata filters
         filter_params = {}
+        reserved_params = {'channel_id', 'limit', 'offset', 'ordering'}
+
         for key, value in request.GET.items():
-            if key not in ['channel_id'] and hasattr(Chat, key):
-                # Convert string booleans
+            if key in reserved_params:
+                continue
+
+            # Check if this is a metadata filter
+            if key.startswith('metadata__'):
+                # Support metadata lookups like metadata__project_id, metadata__priority__gte
+                # Convert string booleans and numbers
+                if value.lower() in ['true', 'false']:
+                    value = value.lower() == 'true'
+                elif value.isdigit():
+                    value = int(value)
+                elif value.replace('.', '', 1).isdigit() and value.count('.') == 1:
+                    value = float(value)
+
+                filter_params[key] = value
+
+            # Check if this is a standard Chat model field
+            elif hasattr(Chat, key.split('__')[0]):
+                # Support field lookups like is_archived, name__icontains
                 if value.lower() in ['true', 'false']:
                     value = value.lower() == 'true'
                 filter_params[key] = value
@@ -268,17 +327,19 @@ def list_webchat_chats_api(request):
         chats_data = []
         for chat in chats:
             last_msg = chat.last_message
-            chats_data.append({
+            chat_data = {
                 'id': chat.id,
                 'name': chat.name,
                 'platform': chat.platform,
                 'channel_id': chat.channel_id,
                 'is_archived': chat.is_archived,
+                'metadata': chat.metadata,  # Include metadata in response
                 'last_message': {
                     'text': last_msg.text if last_msg else None,
                     'timestamp': last_msg.timestamp.isoformat() if last_msg else None,
                 } if last_msg else None
-            })
+            }
+            chats_data.append(chat_data)
 
         return JsonResponse({
             'success': True,

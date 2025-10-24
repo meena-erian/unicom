@@ -1,6 +1,6 @@
 # Django Unicom
 
-**Unified communication layer for Django** — easily integrate Telegram bots, WhatsApp bots, and Email bots with a consistent API across all platforms.
+**Unified communication layer for Django** — easily integrate Telegram bots, WhatsApp bots, Email bots, and Web Chat with a consistent API across all platforms.
 
 ## 📑 Table of Contents
 
@@ -22,6 +22,21 @@
       - [Button Routing Best Practices](#-button-routing-best-practices)
     - [Editing Messages](#-editing-telegram-messages)
     - [File Downloads and Voice Messages](#-file-downloads-and-voice-messages)
+  - [WebChat-Specific Features](#webchat-specific-features)
+    - [Web-Based Chat Interface](#-web-based-chat-interface)
+    - [Setting Up WebChat](#-setting-up-webchat)
+    - [WebChat Component Options](#-webchat-component-options)
+    - [WebChat User Types](#-webchat-user-types)
+    - [Programmatic WebChat Usage](#-programmatic-webchat-usage)
+    - [WebChat API Endpoints](#-webchat-api-endpoints)
+    - [Multi-Chat Features](#-multi-chat-features)
+    - [Custom Filtration (Project-Based Chats)](#-custom-filtration-project-based-chats)
+    - [Real-Time Updates (WebSocket Support)](#-real-time-updates-websocket-support)
+    - [Guest User Migration](#-guest-user-migration)
+    - [WebChat Security](#-webchat-security)
+    - [WebChat Architecture](#-webchat-architecture)
+    - [WebChat Testing](#-webchat-testing)
+    - [WebChat Optional Enhancements](#-webchat-optional-enhancements)
   - [LLM Integration](#llm-integration)
   - [Delayed Tool Calls](#delayed-tool-calls)
   - [Message Scheduling](#message-scheduling)
@@ -137,13 +152,15 @@ Django Unicom supports the following communication platforms:
 - **Email** - SMTP/IMAP with auto-discovery, rich HTML content, link tracking
 - **Telegram** - Bot API integration with webhooks, media support, typing indicators
 - **WhatsApp** - Business API integration, template messages, delivery status
+- **WebChat** - Web-based chat interface with multi-chat support, real-time updates, guest users
 - **Internal** - System-to-system messaging within your application
 
 Throughout this documentation, features will be marked as:
 - ✅ **All platforms**: Works across all communication channels
 - 📧 **Email only**: Specific to email channels
-- 📱 **Telegram only**: Specific to Telegram channels  
+- 📱 **Telegram only**: Specific to Telegram channels
 - 💬 **WhatsApp only**: Specific to WhatsApp channels
+- 🌐 **WebChat only**: Specific to WebChat channels
 - 🤖 **LLM features**: AI integration (platform-agnostic)
 
 ---
@@ -196,13 +213,20 @@ email_channel_custom = Channel.objects.create(
 # Telegram Channel - Auto-generates webhook secret
 telegram_channel = Channel.objects.create(
     name="Customer Bot",
-    platform="Telegram", 
+    platform="Telegram",
     config={
         "API_TOKEN": "your-bot-token-from-botfather"
     }
 )
 
+# WebChat Channel - No configuration needed
+webchat_channel = Channel.objects.create(
+    name="Customer Support WebChat",
+    platform="WebChat"
+)
+
 # Validate channel (sets up webhooks/connections)
+# Note: WebChat doesn't require validation, automatically active
 channel.validate()  # Returns True if successful
 ```
 
@@ -243,6 +267,19 @@ message = email_channel.send_message({
     'chat_id': 'existing_email_thread_id',
     'html': '<p>Thanks for your message!</p>'
     # Subject is automatically derived from thread
+})
+
+# 🌐 WebChat only: Message to web user's chat
+message = webchat_channel.send_message({
+    'chat_id': 'webchat_abc123def',
+    'text': 'Hello! How can I help you today?'
+})
+
+# 🌐 WebChat only: Message with image
+message = webchat_channel.send_message({
+    'chat_id': 'webchat_abc123def',
+    'text': 'Here is the information you requested',
+    'file_path': '/path/to/image.png'
 })
 
 # 📱 Telegram only: Message with interactive buttons
@@ -982,6 +1019,550 @@ if message.media_type == 'audio':
         multimodal=True  # Enables audio processing
     )
 ```
+
+### WebChat-Specific Features
+
+#### 🌐 Web-Based Chat Interface
+
+WebChat provides a ChatGPT/Claude-like web interface for your Django application with support for both authenticated and guest users.
+
+**Key Features:**
+- 💬 Multi-chat support - Users can create unlimited separate conversations
+- 👤 Hybrid authentication - Works for both Django authenticated users and guest sessions
+- 📱 Mobile-responsive - Sidebar collapses on mobile devices
+- 🔄 Auto-refresh - Polls for new messages every 5 seconds (configurable)
+- 📎 Media uploads - Images and audio files
+- 🎨 Customizable theming - CSS custom properties for colors and styling
+- 🔐 Secure - Access control, CSRF protection, isolated chats
+- 🔄 Guest migration - Guest chat history preserved when logging in
+
+#### 🌐 Setting Up WebChat
+
+**1. Create a WebChat Channel:**
+
+```python
+from unicom.models import Channel
+
+# Create WebChat channel (no configuration needed)
+webchat_channel = Channel.objects.create(
+    name="Customer Support WebChat",
+    platform="WebChat"
+)
+
+# Channel is automatically active, no validation needed
+```
+
+**2. Embed in Your Django Template:**
+
+```django
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Customer Support Chat</title>
+</head>
+<body>
+    <h1>Need Help?</h1>
+
+    <!-- Import LitElement from CDN -->
+    <script type="importmap">
+    {
+        "imports": {
+            "lit": "https://cdn.jsdelivr.net/npm/lit@3.2.0/+esm",
+            "lit/directives/unsafe-html.js": "https://cdn.jsdelivr.net/npm/lit@3.2.0/directives/unsafe-html.js/+esm"
+        }
+    }
+    </script>
+
+    <!-- Load WebChat component -->
+    <script type="module" src="{% static 'unicom/webchat/webchat-with-sidebar.js' %}"></script>
+
+    <!-- Embed chat interface -->
+    <unicom-chat-with-sidebar
+        api-base="/unicom/webchat"
+        theme="light"
+        max-messages="50"
+        auto-refresh="5"
+        style="height: 700px;">
+    </unicom-chat-with-sidebar>
+</body>
+</html>
+```
+
+**3. Access the Demo Page:**
+
+When `DEBUG=True`, visit `/unicom/webchat/demo/` to see the interactive demo with multiple theme examples.
+
+#### 🌐 WebChat Component Options
+
+The `<unicom-chat-with-sidebar>` component accepts these attributes:
+
+- **`api-base`**: API endpoint base URL (default: `/unicom/webchat`)
+- **`theme`**: `"light"` or `"dark"` (default: `"light"`)
+- **`max-messages`**: Max messages to load per chat (default: 50)
+- **`auto-refresh`**: Polling interval in seconds (default: 5, set to 0 to disable)
+
+**Customization via CSS Custom Properties:**
+
+```html
+<unicom-chat-with-sidebar
+    theme="dark"
+    style="
+        height: 800px;
+        --unicom-primary-color: #ff5722;
+        --unicom-background-color: #1e1e1e;
+        --unicom-border-radius: 16px;
+        --unicom-message-bg-outgoing: #ff5722;
+        --unicom-message-text-outgoing: #ffffff;
+    ">
+</unicom-chat-with-sidebar>
+```
+
+Available CSS variables:
+- `--unicom-primary-color` - Primary brand color
+- `--unicom-background-color` - Background color
+- `--unicom-text-color` - Text color
+- `--unicom-message-bg-incoming` - Incoming message background
+- `--unicom-message-bg-outgoing` - Outgoing message background
+- `--unicom-message-text-incoming` - Incoming message text color
+- `--unicom-message-text-outgoing` - Outgoing message text color
+- `--unicom-border-color` - Border color
+- `--unicom-border-radius` - Border radius
+- `--unicom-font-family` - Font family
+- `--unicom-max-width` - Max width of component
+
+#### 🌐 WebChat User Types
+
+**Authenticated Users:**
+```python
+# For logged-in Django users, account ID is based on user.id
+# Account ID format: webchat_user_{user.id}
+# Chats are permanently linked to the user account
+```
+
+**Guest Users:**
+```python
+# For anonymous users, account ID is based on session key
+# Account ID format: webchat_guest_{session_key}
+# Chat history is preserved if user logs in later via automatic migration
+```
+
+#### 🌐 Programmatic WebChat Usage
+
+```python
+from unicom.models import Channel, Message
+
+# Get WebChat channel
+channel = Channel.objects.get(platform='WebChat')
+
+# Send message to a specific chat
+channel.send_message({
+    'chat_id': 'webchat_abc123def',
+    'text': 'Hello! How can I help you today?'
+})
+
+# Send message with image
+channel.send_message({
+    'chat_id': 'webchat_abc123def',
+    'text': 'Here is the information you requested',
+    'file_path': '/path/to/image.png'
+})
+
+# Reply to a message
+message = Message.objects.get(id='message_id')
+message.reply_with({
+    'text': 'Thanks for reaching out! We will get back to you shortly.'
+})
+```
+
+#### 🌐 WebChat API Endpoints
+
+The WebChat system provides REST APIs for the frontend:
+
+**Send Message:**
+```
+POST /unicom/webchat/send/
+Body: text, chat_id (optional), media (file upload, optional)
+```
+
+**Get Messages:**
+```
+GET /unicom/webchat/messages/?chat_id=<chat_id>&limit=50&before=<message_id>&after=<message_id>
+```
+
+**List Chats:**
+```
+GET /unicom/webchat/chats/
+```
+
+**Update Chat (Rename/Archive):**
+```
+PATCH /unicom/webchat/chat/<chat_id>/
+Body: title (optional), is_archived (optional)
+```
+
+**Delete Chat:**
+```
+DELETE /unicom/webchat/chat/<chat_id>/delete/?hard_delete=true
+```
+
+#### 🌐 Multi-Chat Features
+
+WebChat supports unlimited separate conversations per user:
+
+```javascript
+// Users can:
+// - Create new chats by clicking "New Chat" button
+// - Switch between chats via sidebar
+// - Each chat has isolated message history
+// - Chats get auto-generated titles from first message
+// - Rename chats via API
+// - Archive or delete chats via API
+```
+
+**Chat Title Auto-Generation:**
+```python
+# When user sends first message: "Hello, I need help with my account"
+# Chat title is auto-generated: "I need help with my account"
+# Skips common greetings (hello, hi, hey)
+# Truncates to 50 characters with "..."
+```
+
+#### 🌐 Custom Filtration (Project-Based Chats)
+
+WebChat supports custom filtration for scenarios where chats need to be scoped to specific contexts (e.g., projects, departments, workspaces).
+
+**Use Case Examples:**
+- Project management app: Users see only chats related to current project
+- Multi-tenant SaaS: Filter chats by tenant/organization
+- Department-specific support: Sales vs Engineering support chats
+- Customer segmentation: VIP vs regular customer chat queues
+
+**Implementation:**
+
+1. **Add metadata when creating a chat:**
+
+```javascript
+// Frontend: Create a chat with project_id metadata
+const response = await api.sendMessage(
+  'Hello, I need help with this project',
+  null,  // No chat_id = new chat
+  null,  // No media file
+  { project_id: 123, department: 'engineering' }  // Custom metadata
+);
+```
+
+```python
+# Backend: Create a chat with metadata programmatically
+from unicom.models import Chat
+
+chat = Chat.objects.create(
+    id=f"webchat_{uuid.uuid4()}",
+    platform='WebChat',
+    channel=channel,
+    metadata={
+        'project_id': 123,
+        'department': 'engineering',
+        'priority': 'high'
+    }
+)
+```
+
+2. **Filter chats by metadata:**
+
+```javascript
+// Frontend: Get only chats for current project
+const client = new RealTimeWebChatClient('/unicom/webchat');
+client.setFilters({
+  'metadata__project_id': 123,
+  'is_archived': false
+});
+await client.connect();
+
+// Or with the component:
+<unicom-chat-with-sidebar
+    api-base="/unicom/webchat"
+    .filters=${{ metadata__project_id: 123 }}>
+</unicom-chat-with-sidebar>
+```
+
+```python
+# Backend/API: Filter chats by metadata
+GET /unicom/webchat/chats/?metadata__project_id=123&metadata__department=engineering
+```
+
+3. **Advanced filtering with Django lookups:**
+
+```python
+# Filter with comparison operators
+GET /unicom/webchat/chats/?metadata__priority__gte=5  # Priority >= 5
+GET /unicom/webchat/chats/?metadata__status=active&is_archived=false
+
+# Combine multiple filters
+GET /unicom/webchat/chats/?metadata__project_id=123&metadata__team=alpha
+```
+
+**Custom Filtration in WebSocket Consumer:**
+
+```javascript
+// When using WebSockets, filters are applied automatically
+const client = new RealTimeWebChatClient('/unicom/webchat');
+client.setFilters({ metadata__project_id: currentProjectId });
+client.connect();
+
+// Real-time updates will only show chats matching the filter
+client.onChatsUpdate = (chats) => {
+  console.log('Chats for project:', chats);
+};
+```
+
+**Changing Filters Dynamically:**
+
+```javascript
+// Example: When user switches projects
+function onProjectChange(newProjectId) {
+  client.setFilters({ metadata__project_id: newProjectId });
+  // Re-fetch chats with new filter
+  const chats = await client.getChats();
+  updateUI(chats);
+}
+```
+
+**Available Filter Patterns:**
+
+- **Exact match**: `metadata__key=value`
+- **Greater than or equal**: `metadata__key__gte=value`
+- **Less than or equal**: `metadata__key__lte=value`
+- **Contains (string)**: `metadata__key__icontains=text`
+- **Standard Chat fields**: `is_archived=false`, `name__icontains=support`
+
+**Metadata Field Types:**
+
+The `metadata` JSONField supports any JSON-serializable data:
+
+```python
+chat.metadata = {
+    'project_id': 123,           # Integer
+    'department': 'sales',       # String
+    'is_urgent': True,           # Boolean
+    'priority': 8.5,             # Float
+    'tags': ['support', 'bug'],  # Array
+    'custom_data': {             # Nested object
+        'customer_tier': 'premium',
+        'assigned_agent': 'john@example.com'
+    }
+}
+```
+
+#### 🌐 Real-Time Updates (WebSocket Support)
+
+WebChat supports **optional** real-time updates via Django Channels. If Channels is not installed, the system automatically falls back to polling.
+
+**Installation (Optional):**
+
+```bash
+pip install channels channels-redis
+```
+
+**Configuration in settings.py:**
+
+```python
+INSTALLED_APPS = [
+    ...
+    'channels',
+]
+
+ASGI_APPLICATION = 'your_project.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+```
+
+**Configure WebSocket routing:**
+
+```python
+# your_project/asgi.py
+import os
+from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+from django.urls import path
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+
+# Import the WebChat consumer
+from unicom.consumers import WebChatConsumer
+
+application = ProtocolTypeRouter({
+    "http": get_asgi_application(),
+    "websocket": AuthMiddlewareStack(
+        URLRouter([
+            path('ws/unicom/webchat/', WebChatConsumer.as_asgi()),
+        ])
+    ),
+})
+```
+
+**How It Works:**
+
+```javascript
+// The RealTimeWebChatClient automatically detects WebSocket availability
+const client = new RealTimeWebChatClient('/unicom/webchat');
+
+// Set up event handlers for real-time updates
+client.onMessage = (message, chatId) => {
+  console.log('New message received:', message);
+};
+
+client.onConnectionChange = (connected, type) => {
+  if (type === 'websocket') {
+    console.log('✅ Using real-time WebSocket connection');
+  } else {
+    console.log('📡 Using polling mode (${autoRefresh}s refresh)');
+  }
+};
+
+// Connect (tries WebSocket first, falls back to polling)
+await client.connect();
+```
+
+**Features Available with WebSocket:**
+
+- ⚡ **Instant message delivery** - No polling delay
+- 🔄 **Real-time chat list updates** - See new chats immediately
+- 📊 **Live typing indicators** (future enhancement)
+- ✅ **Read receipts** (future enhancement)
+- 🔌 **Automatic reconnection** - Handles connection drops gracefully
+
+**Polling Fallback:**
+
+If Channels is not installed or WebSocket connection fails:
+- Automatically falls back to HTTP polling
+- Polls every 5 seconds (configurable via `auto-refresh` attribute)
+- **Same data and behavior** as WebSocket mode
+- Slightly higher latency but reliable
+
+**Connection Status Indicator:**
+
+The WebChat component shows the current connection mode:
+- 🟢 **Real-time (WebSocket)** - Green badge when using WebSockets
+- 🔄 **Polling mode (5s refresh)** - Yellow badge when using polling
+
+#### 🌐 Guest User Migration
+
+When a guest user logs in, their chat history is automatically preserved:
+
+```python
+from unicom.services.webchat.migrate_guest_to_user import migrate_guest_to_user
+
+# During login process (usually in a signal or login view)
+def user_logged_in_handler(sender, request, user, **kwargs):
+    if request.session.session_key:
+        # Migrate all guest chats to authenticated user
+        migrate_guest_to_user(request.session.session_key, user)
+
+# This transfers:
+# - All messages from guest account to user account
+# - All chats and chat memberships
+# - All request history
+# - Deletes the guest account
+```
+
+#### 🌐 WebChat Security
+
+All WebChat operations include security measures:
+
+```python
+# ✅ Access Control
+# - Users can only access their own chats
+# - Verified via AccountChat relationship
+# - Blocked accounts cannot send messages
+
+# ✅ CSRF Protection
+# - All mutating operations require CSRF token
+# - Automatically handled by JavaScript API client
+
+# ✅ Chat Isolation
+# - Each chat has unique UUID
+# - Messages cannot leak between chats
+# - No cross-user access possible
+
+# ✅ Guest Security
+# - Guest sessions isolated by session key
+# - No access to other guest sessions
+# - Migration requires authentication
+```
+
+#### 🌐 WebChat Architecture
+
+The WebChat system consists of:
+
+**Backend (Django):**
+- Service layer: `unicom/services/webchat/`
+  - `get_or_create_account.py` - Account management
+  - `save_webchat_message.py` - Message saving and request creation
+  - `send_webchat_message.py` - Bot message sending
+  - `migrate_guest_to_user.py` - Guest-to-user migration
+  - `generate_chat_title.py` - Auto-title generation
+- Views: `unicom/views/webchat_views.py` - REST API endpoints
+- URLs: `/unicom/webchat/` - API routes
+
+**Frontend (LitElement Web Components):**
+- Main component: `<unicom-chat-with-sidebar>` - Multi-chat interface
+- Sub-components:
+  - `<chat-list>` - Sidebar with chat list
+  - `<message-list>` - Scrollable message container
+  - `<message-item>` - Individual message rendering
+  - `<message-input>` - Input area with media upload
+  - `<media-preview>` - File preview before sending
+- Utilities:
+  - API client with CSRF protection
+  - DateTime formatters
+  - Shared CSS styles with theming
+
+#### 🌐 WebChat Testing
+
+Comprehensive test suite included:
+
+```bash
+# Run WebChat tests
+pytest tests/test_webchat.py -v
+
+# Test coverage includes:
+# ✅ Guest and authenticated user messaging
+# ✅ Multiple separate chats
+# ✅ Message retrieval with pagination
+# ✅ Chat listing
+# ✅ Bot replies
+# ✅ Request processing
+# ✅ Guest-to-user migration
+# ✅ Security (access control, blocked accounts)
+```
+
+#### 🌐 WebChat Optional Enhancements
+
+**Future Enhancements (Optional - Not Required):**
+
+For real-time push notifications instead of polling, you can optionally install Django Channels:
+
+```bash
+pip install channels channels-redis daphne
+```
+
+This enables:
+- WebSocket connections for instant message delivery
+- Typing indicators
+- Read receipts
+- No polling overhead
+
+**Note:** Channels is completely optional. The current polling-based system works perfectly for most use cases.
 
 ### LLM Integration
 

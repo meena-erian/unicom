@@ -26,13 +26,15 @@ export class WebChatAPI {
    * @param {string} text - Message text
    * @param {string|null} chatId - Optional chat ID
    * @param {File|null} mediaFile - Optional media file (image/audio)
+   * @param {Object|null} metadata - Optional metadata for new chat creation (e.g., {project_id: 123})
    * @returns {Promise<Object>} Response data
    */
-  async sendMessage(text, chatId = null, mediaFile = null) {
+  async sendMessage(text, chatId = null, mediaFile = null, metadata = null) {
     const formData = new FormData();
     formData.append('text', text);
     if (chatId) formData.append('chat_id', chatId);
     if (mediaFile) formData.append('media', mediaFile);
+    if (metadata) formData.append('metadata', JSON.stringify(metadata));
 
     const response = await fetch(`${this.baseURL}/send/`, {
       method: 'POST',
@@ -77,12 +79,22 @@ export class WebChatAPI {
   }
 
   /**
-   * Get list of chats
+   * Get list of chats with optional filtering
    * @param {Object} filters - Filter parameters
+   *   Examples:
+   *   - {is_archived: false} - Only non-archived chats
+   *   - {metadata__project_id: 123} - Chats for project 123
+   *   - {metadata__department: 'sales'} - Chats for sales department
    * @returns {Promise<Object>} Response with chats array
    */
   async getChats(filters = {}) {
-    const params = new URLSearchParams(filters);
+    const params = new URLSearchParams();
+
+    // Add all filter parameters
+    for (const [key, value] of Object.entries(filters)) {
+      params.append(key, value);
+    }
+
     const response = await fetch(`${this.baseURL}/chats/?${params}`, {
       credentials: 'same-origin',
     });
