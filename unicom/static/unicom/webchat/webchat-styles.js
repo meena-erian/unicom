@@ -271,6 +271,7 @@ export const inputStyles = css`
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: auto;
   }
 
   .icon-btn,
