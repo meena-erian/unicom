@@ -153,13 +153,15 @@ export class MessageInput extends LitElement {
           style="display: none;">
 
         <div class="input-row">
-          <textarea
-            .value=${this.inputText}
-            @input=${this._handleInput}
-            @keydown=${this._handleKeyDown}
-            placeholder="Type a message..."
-            ?disabled=${this.disabled}
-            rows="1"></textarea>
+          ${this.isRecording ? html`` : html`
+            <textarea
+              .value=${this.inputText}
+              @input=${this._handleInput}
+              @keydown=${this._handleKeyDown}
+              placeholder="Type a message..."
+              ?disabled=${this.disabled}
+              rows="1"></textarea>
+          `}
 
           <div class="actions">
             ${showSend ? html`
