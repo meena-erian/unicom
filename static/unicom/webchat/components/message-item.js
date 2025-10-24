@@ -85,11 +85,20 @@ export class MessageItem extends LitElement {
 
     const message = this.message;
     const isUserMessage = message.is_outgoing === false;
+    const mediaType = message.media_type;
     const alignment = isUserMessage ? 'outgoing' : 'incoming';
     const classes = ['message-item', alignment];
+    const bubbleClasses = ['message-bubble'];
 
     if (message.is_outgoing === null) {
       classes.push('system');
+    }
+
+    if (['image', 'audio'].includes(mediaType)) {
+      bubbleClasses.push('media');
+    }
+    if (mediaType === 'audio') {
+      bubbleClasses.push('audio');
     }
 
     return html`
@@ -97,7 +106,7 @@ export class MessageItem extends LitElement {
         ${!isUserMessage && message.sender_name ? html`
           <div class="sender-name">${message.sender_name}</div>
         ` : ''}
-        <div class="message-bubble">
+        <div class="${bubbleClasses.join(' ')}">
           ${this._renderMessageContent(message)}
           <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
         </div>
