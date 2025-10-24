@@ -5,6 +5,7 @@ from unicom.services.whatsapp.send_whatsapp_message import send_whatsapp_message
 from unicom.services.internal.send_internal_message import send_internal_message
 from unicom.services.email.send_email_message import send_email_message
 from unicom.services.decode_base64_image import decode_base64_media
+from unicom.services.webchat.send_webchat_message import send_webchat_message
 from unicom.models import Message, Channel
 import uuid
 import os
@@ -88,6 +89,16 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
             "reply_to_message_id": message.id,
             **response
         }, source_function_call=source_function_call)
+    elif platform == 'WebChat':
+        payload = {**response, 'chat_id': message.chat_id}
+        media_type = payload.pop('type', None)
+        if media_type and 'media_type' not in payload:
+            payload['media_type'] = media_type
+        new_message = send_webchat_message(channel, payload)
+        if new_message:
+            new_message.reply_to_message = message
+            new_message.save(update_fields=['reply_to_message'])
+        return new_message
     elif platform == 'Email':
         return send_email_message(channel, {
             'reply_to_message_id' : message.id,
