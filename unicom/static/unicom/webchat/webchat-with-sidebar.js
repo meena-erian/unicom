@@ -79,14 +79,20 @@ export class UnicomChatWithSidebar extends LitElement {
         .mobile-back-btn {
           display: block;
           padding: 12px 16px;
-          background: var(--primary-color);
-          color: white;
+          background: var(--sidebar-header-bg, var(--primary-color));
+          color: var(--sidebar-header-text, #ffffff);
           border: none;
-          border-bottom: 1px solid var(--border-color);
+          border-bottom: 1px solid var(--sidebar-border-color, var(--border-color));
           cursor: pointer;
           width: 100%;
           text-align: left;
           font-size: 1em;
+          transition: background 0.2s ease;
+        }
+
+        .mobile-back-btn:hover {
+          background: var(--sidebar-header-bg, var(--primary-color));
+          filter: brightness(0.95);
         }
       }
 

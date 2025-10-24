@@ -19,6 +19,19 @@ export const baseStyles = css`
     --bubble-radius: var(--unicom-bubble-radius, 16px);
     --control-radius: var(--unicom-control-radius, 12px);
     --media-radius: var(--unicom-media-radius, 12px);
+    --scrollbar-track: var(--unicom-scrollbar-track, rgba(0, 0, 0, 0.04));
+    --scrollbar-thumb: var(--unicom-scrollbar-thumb, rgba(0, 0, 0, 0.18));
+    --sidebar-bg: var(--unicom-sidebar-bg, var(--background-color));
+    --sidebar-border-color: var(--unicom-sidebar-border-color, var(--border-color));
+    --sidebar-text-color: var(--unicom-sidebar-text-color, var(--text-color));
+    --sidebar-secondary-text: var(--unicom-sidebar-secondary-text, var(--secondary-color));
+    --sidebar-header-bg: var(--unicom-sidebar-header-bg, var(--primary-color));
+    --sidebar-header-text: var(--unicom-sidebar-header-text, #ffffff);
+    --sidebar-item-border: var(--unicom-sidebar-item-border, var(--border-color));
+    --sidebar-item-hover: var(--unicom-sidebar-item-hover, rgba(0, 0, 0, 0.03));
+    --sidebar-item-selected: var(--unicom-sidebar-item-selected, var(--primary-color));
+    --sidebar-item-selected-text: var(--unicom-sidebar-item-selected-text, #ffffff);
+    --sidebar-item-selected-subtext: var(--unicom-sidebar-item-selected-subtext, rgba(255, 255, 255, 0.8));
     --font-family: var(--unicom-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
     --input-height: var(--unicom-input-height, 44px);
     --max-width: var(--unicom-max-width, 800px);
@@ -63,6 +76,19 @@ export const baseStyles = css`
     --message-bg-incoming: #2d2d2d;
     --message-bg-outgoing: #0056b3;
     --message-text-incoming: #ffffff;
+    --sidebar-bg: #1b1b1b;
+    --sidebar-border-color: #2d2d2d;
+    --sidebar-text-color: #f3f3f3;
+    --sidebar-secondary-text: #b0b0b0;
+    --sidebar-header-bg: #1f1f1f;
+    --sidebar-header-text: #f3f3f3;
+    --sidebar-item-border: rgba(255, 255, 255, 0.08);
+    --sidebar-item-hover: rgba(255, 255, 255, 0.08);
+    --sidebar-item-selected: var(--primary-color);
+    --sidebar-item-selected-text: #ffffff;
+    --sidebar-item-selected-subtext: rgba(255, 255, 255, 0.85);
+    --scrollbar-track: rgba(255, 255, 255, 0.06);
+    --scrollbar-thumb: rgba(255, 255, 255, 0.24);
   }
 
   .error-banner {
@@ -348,6 +374,21 @@ export const listStyles = css`
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  .message-list::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .message-list::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  .message-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
   }
 
   .loading-spinner {
@@ -376,7 +417,7 @@ export const listStyles = css`
     background: var(--message-bg-incoming);
     color: var(--text-color);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: var(--control-radius);
     padding: 8px 16px;
     cursor: pointer;
     font-size: 0.9em;

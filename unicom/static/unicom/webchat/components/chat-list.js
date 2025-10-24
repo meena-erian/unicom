@@ -16,8 +16,9 @@ export class ChatList extends LitElement {
     :host {
       display: block;
       height: 100%;
-      background: var(--background-color, #ffffff);
-      border-right: 1px solid var(--border-color, #dee2e6);
+      background: var(--sidebar-bg, var(--background-color, #ffffff));
+      border-right: 1px solid var(--sidebar-border-color, var(--border-color, #dee2e6));
+      color: var(--sidebar-text-color, var(--text-color, #212529));
     }
 
     .chat-list-container {
@@ -28,9 +29,9 @@ export class ChatList extends LitElement {
 
     .chat-list-header {
       padding: 16px;
-      border-bottom: 1px solid var(--border-color, #dee2e6);
-      background: var(--primary-color, #007bff);
-      color: white;
+      border-bottom: 1px solid var(--sidebar-border-color, var(--border-color, #dee2e6));
+      background: var(--sidebar-header-bg, var(--primary-color, #007bff));
+      color: var(--sidebar-header-text, #ffffff);
     }
 
     .chat-list-header h3 {
@@ -59,38 +60,55 @@ export class ChatList extends LitElement {
     .chat-list-items {
       flex: 1;
       overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.18)) var(--scrollbar-track, rgba(0, 0, 0, 0.04));
+    }
+
+    .chat-list-items::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .chat-list-items::-webkit-scrollbar-track {
+      background: var(--scrollbar-track, rgba(0, 0, 0, 0.04));
+    }
+
+    .chat-list-items::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb, rgba(0, 0, 0, 0.18));
+      border-radius: 999px;
     }
 
     .chat-item {
       padding: 14px 16px;
-      border-bottom: 1px solid var(--border-color, #dee2e6);
+      border-bottom: 1px solid var(--sidebar-item-border, var(--border-color, #dee2e6));
       cursor: pointer;
       transition: background 0.2s;
+      color: inherit;
     }
 
     .chat-item:hover {
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--sidebar-item-hover, rgba(0, 0, 0, 0.03));
     }
 
     .chat-item.selected {
-      background: var(--primary-color, #007bff);
-      color: white;
+      background: var(--sidebar-item-selected, var(--primary-color, #007bff));
+      color: var(--sidebar-item-selected-text, #ffffff);
     }
 
     .chat-item.selected .chat-preview,
     .chat-item.selected .chat-time {
-      color: rgba(255, 255, 255, 0.8);
+      color: var(--sidebar-item-selected-subtext, rgba(255, 255, 255, 0.8));
     }
 
     .chat-name {
       font-weight: 600;
       margin-bottom: 4px;
       font-size: 0.95em;
+      color: inherit;
     }
 
     .chat-preview {
       font-size: 0.85em;
-      color: var(--secondary-color, #6c757d);
+      color: var(--sidebar-secondary-text, var(--secondary-color, #6c757d));
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -99,7 +117,7 @@ export class ChatList extends LitElement {
 
     .chat-time {
       font-size: 0.75em;
-      color: var(--secondary-color, #6c757d);
+      color: var(--sidebar-secondary-text, var(--secondary-color, #6c757d));
     }
 
     .loading-spinner {
@@ -111,19 +129,13 @@ export class ChatList extends LitElement {
     .empty-state {
       padding: 40px 20px;
       text-align: center;
-      color: var(--secondary-color, #6c757d);
+      color: var(--sidebar-secondary-text, var(--secondary-color, #6c757d));
     }
 
     .empty-state-icon {
       font-size: 2em;
       margin-bottom: 12px;
       opacity: 0.5;
-    }
-
-    .dark {
-      --background-color: #2d2d2d;
-      --border-color: #444;
-      --secondary-color: #aaa;
     }
   `;
 
