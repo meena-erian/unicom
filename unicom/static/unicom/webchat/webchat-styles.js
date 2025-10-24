@@ -15,7 +15,10 @@ export const baseStyles = css`
     --message-text-outgoing: var(--unicom-message-text-outgoing, #ffffff);
     --text-color: var(--unicom-text-color, #212529);
     --border-color: var(--unicom-border-color, #dee2e6);
-    --border-radius: var(--unicom-border-radius, 8px);
+    --border-radius: var(--unicom-border-radius, 0px);
+    --bubble-radius: var(--unicom-bubble-radius, 16px);
+    --control-radius: var(--unicom-control-radius, 12px);
+    --media-radius: var(--unicom-media-radius, 12px);
     --font-family: var(--unicom-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
     --input-height: var(--unicom-input-height, 44px);
     --max-width: var(--unicom-max-width, 800px);
@@ -118,7 +121,7 @@ export const messageStyles = css`
     display: inline-block;
     max-width: calc(100% - 32px);
     padding: 12px 16px;
-    border-radius: var(--border-radius);
+    border-radius: var(--bubble-radius);
     word-wrap: break-word;
     word-break: break-word;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -129,13 +132,13 @@ export const messageStyles = css`
     margin-left: auto;
     background: var(--message-bg-outgoing);
     color: var(--message-text-outgoing);
-    border-bottom-right-radius: 4px;
+    border-bottom-right-radius: clamp(4px, calc(var(--bubble-radius) / 2), var(--bubble-radius));
   }
 
   .message-item.incoming .message-bubble {
     background: var(--message-bg-incoming);
     color: var(--message-text-incoming);
-    border-bottom-left-radius: 4px;
+    border-bottom-left-radius: clamp(4px, calc(var(--bubble-radius) / 2), var(--bubble-radius));
   }
 
   .message-bubble.media {
@@ -195,7 +198,7 @@ export const messageStyles = css`
   .message-media img {
     max-width: 100%;
     max-height: 400px;
-    border-radius: 8px;
+    border-radius: var(--media-radius);
     cursor: pointer;
     display: block;
   }
@@ -205,7 +208,7 @@ export const messageStyles = css`
     max-width: 100%;
     display: block;
     margin-top: 4px;
-    border-radius: 12px;
+    border-radius: var(--control-radius);
     background: rgba(0, 0, 0, 0.05);
   }
 
@@ -278,7 +281,7 @@ export const inputStyles = css`
   .send-btn {
     flex-shrink: 0;
     height: var(--input-height);
-    border-radius: 12px;
+    border-radius: var(--control-radius);
     border: 1px solid var(--border-color);
     background: var(--background-color);
     color: var(--text-color);
@@ -402,7 +405,7 @@ export const previewStyles = css`
   .media-preview {
     background: var(--message-bg-incoming);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: var(--control-radius);
     padding: 8px;
     margin-bottom: 8px;
     display: flex;
@@ -420,7 +423,7 @@ export const previewStyles = css`
     width: 60px;
     height: 60px;
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: var(--media-radius);
   }
 
   .preview-thumbnail.icon {
@@ -438,7 +441,7 @@ export const previewStyles = css`
   .preview-audio {
     width: 100%;
     display: block;
-    border-radius: 10px;
+    border-radius: var(--control-radius);
     background: rgba(0, 0, 0, 0.05);
   }
 

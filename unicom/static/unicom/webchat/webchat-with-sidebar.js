@@ -40,18 +40,6 @@ export class UnicomChatWithSidebar extends LitElement {
   static styles = [
     baseStyles,
     css`
-      .bundle-version-tag {
-        font-size: 0.75em;
-        color: var(--secondary-color);
-        position: absolute;
-        top: 6px;
-        right: 12px;
-        background: rgba(255, 255, 255, 0.8);
-        border-radius: 12px;
-        padding: 4px 10px;
-        pointer-events: none;
-      }
-
       .chat-with-sidebar-container {
         display: flex;
         flex: 1 1 auto;
@@ -367,21 +355,8 @@ export class UnicomChatWithSidebar extends LitElement {
   render() {
     return html`
       <div class="unicom-chat-container ${this.theme}">
-        <div class="bundle-version-tag">
-          WebChat UI v${WEBCHAT_UI_VERSION}
-        </div>
         ${this.error ? html`
           <div class="error-banner">${this.error}</div>
-        ` : ''}
-
-        ${this.connectionStatus === 'connected' && this.connectionType === 'websocket' ? html`
-          <div class="connection-status" style="padding: 4px 8px; background: #28a745; color: white; font-size: 0.8em; text-align: center;">
-            🟢 Real-time (WebSocket)
-          </div>
-        ` : this.connectionStatus === 'connected' ? html`
-          <div class="connection-status" style="padding: 4px 8px; background: #ffc107; color: #000; font-size: 0.8em; text-align: center;">
-            🔄 Polling mode (${this.autoRefresh}s refresh)
-          </div>
         ` : ''}
 
         <div class="chat-with-sidebar-container">
