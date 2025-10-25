@@ -128,6 +128,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
     this.client = null;
     this._showSidebar = true;
+    this._deletingChatId = null;
   }
 
   connectedCallback() {
@@ -373,7 +374,8 @@ export class UnicomChatWithSidebar extends LitElement {
               .selectedChatId=${this.currentChatId}
               .loading=${this.loadingChats}
               @chat-selected=${this._handleChatSelected}
-              @new-chat=${this._handleNewChat}>
+              @new-chat=${this._handleNewChat}
+              @delete-chat=${this._handleDeleteChat}>
             </chat-list>
           </div>
 
@@ -399,6 +401,37 @@ export class UnicomChatWithSidebar extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Handle chat deletion requests.
+   */
+  async _handleDeleteChat(e) {
+    const { chatId } = e.detail || {};
+    if (!chatId || this._deletingChatId === chatId) {
+      return;
+    }
+
+    this._deletingChatId = chatId;
+    this.error = null;
+
+    try {
+      await this.client.api.deleteChat(chatId, true);
+
+      if (this.currentChatId === chatId) {
+        this.client.unsubscribeFromChat(chatId);
+        this.currentChatId = null;
+        this.messages = [];
+        this._showSidebar = true;
+      }
+
+      await this.loadChats();
+    } catch (err) {
+      this.error = err.message || 'Failed to delete chat';
+      console.error('Failed to delete chat:', err);
+    } finally {
+      this._deletingChatId = null;
+    }
   }
 }
 

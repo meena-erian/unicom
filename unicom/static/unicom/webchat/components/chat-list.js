@@ -78,6 +78,9 @@ export class ChatList extends LitElement {
     }
 
     .chat-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       padding: 14px 16px;
       border-bottom: 1px solid var(--sidebar-item-border, var(--border-color, #dee2e6));
       cursor: pointer;
@@ -118,6 +121,42 @@ export class ChatList extends LitElement {
     .chat-time {
       font-size: 0.75em;
       color: var(--sidebar-secondary-text, var(--secondary-color, #6c757d));
+    }
+
+    .chat-content {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .chat-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .chat-item:hover .chat-actions,
+    .chat-item.selected .chat-actions {
+      opacity: 1;
+    }
+
+    .delete-chat-btn {
+      border: 1px solid var(--border-color, #dee2e6);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-size: 0.8em;
+      padding: 6px 8px;
+      border-radius: 4px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .delete-chat-btn:hover,
+    .delete-chat-btn:focus {
+      background: rgba(0, 0, 0, 0.08);
+      color: var(--danger-color, #dc3545);
+      outline: none;
     }
 
     .loading-spinner {
@@ -166,6 +205,24 @@ export class ChatList extends LitElement {
     return formatRelativeTime(timestamp);
   }
 
+  _handleDeleteClick(event, chat) {
+    event.stopPropagation();
+
+    const confirmationMessage = chat.name
+      ? `Delete chat "${chat.name}"? This will remove the conversation permanently.`
+      : 'Delete this chat? This will remove the conversation permanently.';
+
+    if (!window.confirm(confirmationMessage)) {
+      return;
+    }
+
+    this.dispatchEvent(new CustomEvent('delete-chat', {
+      detail: { chatId: chat.id },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   render() {
     return html`
       <div class="chat-list-container">
@@ -192,13 +249,23 @@ export class ChatList extends LitElement {
             <div
               class="chat-item ${chat.id === this.selectedChatId ? 'selected' : ''}"
               @click=${() => this._handleChatClick(chat)}>
-              <div class="chat-name">${chat.name || 'Chat ' + chat.id}</div>
-              ${chat.last_message ? html`
-                <div class="chat-preview">${chat.last_message.text || 'Media message'}</div>
-                <div class="chat-time">${this._formatTime(chat.last_message.timestamp)}</div>
-              ` : html`
-                <div class="chat-preview">No messages yet</div>
-              `}
+              <div class="chat-content">
+                <div class="chat-name">${chat.name || 'Chat ' + chat.id}</div>
+                ${chat.last_message ? html`
+                  <div class="chat-preview">${chat.last_message.text || 'Media message'}</div>
+                  <div class="chat-time">${this._formatTime(chat.last_message.timestamp)}</div>
+                ` : html`
+                  <div class="chat-preview">No messages yet</div>
+                `}
+              </div>
+              <div class="chat-actions">
+                <button
+                  class="delete-chat-btn"
+                  @click=${(event) => this._handleDeleteClick(event, chat)}
+                  aria-label="Delete chat">
+                  Delete
+                </button>
+              </div>
             </div>
           `)}
         </div>

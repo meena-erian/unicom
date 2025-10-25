@@ -23,9 +23,42 @@ export class UnicomChat extends LitElement {
     sending: { type: Boolean, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
+    deleting: { type: Boolean, state: true },
   };
 
-  static styles = [baseStyles];
+  static styles = [
+    baseStyles,
+    css`
+      .chat-header-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+
+      .delete-chat-btn {
+        border: 1px solid var(--border-color, #dee2e6);
+        background: transparent;
+        color: var(--danger-color, #dc3545);
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+
+      .delete-chat-btn:hover:not([disabled]),
+      .delete-chat-btn:focus-visible:not([disabled]) {
+        background: rgba(220, 53, 69, 0.08);
+        outline: none;
+      }
+
+      .delete-chat-btn[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    `
+  ];
 
   constructor() {
     super();
@@ -41,6 +74,7 @@ export class UnicomChat extends LitElement {
     this.sending = false;
     this.error = null;
     this.hasMore = false;
+    this.deleting = false;
 
     this.api = null;
     this._refreshInterval = null;
@@ -199,12 +233,49 @@ export class UnicomChat extends LitElement {
     }
   }
 
+  /**
+   * Delete the current chat after confirmation.
+   */
+  async _handleDeleteChat() {
+    if (!this.chatId || this.deleting) {
+      return;
+    }
+
+    if (!window.confirm('Delete this chat? This will remove the conversation permanently.')) {
+      return;
+    }
+
+    this.deleting = true;
+    this.error = null;
+
+    try {
+      await this.api.deleteChat(this.chatId, true);
+      this.chatId = null;
+      this.messages = [];
+      this.hasMore = false;
+    } catch (err) {
+      this.error = err.message;
+      console.error('Failed to delete chat:', err);
+    } finally {
+      this.deleting = false;
+    }
+  }
+
   render() {
     return html`
       <div class="unicom-chat-container ${this.theme}">
         ${this.error ? html`
           <div class="error-banner">${this.error}</div>
         ` : ''}
+
+        <div class="chat-header-actions">
+          <button
+            class="delete-chat-btn"
+            @click=${this._handleDeleteChat}
+            ?disabled=${!this.chatId || this.deleting}>
+            ${this.deleting ? 'Deleting...' : 'Delete chat'}
+          </button>
+        </div>
 
         <message-list
           .messages=${this.messages}

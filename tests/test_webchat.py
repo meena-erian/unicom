@@ -584,6 +584,48 @@ class TestWebChatSecurity:
         data = response.json()
         assert 'blocked' in data['error'].lower()
 
+    def test_guest_cannot_delete_chat(self):
+        """Ensure guest users cannot delete chats."""
+        response = self.client.post('/unicom/webchat/send/', {'text': 'Guest message'})
+        assert response.status_code == 200
+        chat_id = response.json()['message']['chat_id']
+
+        delete_response = self.client.delete(f'/unicom/webchat/chat/{chat_id}/delete/')
+        assert delete_response.status_code == 401
+        chat = Chat.objects.get(id=chat_id)
+        assert chat.is_archived is False
+
+    def test_user_can_delete_own_chat(self):
+        """Ensure authenticated users can delete their own chats."""
+        self.client.login(username='user1', password='pass123')
+        response = self.client.post('/unicom/webchat/send/', {'text': 'User1 message'})
+        assert response.status_code == 200
+        chat_id = response.json()['message']['chat_id']
+
+        delete_response = self.client.delete(f'/unicom/webchat/chat/{chat_id}/delete/')
+        assert delete_response.status_code == 200
+        data = delete_response.json()
+        assert data['success'] is True
+        assert 'message' in data
+
+        chat = Chat.objects.get(id=chat_id)
+        assert chat.is_archived is True
+
+    def test_user_cannot_delete_other_users_chat(self):
+        """Ensure users cannot delete chats they do not own."""
+        self.client.login(username='user1', password='pass123')
+        response = self.client.post('/unicom/webchat/send/', {'text': 'User1 message'})
+        assert response.status_code == 200
+        user1_chat_id = response.json()['message']['chat_id']
+        self.client.logout()
+
+        self.client.login(username='user2', password='pass123')
+        delete_response = self.client.delete(f'/unicom/webchat/chat/{user1_chat_id}/delete/')
+        assert delete_response.status_code == 404
+
+        chat = Chat.objects.get(id=user1_chat_id)
+        assert chat.is_archived is False
+
 
 @pytest.mark.django_db(transaction=True)
 class TestWebChatCustomFiltration:

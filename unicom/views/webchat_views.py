@@ -437,6 +437,9 @@ def delete_webchat_chat_api(request, chat_id):
     try:
         _ensure_session(request)
 
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+
         # Get channel
         channel = _get_webchat_channel()
 
