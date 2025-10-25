@@ -1369,8 +1369,8 @@ pip install channels channels-redis
 
 ```python
 INSTALLED_APPS = [
+    'channels',  # Keep this before Django's default apps so its runserver takes over
     ...
-    'channels',
 ]
 
 ASGI_APPLICATION = 'your_project.asgi.application'
@@ -1391,24 +1391,45 @@ CHANNEL_LAYERS = {
 # your_project/asgi.py
 import os
 from django.core.asgi import get_asgi_application
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from django.urls import path
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+try:
+    from channels.auth import AuthMiddlewareStack
+    from channels.routing import ProtocolTypeRouter, URLRouter
+    from django.urls import path
+    from django.conf import settings
+    from unicom.consumers import WebChatConsumer
+except ImportError:
+    # Channels not installed – fall back to standard ASGI application.
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+    application = get_asgi_application()
+else:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+    http_app = get_asgi_application()
+    if settings.DEBUG:
+        from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+        http_app = ASGIStaticFilesHandler(http_app)
 
-# Import the WebChat consumer
-from unicom.consumers import WebChatConsumer
+    websocket_urlpatterns = [
+        path("ws/unicom/webchat/<str:chat_id>/", WebChatConsumer.as_asgi()),
+        path("ws/unicom/webchat/<str:chat_id>", WebChatConsumer.as_asgi()),  # optional trailing slash
+    ]
 
-application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
-        URLRouter([
-            path('ws/unicom/webchat/', WebChatConsumer.as_asgi()),
-        ])
-    ),
-})
+    application = ProtocolTypeRouter({
+        "http": http_app,
+        "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+    })
 ```
+
+> **Why the chat_id segment?**  
+> Each WebSocket connection is scoped to a single chat. The consumer validates the
+> authenticated (or guest) account against that chat and streams new messages as they
+> arrive. Existing REST endpoints are still used for loading history and sending new
+> messages.
+
+> **Using the in-memory channel layer?**  
+> For quick demos you can skip Redis entirely and point `CHANNEL_LAYERS['default']['BACKEND']`
+> to `'channels.layers.InMemoryChannelLayer'`—this is exactly how `unicom_project/settings.py`
+> is configured when Channels is installed.
 
 **How It Works:**
 

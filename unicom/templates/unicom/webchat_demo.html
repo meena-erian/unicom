@@ -180,7 +180,6 @@
                     theme="dark"
                     max-messages="50"
                     auto-refresh="5"
-                    disable-websocket
                     style="height: 100%; --unicom-primary-color: #2e7d32;">
                 </unicom-chat-with-sidebar>
             </div>
@@ -194,7 +193,7 @@
                     <li>Upload and display images</li>
                     <li>Upload and play audio files</li>
                     <li>HTML content rendering</li>
-                    <li>Auto-refresh every 5 seconds</li>
+                    <li>Real-time updates via WebSocket (auto fallback to polling)</li>
                     <li>Load earlier messages</li>
                 </ul>
             </div>
@@ -238,7 +237,7 @@
             <div class="feature-card">
                 <h3>⚡ Performance</h3>
                 <ul>
-                    <li>Efficient polling system</li>
+                    <li>WebSocket push with efficient polling fallback</li>
                     <li>Only refreshes when visible</li>
                     <li>Cursor-based pagination</li>
                     <li>Smooth animations</li>

@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'django_ace',
     'unicom',  # Required dependency for unibot
     'unibot',
@@ -103,6 +104,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'unicom_project.wsgi.application'
+ASGI_APPLICATION = 'unicom_project.asgi.application'
 
 
 # Database
@@ -159,6 +161,27 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Optional WebSocket support via Django Channels. The project keeps working with
+# plain HTTP when Channels is missing, but enabling it lets the WebChat demo use
+# the lightweight websocket consumer out-of-the-box.
+_channels_installed = False
+try:  # pragma: no cover - Channels is an optional dependency
+    import channels  # type: ignore  # noqa: F401
+except ImportError:
+    _channels_installed = False
+else:
+    _channels_installed = True
+    if 'channels' not in INSTALLED_APPS:
+        INSTALLED_APPS.insert(0, 'channels')
+
+if _channels_installed:
+    print("Django Channels detected; enabling in-memory channel layer for WebChat.")
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

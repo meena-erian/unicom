@@ -232,6 +232,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
       const messages = await this.client.getMessages(this.currentChatId, this.maxMessages);
       this.messages = messages || [];
+      this.client.updateBaselineFromMessages(this.messages);
       // Note: hasMore not supported in current getMessages - could be added later
       this.hasMore = false;
     } catch (err) {

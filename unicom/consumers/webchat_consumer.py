@@ -1,429 +1,295 @@
 """
-WebChat WebSocket Consumer (Optional - requires Django Channels)
+Lightweight WebChat WebSocket consumer.
 
-This consumer provides real-time updates for WebChat when Django Channels is installed.
-If Channels is not available, the application will fall back to polling-based updates.
+This consumer keeps a WebSocket connection per chat and periodically checks for
+new messages directly from the database. When it finds new messages it pushes
+them to the connected client, eliminating the need for the browser to issue
+HTTP polling requests every few seconds.
 
-Installation:
-    pip install channels channels-redis
+Installation (only needed if you plan to enable websockets):
 
-Configuration in settings.py:
-    INSTALLED_APPS = [
-        ...
-        'channels',
-    ]
+    pip install channels
 
-    ASGI_APPLICATION = 'your_project.asgi.application'
+Minimal ASGI routing example:
 
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                "hosts": [('127.0.0.1', 6379)],
-            },
-        },
-    }
-
-Routing in asgi.py or routing.py:
     from django.urls import path
     from unicom.consumers.webchat_consumer import WebChatConsumer
 
     websocket_urlpatterns = [
-        path('ws/unicom/webchat/', WebChatConsumer.as_asgi()),
+        path('ws/unicom/webchat/<str:chat_id>/', WebChatConsumer.as_asgi()),
     ]
 """
+
+from __future__ import annotations
+
+import asyncio
+from collections import deque
+from dataclasses import dataclass
+from typing import Iterable, Optional, Tuple
 
 try:
     from channels.generic.websocket import AsyncJsonWebsocketConsumer
     from channels.db import database_sync_to_async
-    from django.apps import apps
+
     CHANNELS_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - channels is optional
     CHANNELS_AVAILABLE = False
-    # Create a dummy base class so the file doesn't fail to import
-    class AsyncJsonWebsocketConsumer:
-        pass
+
+    class AsyncJsonWebsocketConsumer:  # type: ignore
+        """Fallback stub so imports do not fail when channels is missing."""
+
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "Django Channels is required to use the WebChat WebSocket consumer. "
+                "Install it with: pip install channels"
+            )
+
+    def database_sync_to_async(func):  # type: ignore
+        return func
+
+
+@dataclass
+class _SerializedMessage:
+    message_id: str
+    payload: dict
 
 
 class WebChatConsumer(AsyncJsonWebsocketConsumer):
     """
-    WebSocket consumer for real-time WebChat updates.
+    Extremely small WebChat consumer that:
+    - Accepts ``ws/unicom/webchat/<chat_id>/`` connections.
+    - Verifies the authenticated/guest account can access the requested chat.
+    - Checks the database every five seconds without sending network traffic.
+    - Emits ``{"type": "new_message", "chat_id": ..., "message": {...}}`` only
+      when new messages exist.
 
-    Supports:
-    - Real-time message delivery
-    - Chat list updates
-    - Custom filtration (e.g., by project_id, department, etc.)
-    - Typing indicators (future)
-    - Read receipts (future)
-
-    Client-to-Server Messages:
-    {
-        "action": "subscribe",
-        "filters": {
-            "metadata__project_id": 123,
-            "is_archived": false
-        }
-    }
-
-    {
-        "action": "send_message",
-        "chat_id": "webchat_abc123",
-        "text": "Hello",
-        "metadata": {"project_id": 123}  // For new chat creation
-    }
-
-    {
-        "action": "get_chats",
-        "filters": {"metadata__project_id": 123}
-    }
-
-    {
-        "action": "get_messages",
-        "chat_id": "webchat_abc123",
-        "limit": 50
-    }
-
-    Server-to-Client Messages:
-    {
-        "type": "new_message",
-        "message": {...},
-        "chat_id": "webchat_abc123"
-    }
-
-    {
-        "type": "chat_update",
-        "chat": {...}
-    }
-
-    {
-        "type": "chats_list",
-        "chats": [...]
-    }
+    The consumer does not depend on channel layers and therefore works with the
+    default in-memory Channels backend, keeping unicom's package easy to ship.
     """
 
+    poll_interval_seconds = 5
+    warm_cache_limit = 100
+
     def __init__(self, *args, **kwargs):
-        if not CHANNELS_AVAILABLE:
+        if not CHANNELS_AVAILABLE:  # pragma: no cover - handled above
             raise ImportError(
-                "Django Channels is not installed. Please install it with: "
-                "pip install channels channels-redis"
+                "Django Channels is not installed. Install it with: pip install channels"
             )
         super().__init__(*args, **kwargs)
+
+        self.chat_id: Optional[str] = None
         self.account = None
-        self.account_id = None
-        self.filters = {}
-        self.subscribed_chats = set()
+        self._polling_task: Optional[asyncio.Task] = None
+        self._recent_ids = deque(maxlen=self.warm_cache_limit)
+        self._recent_id_set: set[str] = set()
 
+    # ------------------------------------------------------------------ WS API
     async def connect(self):
-        """Handle WebSocket connection."""
-        # Accept connection
-        await self.accept()
-
-        # Get or create account
-        self.account = await self.get_or_create_account()
-        self.account_id = self.account.id
-
-        # Add to account's personal group
-        await self.channel_layer.group_add(
-            f"webchat_account_{self.account_id}",
-            self.channel_name
-        )
-
-    async def disconnect(self, close_code):
-        """Handle WebSocket disconnection."""
-        # Remove from account's personal group
-        if self.account_id:
-            await self.channel_layer.group_discard(
-                f"webchat_account_{self.account_id}",
-                self.channel_name
-            )
-
-        # Remove from all subscribed chat groups
-        for chat_id in self.subscribed_chats:
-            await self.channel_layer.group_discard(
-                f"webchat_chat_{chat_id}",
-                self.channel_name
-            )
-
-    async def receive_json(self, content):
-        """Handle incoming WebSocket messages."""
-        action = content.get('action')
-
-        if action == 'subscribe':
-            # Subscribe to filtered chats
-            filters = content.get('filters', {})
-            self.filters = filters
-            await self.send_filtered_chats()
-
-        elif action == 'send_message':
-            # Send a message
-            chat_id = content.get('chat_id')
-            text = content.get('text')
-            metadata = content.get('metadata', {})
-
-            message = await self.save_message(chat_id, text, metadata)
-            if message:
-                await self.send_json({
-                    'type': 'message_sent',
-                    'success': True,
-                    'message': await self.serialize_message(message),
-                    'chat_id': message.chat_id
-                })
-
-                # Broadcast to chat participants
-                await self.channel_layer.group_send(
-                    f"webchat_chat_{message.chat_id}",
-                    {
-                        'type': 'new_message',
-                        'message': await self.serialize_message(message),
-                        'chat_id': message.chat_id
-                    }
-                )
-
-        elif action == 'get_chats':
-            # Get list of chats
-            filters = content.get('filters', self.filters)
-            chats = await self.get_chats(filters)
-            await self.send_json({
-                'type': 'chats_list',
-                'chats': chats
-            })
-
-        elif action == 'get_messages':
-            # Get messages for a chat
-            chat_id = content.get('chat_id')
-            limit = content.get('limit', 50)
-            messages = await self.get_messages(chat_id, limit)
-            await self.send_json({
-                'type': 'messages_list',
-                'chat_id': chat_id,
-                'messages': messages
-            })
-
-        elif action == 'subscribe_chat':
-            # Subscribe to a specific chat for real-time updates
-            chat_id = content.get('chat_id')
-            if chat_id and await self.has_chat_access(chat_id):
-                await self.channel_layer.group_add(
-                    f"webchat_chat_{chat_id}",
-                    self.channel_name
-                )
-                self.subscribed_chats.add(chat_id)
-
-        elif action == 'unsubscribe_chat':
-            # Unsubscribe from a specific chat
-            chat_id = content.get('chat_id')
-            if chat_id in self.subscribed_chats:
-                await self.channel_layer.group_discard(
-                    f"webchat_chat_{chat_id}",
-                    self.channel_name
-                )
-                self.subscribed_chats.remove(chat_id)
-
-    async def new_message(self, event):
-        """
-        Handler for new_message events from channel layer.
-        Sends the message to the WebSocket client.
-        """
-        await self.send_json({
-            'type': 'new_message',
-            'message': event['message'],
-            'chat_id': event['chat_id']
-        })
-
-    async def chat_update(self, event):
-        """
-        Handler for chat_update events from channel layer.
-        Sends the chat update to the WebSocket client.
-        """
-        await self.send_json({
-            'type': 'chat_update',
-            'chat': event['chat']
-        })
-
-    # Database operations
-
-    @database_sync_to_async
-    def get_or_create_account(self):
-        """Get or create WebChat account for current user/session."""
-        from unicom.services.webchat.get_or_create_account import get_or_create_account
-        from unicom.models import Channel
-
-        # Get WebChat channel
-        channel = Channel.objects.filter(platform='WebChat', active=True).first()
-        if not channel:
-            raise ValueError("No active WebChat channel found")
-
-        # Use the scope to get user and session
-        account = get_or_create_account(channel, self.scope)
-        return account
-
-    @database_sync_to_async
-    def has_chat_access(self, chat_id):
-        """Check if account has access to a chat."""
-        from unicom.models import Chat, AccountChat
+        """Validate access and start background polling."""
+        self.chat_id = self._extract_chat_id()
+        if not self.chat_id:
+            await self.close(code=4400)  # bad request
+            return
 
         try:
-            chat = Chat.objects.get(id=chat_id, platform='WebChat')
-            return AccountChat.objects.filter(account=self.account, chat=chat).exists()
+            self.account = await self._get_account()
+        except ValueError:
+            await self.close(code=4401)  # unable to resolve account
+            return
+
+        has_access = await self._account_has_chat_access(self.chat_id)
+        if not has_access:
+            await self.close(code=4403)  # forbidden
+            return
+
+        await self.accept()
+        await self._warm_seen_cache()
+        await self.send_json({"type": "ready", "chat_id": self.chat_id})
+
+        # Start the periodic polling task.
+        self._polling_task = asyncio.create_task(self._poll_for_updates())
+
+    async def disconnect(self, code):
+        """Stop background polling gracefully."""
+        if self._polling_task and not self._polling_task.done():
+            self._polling_task.cancel()
+            try:
+                await self._polling_task
+            except asyncio.CancelledError:
+                pass
+
+    async def receive_json(self, content, **kwargs):
+        """
+        No client commands are required for this consumer. Respond to optional
+        heartbeats so the caller knows the connection is alive.
+        """
+        if content.get("action") == "ping":
+            await self.send_json({"type": "pong"})
+
+    # -------------------------------------------------------------- Polling loop
+    async def _poll_for_updates(self):
+        """
+        Periodically check the database for new messages. Only messages that
+        have not been seen before are pushed to the client.
+        """
+        try:
+            while True:
+                await asyncio.sleep(self.poll_interval_seconds)
+                pending = await self._get_recent_messages()
+                fresh = self._filter_fresh_messages(pending)
+                if not fresh:
+                    continue
+
+                for item in fresh:
+                    await self.send_json(
+                        {
+                            "type": "new_message",
+                            "chat_id": self.chat_id,
+                            "message": item.payload,
+                        }
+                    )
+                    self._remember_message_id(item.message_id)
+        except asyncio.CancelledError:
+            # Task cancelled on disconnect – nothing else to do.
+            return
+
+    # -------------------------------------------------------------- Cache utils
+    def _extract_chat_id(self) -> Optional[str]:
+        route = self.scope.get("url_route") or {}
+        kwargs = route.get("kwargs") or {}
+        return kwargs.get("chat_id")
+
+    async def _warm_seen_cache(self):
+        """
+        Record the IDs of the most recent messages so the consumer does not
+        resend historical data immediately after connecting.
+        """
+        recent_ids = await self._get_recent_message_ids()
+        for message_id in recent_ids:
+            self._remember_message_id(message_id)
+
+    def _filter_fresh_messages(
+        self, messages: Iterable[_SerializedMessage]
+    ) -> list[_SerializedMessage]:
+        """Return only messages that have not been delivered yet."""
+        fresh = []
+        for item in messages:
+            if item.message_id in self._recent_id_set:
+                continue
+            fresh.append(item)
+        return fresh
+
+    def _remember_message_id(self, message_id: str):
+        """Track delivered messages and keep the cache bounded."""
+        if message_id in self._recent_id_set:
+            return
+
+        self._recent_id_set.add(message_id)
+        self._recent_ids.append(message_id)
+
+        # Keep the backing set aligned with the deque window.
+        while len(self._recent_id_set) > len(self._recent_ids):
+            oldest = self._recent_ids.popleft()
+            self._recent_id_set.discard(oldest)
+
+    # --------------------------------------------------------- DB interactions
+    @database_sync_to_async
+    def _get_account(self):
+        from django.apps import apps
+        from unicom.services.webchat.get_or_create_account import get_or_create_account
+
+        Channel = apps.get_model("unicom", "Channel")
+        channel = Channel.objects.filter(platform="WebChat", active=True).first()
+        if not channel:
+            raise ValueError("No active WebChat channel found for WebChat platform.")
+
+        class ScopeRequest:
+            def __init__(self, scope):
+                self.user = scope.get("user")
+                self.session = scope.get("session")
+
+        request_like = ScopeRequest(self.scope)
+        return get_or_create_account(channel, request_like)
+
+    @database_sync_to_async
+    def _account_has_chat_access(self, chat_id: str) -> bool:
+        from django.apps import apps
+
+        Chat = apps.get_model("unicom", "Chat")
+        AccountChat = apps.get_model("unicom", "AccountChat")
+
+        try:
+            chat = Chat.objects.get(id=chat_id, platform="WebChat")
         except Chat.DoesNotExist:
             return False
 
-    @database_sync_to_async
-    def save_message(self, chat_id, text, metadata):
-        """Save a message to the database."""
-        from unicom.services.webchat.save_webchat_message import save_webchat_message
-        from unicom.models import Channel
-
-        channel = Channel.objects.filter(platform='WebChat', active=True).first()
-        if not channel:
-            return None
-
-        message_data = {
-            'text': text,
-            'chat_id': chat_id,
-            'media_type': 'text',
-            'metadata': metadata
-        }
-
-        # Create a mock request object with session and user
-        class MockRequest:
-            def __init__(self, scope):
-                self.scope = scope
-                self.user = scope.get('user')
-                self.session = scope.get('session', {})
-
-        request = MockRequest(self.scope)
-        message = save_webchat_message(channel, message_data, request)
-        return message
+        return AccountChat.objects.filter(account=self.account, chat=chat).exists()
 
     @database_sync_to_async
-    def get_chats(self, filters):
-        """Get filtered list of chats."""
-        from unicom.models import Chat
+    def _get_recent_message_ids(self) -> list[str]:
+        """
+        Fetch IDs for the most recent messages so the cache can be primed on
+        connection. IDs are returned in chronological order.
+        """
+        from django.apps import apps
 
-        # Get chats for this account
-        chats = Chat.objects.filter(
-            platform='WebChat',
-            accountchat__account=self.account
+        Message = apps.get_model("unicom", "Message")
+        qs = (
+            Message.objects.filter(chat_id=self.chat_id, platform="WebChat")
+            .order_by("-timestamp")
+            .values_list("id", flat=True)[: self.warm_cache_limit]
         )
-
-        # Apply filters
-        filter_params = {}
-        for key, value in filters.items():
-            if key.startswith('metadata__'):
-                # Convert values
-                if isinstance(value, str):
-                    if value.lower() in ['true', 'false']:
-                        value = value.lower() == 'true'
-                    elif value.isdigit():
-                        value = int(value)
-                filter_params[key] = value
-            elif hasattr(Chat, key.split('__')[0]):
-                if isinstance(value, str) and value.lower() in ['true', 'false']:
-                    value = value.lower() == 'true'
-                filter_params[key] = value
-
-        if filter_params:
-            chats = chats.filter(**filter_params)
-
-        # Order by most recent
-        chats = chats.order_by('-last_message__timestamp')
-
-        # Serialize
-        return [self._serialize_chat_sync(chat) for chat in chats]
+        result = list(qs)
+        result.reverse()
+        return result
 
     @database_sync_to_async
-    def get_messages(self, chat_id, limit):
-        """Get messages for a chat."""
-        from unicom.models import Message, Chat, AccountChat
+    def _get_recent_messages(self) -> Tuple[_SerializedMessage, ...]:
+        """
+        Retrieve a bounded window of recent messages (chronological order).
+        Returning a tuple keeps the result immutable for the async caller.
+        """
+        from django.apps import apps
 
-        # Verify access
-        try:
-            chat = Chat.objects.get(id=chat_id, platform='WebChat')
-            AccountChat.objects.get(account=self.account, chat=chat)
-        except (Chat.DoesNotExist, AccountChat.DoesNotExist):
-            return []
+        Message = apps.get_model("unicom", "Message")
+        messages = list(
+            Message.objects.filter(chat_id=self.chat_id, platform="WebChat")
+            .order_by("-timestamp")[: self.warm_cache_limit]
+        )
+        messages.reverse()
 
-        # Get messages
-        messages = Message.objects.filter(chat=chat).order_by('-timestamp')[:limit]
-        messages = list(reversed(messages))
+        serialized = tuple(
+            _SerializedMessage(message_id=msg.id, payload=self._serialize_message(msg))
+            for msg in messages
+        )
+        return serialized
 
-        return [self._serialize_message_sync(msg) for msg in messages]
-
-    @database_sync_to_async
-    def serialize_message(self, message):
-        """Serialize a message to JSON (async wrapper)."""
-        return self._serialize_message_sync(message)
-
-    def _serialize_message_sync(self, message):
-        """Serialize a message to JSON (sync)."""
+    # ------------------------------------------------------------- Serialization
+    def _serialize_message(self, message) -> dict:
+        """Convert a Message model instance into the JSON payload expected by JS."""
         return {
-            'id': message.id,
-            'text': message.text,
-            'html': message.html,
-            'is_outgoing': message.is_outgoing,
-            'sender_name': message.sender_name,
-            'timestamp': message.timestamp.isoformat(),
-            'media_type': message.media_type,
-            'media_url': message.media.url if message.media else None,
+            "id": message.id,
+            "text": message.text,
+            "html": message.html,
+            "is_outgoing": message.is_outgoing,
+            "sender_name": message.sender_name,
+            "timestamp": message.timestamp.isoformat(),
+            "media_type": message.media_type,
+            "media_url": message.media.url if message.media else None,
         }
 
-    def _serialize_chat_sync(self, chat):
-        """Serialize a chat to JSON (sync)."""
-        last_msg = chat.last_message
-        return {
-            'id': chat.id,
-            'name': chat.name,
-            'platform': chat.platform,
-            'channel_id': chat.channel_id,
-            'is_archived': chat.is_archived,
-            'metadata': chat.metadata,
-            'last_message': {
-                'text': last_msg.text if last_msg else None,
-                'timestamp': last_msg.timestamp.isoformat() if last_msg else None,
-            } if last_msg else None
-        }
 
-    async def send_filtered_chats(self):
-        """Send filtered chats to client."""
-        chats = await self.get_chats(self.filters)
-        await self.send_json({
-            'type': 'chats_list',
-            'chats': chats
-        })
-
-
-# Helper function to broadcast messages to chat participants
-async def broadcast_message_to_chat(chat_id, message):
-    """
-    Broadcast a new message to all participants of a chat.
-    Call this from your message save logic when Channels is available.
-    """
-    from channels.layers import get_channel_layer
-
-    if not CHANNELS_AVAILABLE:
-        return
-
-    channel_layer = get_channel_layer()
-    if not channel_layer:
-        return
-
-    # Serialize message
-    consumer = WebChatConsumer()
-    message_data = consumer._serialize_message_sync(message)
-
-    # Send to chat group
-    await channel_layer.group_send(
-        f"webchat_chat_{chat_id}",
-        {
-            'type': 'new_message',
-            'message': message_data,
-            'chat_id': chat_id
-        }
-    )
-
-
-# Helper function to check if Channels is available
-def is_channels_available():
-    """Check if Django Channels is installed and configured."""
+def is_channels_available() -> bool:
+    """Helper so callers can check if Channels is installed."""
     return CHANNELS_AVAILABLE
+
+
+async def broadcast_message_to_chat(chat_id: str, message) -> None:
+    """
+    Legacy helper retained for backwards compatibility.
+
+    The simplified consumer no longer relies on channel layers, so this helper
+    simply exists to avoid import errors in projects that may still reference
+    it. Messages are delivered by the consumer's periodic polling loop instead.
+    """
+    return None
