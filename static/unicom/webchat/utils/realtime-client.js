@@ -1,6 +1,7 @@
 /**
- * Real-Time WebChat Client
- * Automatically uses WebSocket when available, falls back to polling
+ * Lightweight real-time helper used by the WebChat components.
+ * It prefers WebSockets but automatically falls back to HTTP polling
+ * whenever Channels is not available or the connection cannot be established.
  */
 
 import { WebChatAPI } from './api-client.js';
@@ -8,11 +9,12 @@ import { WebChatAPI } from './api-client.js';
 export class RealTimeWebChatClient {
   constructor(baseURL = '/unicom/webchat', wsURL = null, options = {}) {
     this.baseURL = baseURL;
-    this.wsURL = wsURL || this._getWebSocketURL();
+    this.wsBaseURL = wsURL || this._getWebSocketBaseURL();
     this.api = new WebChatAPI(baseURL);
 
     const normalizedOptions = options || {};
-    const explicitlyEnable = normalizedOptions.enableWebsocket ?? normalizedOptions.enableWebSocket;
+    const explicitlyEnable =
+      normalizedOptions.enableWebsocket ?? normalizedOptions.enableWebSocket;
     const explicitlyDisable =
       normalizedOptions.disableWebsocket ||
       normalizedOptions.disableWebSocket ||
@@ -27,10 +29,10 @@ export class RealTimeWebChatClient {
     } else if (explicitlyEnable === false) {
       this.useWebSocket = false;
     } else {
-      this.useWebSocket = !explicitlyDisable;  // Try WebSocket first unless disabled
+      this.useWebSocket = !explicitlyDisable; // Try WebSocket first unless disabled
     }
     this.pollingInterval = null;
-    this.pollingRate = 5000;  // 5 seconds default
+    this.pollingRate = 5000; // 5 seconds default
 
     // Filters and subscriptions
     this.filters = {};
@@ -49,7 +51,7 @@ export class RealTimeWebChatClient {
 
   /**
    * Enable or disable WebSocket usage dynamically.
-   * Disconnects and reconnects using the requested transport.
+   * Reconnects using the requested transport.
    */
   setWebSocketEnabled(enabled) {
     const shouldUseWebSocket = Boolean(enabled);
@@ -57,46 +59,48 @@ export class RealTimeWebChatClient {
       return;
     }
 
+    const activeChat = this.currentChatId;
+    this.disconnect();
     this.useWebSocket = shouldUseWebSocket;
-    const wasConnected = this.connected;
-
-    if (wasConnected) {
-      this.disconnect();
-      this.connect();
+    this.connect();
+    if (activeChat) {
+      this.subscribeToChat(activeChat);
     }
   }
 
   /**
-   * Get WebSocket URL from current location
+   * Get base WebSocket URL from current location (no chat id appended yet).
    */
-  _getWebSocketURL() {
+  _getWebSocketBaseURL() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     return `${protocol}//${host}/ws/unicom/webchat/`;
   }
 
+  _buildChatWebSocketURL(chatId) {
+    const base = this.wsBaseURL.endsWith('/') ? this.wsBaseURL : `${this.wsBaseURL}/`;
+    return `${base}${encodeURIComponent(chatId)}/`;
+  }
+
   /**
-   * Connect to real-time updates (WebSocket or polling)
+   * Prepare the transport. The socket itself is created when a chat is selected.
    */
   async connect() {
     if (this.useWebSocket) {
-      try {
-        await this._connectWebSocket();
-      } catch (err) {
-        console.warn('WebSocket connection failed, falling back to polling:', err);
-        this.useWebSocket = false;
-        this._startPolling();
-      }
+      this.connected = false;
+      this._notifyConnectionChange(false, 'websocket');
     } else {
       this._startPolling();
     }
   }
 
   /**
-   * Disconnect from real-time updates
+   * Disconnect from real-time updates.
    */
   disconnect() {
     if (this.ws) {
+      // Prevent reconnection attempts after manual disconnect.
+      this.ws.onclose = null;
       this.ws.close();
       this.ws = null;
     }
@@ -105,225 +109,163 @@ export class RealTimeWebChatClient {
       this.pollingInterval = null;
     }
     this.connected = false;
-    this._notifyConnectionChange(false);
+    const transport = this.useWebSocket ? 'websocket' : 'polling';
+    this._notifyConnectionChange(false, transport);
   }
 
   /**
-   * Set filters for chat list (e.g., project_id, department)
+   * Set filters for chat list (e.g., project_id, department).
+   * Currently filters are only applied to REST calls.
    */
   setFilters(filters) {
-    this.filters = filters;
-    if (this.ws && this.connected) {
-      this._sendWebSocket({
-        action: 'subscribe',
-        filters: this.filters
-      });
-    }
+    this.filters = filters || {};
   }
 
   /**
-   * Subscribe to a specific chat for real-time updates
+   * Subscribe to a specific chat for real-time updates.
    */
   subscribeToChat(chatId) {
     this.currentChatId = chatId;
-    if (this.ws && this.connected) {
-      this._sendWebSocket({
-        action: 'subscribe_chat',
-        chat_id: chatId
-      });
+    this.lastMessageId = null;
+
+    if (!chatId) {
+      this._closeWebSocket();
+      return;
+    }
+
+    if (this.useWebSocket) {
+      this._connectChatWebSocket(chatId);
+    } else {
+      this._startPolling();
     }
   }
 
   /**
-   * Unsubscribe from a chat
+   * Unsubscribe from a chat.
    */
   unsubscribeFromChat(chatId) {
-    if (this.currentChatId === chatId) {
-      this.currentChatId = null;
+    if (this.currentChatId !== chatId) {
+      return;
     }
-    if (this.ws && this.connected) {
-      this._sendWebSocket({
-        action: 'unsubscribe_chat',
-        chat_id: chatId
-      });
+
+    this.currentChatId = null;
+    this.lastMessageId = null;
+
+    if (this.useWebSocket) {
+      this._closeWebSocket();
+      this.connected = false;
+      this._notifyConnectionChange(false, 'websocket');
     }
   }
 
   /**
-   * Send a message
+   * Send a message using the REST API.
+   * Keeping message submission via HTTP keeps the websocket consumer simple.
    */
   async sendMessage(text, chatId = null, mediaFile = null, metadata = null) {
-    if (this.ws && this.connected) {
-      // Use WebSocket
-      return new Promise((resolve, reject) => {
-        const messageHandler = (data) => {
-          if (data.type === 'message_sent') {
-            this.ws.removeEventListener('message', messageHandler);
-            if (data.success) {
-              resolve(data);
-            } else {
-              reject(new Error(data.error || 'Failed to send message'));
-            }
-          }
-        };
-        this.ws.addEventListener('message', messageHandler);
-
-        this._sendWebSocket({
-          action: 'send_message',
-          chat_id: chatId,
-          text: text,
-          metadata: metadata
-        });
-      });
-    } else {
-      // Use REST API
-      return await this.api.sendMessage(text, chatId, mediaFile, metadata);
-    }
+    return await this.api.sendMessage(text, chatId, mediaFile, metadata);
   }
 
   /**
-   * Get list of chats
+   * Get list of chats (REST).
    */
   async getChats(filters = null) {
-    const filtersToUse = filters || this.filters;
-
-    if (this.ws && this.connected) {
-      // Use WebSocket
-      return new Promise((resolve) => {
-        const messageHandler = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'chats_list') {
-            this.ws.removeEventListener('message', messageHandler);
-            resolve(data.chats);
-          }
-        };
-        this.ws.addEventListener('message', messageHandler);
-
-        this._sendWebSocket({
-          action: 'get_chats',
-          filters: filtersToUse
-        });
-      });
-    } else {
-      // Use REST API
-      const response = await this.api.getChats(filtersToUse);
-      return response.chats;
-    }
+    const response = await this.api.getChats(filters || this.filters);
+    return response.chats;
   }
 
   /**
-   * Get messages for a chat
+   * Get messages for a chat (REST).
    */
   async getMessages(chatId, limit = 50) {
-    if (this.ws && this.connected) {
-      // Use WebSocket
-      return new Promise((resolve) => {
-        const messageHandler = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'messages_list' && data.chat_id === chatId) {
-            this.ws.removeEventListener('message', messageHandler);
-            resolve(data.messages);
-          }
-        };
-        this.ws.addEventListener('message', messageHandler);
+    const response = await this.api.getMessages(chatId, limit);
+    return response.messages;
+  }
 
-        this._sendWebSocket({
-          action: 'get_messages',
-          chat_id: chatId,
-          limit: limit
-        });
-      });
+  /**
+   * Update the polling cursor using the most recent message list.
+   * Call this after loading messages via HTTP so polling starts from the end.
+   */
+  updateBaselineFromMessages(messages = []) {
+    if (Array.isArray(messages) && messages.length > 0) {
+      this.lastMessageId = messages[messages.length - 1].id;
     } else {
-      // Use REST API
-      const response = await this.api.getMessages(chatId, limit);
-      return response.messages;
+      this.lastMessageId = null;
     }
   }
 
-  // Private methods
+  // ---------------------------------------------------------------------------
+  // Private helpers
 
-  /**
-   * Connect via WebSocket
-   */
-  _connectWebSocket() {
-    return new Promise((resolve, reject) => {
+  _connectChatWebSocket(chatId) {
+    this._closeWebSocket();
+
+    const url = this._buildChatWebSocketURL(chatId);
+    try {
+      this.ws = new WebSocket(url);
+    } catch (err) {
+      console.warn('Failed to create WebSocket, falling back to polling.', err);
+      this._fallbackToPolling();
+      return;
+    }
+
+    const socket = this.ws;
+
+    socket.onopen = () => {
+      // Connection established, waiting for server readiness message.
+    };
+
+    socket.onmessage = (event) => {
       try {
-        this.ws = new WebSocket(this.wsURL);
-
-        this.ws.onopen = () => {
-          this.connected = true;
-          this._notifyConnectionChange(true);
-
-          // Subscribe with filters if set
-          if (Object.keys(this.filters).length > 0) {
-            this._sendWebSocket({
-              action: 'subscribe',
-              filters: this.filters
-            });
-          }
-
-          resolve();
-        };
-
-        this.ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          this._handleWebSocketMessage(data);
-        };
-
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          if (!this.connected) {
-            reject(error);
-          } else {
-            this._notifyError(error);
-          }
-        };
-
-        this.ws.onclose = () => {
-          this.connected = false;
-          this._notifyConnectionChange(false);
-
-          // Attempt reconnection after 5 seconds
-          setTimeout(() => {
-            if (this.useWebSocket && !this.connected) {
-              this._connectWebSocket().catch(() => {
-                // Fall back to polling on repeated failure
-                this.useWebSocket = false;
-                this._startPolling();
-              });
-            }
-          }, 5000);
-        };
-
-        // Connection timeout
-        setTimeout(() => {
-          if (!this.connected) {
-            this.ws.close();
-            reject(new Error('WebSocket connection timeout'));
-          }
-        }, 10000);
-
+        const data = JSON.parse(event.data);
+        this._handleWebSocketMessage(data);
       } catch (err) {
-        reject(err);
+        console.error('Invalid WebSocket payload:', err);
       }
-    });
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      this._notifyError(error);
+    };
+
+    socket.onclose = (event) => {
+      const shouldAttemptReconnect =
+        this.useWebSocket && this.currentChatId === chatId && !event.wasClean && event.code !== 4000;
+
+      const wasConnected = this.connected;
+      this.connected = false;
+      if (wasConnected) {
+        this._notifyConnectionChange(false, 'websocket');
+      }
+
+      if (!wasConnected) {
+        // Handshake failed or access denied – fall back to polling.
+        this._fallbackToPolling();
+        return;
+      }
+
+      if (shouldAttemptReconnect) {
+        setTimeout(() => {
+          if (this.useWebSocket && this.currentChatId === chatId) {
+            this._connectChatWebSocket(chatId);
+          }
+        }, this.pollingRate);
+      }
+    };
   }
 
-  /**
-   * Send data via WebSocket
-   */
-  _sendWebSocket(data) {
-    if (this.ws && this.connected) {
-      this.ws.send(JSON.stringify(data));
-    }
-  }
-
-  /**
-   * Handle WebSocket message
-   */
   _handleWebSocketMessage(data) {
     switch (data.type) {
+      case 'ready':
+        this.connected = true;
+        this._notifyConnectionChange(true, 'websocket');
+        break;
+
       case 'new_message':
+        if (data.message) {
+          this.lastMessageId = data.message.id;
+        }
         if (this.onMessage) {
           this.onMessage(data.message, data.chat_id);
         }
@@ -341,49 +283,59 @@ export class RealTimeWebChatClient {
         }
         break;
 
-      case 'messages_list':
-        // Handled by promise in getMessages
-        break;
-
-      case 'message_sent':
-        // Handled by promise in sendMessage
+      case 'pong':
+        // heartbeat response, nothing else to do
         break;
 
       default:
-        console.log('Unknown WebSocket message type:', data.type);
+        console.log('WebSocket message:', data);
     }
   }
 
-  /**
-   * Start polling for updates
-   */
-  _startPolling() {
-    this.connected = true;
-    this._notifyConnectionChange(true);
+  _closeWebSocket() {
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
+  }
 
-    // Poll for new messages
+  _fallbackToPolling() {
+    if (this.useWebSocket) {
+      console.warn('Falling back to HTTP polling for WebChat updates.');
+    }
+    this.useWebSocket = false;
+    this._startPolling();
+  }
+
+  _startPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
+    this.connected = true;
+    this._notifyConnectionChange(true, 'polling');
+
     this.pollingInterval = setInterval(async () => {
       try {
-        if (this.currentChatId) {
-          // Poll for new messages in current chat
-          const response = await this.api.getMessages(
-            this.currentChatId,
-            50,
-            null,
-            this.lastMessageId  // Get messages after last known message
-          );
+        if (!this.currentChatId) {
+          return;
+        }
 
-          if (response.messages && response.messages.length > 0) {
-            // Update last message ID
-            this.lastMessageId = response.messages[response.messages.length - 1].id;
+        const response = await this.api.getMessages(
+          this.currentChatId,
+          50,
+          null,
+          this.lastMessageId
+        );
 
-            // Notify about new messages
-            response.messages.forEach(msg => {
-              if (this.onMessage) {
-                this.onMessage(msg, this.currentChatId);
-              }
-            });
-          }
+        if (response.messages && response.messages.length > 0) {
+          this.lastMessageId = response.messages[response.messages.length - 1].id;
+          response.messages.forEach((msg) => {
+            if (this.onMessage) {
+              this.onMessage(msg, this.currentChatId);
+            }
+          });
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -392,46 +344,31 @@ export class RealTimeWebChatClient {
     }, this.pollingRate);
   }
 
-  /**
-   * Notify connection change
-   */
-  _notifyConnectionChange(connected) {
+  _notifyConnectionChange(connected, transport) {
     if (this.onConnectionChange) {
-      this.onConnectionChange(connected, this.useWebSocket ? 'websocket' : 'polling');
+      const type = transport || (this.useWebSocket ? 'websocket' : 'polling');
+      this.onConnectionChange(connected, type);
     }
   }
 
-  /**
-   * Notify error
-   */
   _notifyError(error) {
     if (this.onError) {
       this.onError(error);
     }
   }
 
-  /**
-   * Set polling rate (in milliseconds)
-   */
   setPollingRate(ms) {
     this.pollingRate = ms;
     if (this.pollingInterval && !this.useWebSocket) {
-      // Restart polling with new rate
       clearInterval(this.pollingInterval);
       this._startPolling();
     }
   }
 
-  /**
-   * Check if using WebSocket
-   */
   isUsingWebSocket() {
     return this.connected && this.useWebSocket;
   }
 
-  /**
-   * Check if connected
-   */
   isConnected() {
     return this.connected;
   }
