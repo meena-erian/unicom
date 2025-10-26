@@ -63,6 +63,7 @@ export const baseStyles = css`
 
   @supports (height: 100dvh) {
     .unicom-chat-container {
+      container-type: inline-size;
       height: 100%;
       max-height: 100%;
     }
@@ -247,7 +248,7 @@ export const messageStyles = css`
     font-size: 0.9em;
   }
 
-  @media (max-width: 768px) {
+  @container (max-width: 768px) {
     .message-bubble {
       max-width: calc(100% - 24px);
     }

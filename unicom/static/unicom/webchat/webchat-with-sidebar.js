@@ -65,7 +65,7 @@ export class UnicomChatWithSidebar extends LitElement {
         min-height: 0;
       }
 
-      @media (max-width: 768px) {
+      @container (max-width: 768px) {
         .sidebar {
           width: 100%;
           position: absolute;
@@ -97,7 +97,7 @@ export class UnicomChatWithSidebar extends LitElement {
         }
       }
 
-      @media (min-width: 769px) {
+      @container (min-width: 769px) {
         .mobile-back-btn {
           display: none;
         }
