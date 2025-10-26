@@ -34,21 +34,20 @@ export const baseStyles = css`
     --sidebar-item-selected-subtext: var(--unicom-sidebar-item-selected-subtext, rgba(255, 255, 255, 0.8));
     --font-family: var(--unicom-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
     --input-height: var(--unicom-input-height, 44px);
-    --max-width: var(--unicom-max-width, 800px);
 
     display: block;
     width: 100%;
+    height: 100%;
     font-family: var(--font-family);
-    max-width: var(--max-width);
-    margin: 0 auto;
+    box-sizing: border-box;
   }
 
   .unicom-chat-container {
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: min(var(--unicom-container-height, 600px), 100vh);
-    max-height: min(var(--unicom-container-height, 600px), 100vh);
+    height: 100%;
+    max-height: 100%;
     min-height: 0;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -64,8 +63,8 @@ export const baseStyles = css`
 
   @supports (height: 100dvh) {
     .unicom-chat-container {
-      height: min(var(--unicom-container-height, 600px), 100dvh);
-      max-height: min(var(--unicom-container-height, 600px), 100dvh);
+      height: 100%;
+      max-height: 100%;
     }
   }
 
