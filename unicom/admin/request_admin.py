@@ -68,7 +68,7 @@ class RequestCategoryAdmin(admin.ModelAdmin):
         css = {
             'all': ('admin/css/forms.css',)
         }
-        js = ('unicom/js/jquery.init.js', 'admin/js/core.js',)
+        js = ('admin/js/core.js',)
 
 class RequestAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'status', 'member_link', 'category', 'channel', 'created_at')
