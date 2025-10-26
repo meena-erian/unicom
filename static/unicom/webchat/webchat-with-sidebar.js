@@ -22,6 +22,7 @@ export class UnicomChatWithSidebar extends LitElement {
     theme: { type: String },
     autoRefresh: { type: Number, attribute: 'auto-refresh' },
     filters: { type: Object },  // Custom filters (e.g., {metadata__project_id: 123})
+    metadataDefaults: { type: Object, attribute: 'metadata-defaults' }, // Default metadata to send with every message
     disableWebsocket: { type: Boolean, attribute: 'disable-websocket' },
 
     // Internal state
@@ -113,6 +114,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.theme = 'light';
     this.autoRefresh = 5;
     this.filters = {};
+    this.metadataDefaults = {};
     this.disableWebsocket = false;
 
     this.chats = [];
@@ -297,7 +299,9 @@ export class UnicomChatWithSidebar extends LitElement {
 
     try {
       // Include filter metadata when creating a new chat
-      const metadata = !this.currentChatId ? this.filters : null;
+      const metadata = !this.currentChatId
+        ? { ...(this.filters || {}), ...(this.metadataDefaults || {}) }
+        : this.metadataDefaults || {};
 
       const response = await this.client.sendMessage(text, this.currentChatId, file, metadata);
 
