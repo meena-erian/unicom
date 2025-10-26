@@ -1280,10 +1280,11 @@ client.setFilters({
 });
 await client.connect();
 
-// Or with the component:
+// Or setup the component to only show chats with project_id=62 and set project_id=62 when creating new chats:
 <unicom-chat-with-sidebar
     api-base="/unicom/webchat"
-    .filters=${{ metadata__project_id: 123 }}>
+    filters="{&quot;metadata__project_id&quot;:62}"
+    metadata-defaults="{&quot;project_id&quot;:62}">
 </unicom-chat-with-sidebar>
 ```
 
