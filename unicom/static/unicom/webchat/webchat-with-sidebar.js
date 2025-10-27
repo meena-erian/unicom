@@ -253,15 +253,33 @@ export class UnicomChatWithSidebar extends LitElement {
       group.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     });
 
-    // Build selected path using branch selections
+    // Clean up stale branch selections
+    const validGroupIds = new Set(branchGroups.keys());
+    const cleanedSelections = {};
+    Object.keys(this.branchSelections).forEach(groupId => {
+      if (validGroupIds.has(groupId)) {
+        const group = branchGroups.get(groupId);
+        const currentSelection = this.branchSelections[groupId];
+        if (currentSelection < group.length) {
+          cleanedSelections[groupId] = currentSelection;
+        } else {
+          cleanedSelections[groupId] = group.length - 1;
+        }
+      }
+    });
+    this.branchSelections = cleanedSelections;
+
+    // Build selected path
     const pathIds = new Set();
+    const visibleMessageIds = new Set();
+    const visibleReplyToIds = new Set();
     
-    // Start from root messages (no reply_to_message_id)
+    // Start from root messages
     const rootMessages = messages.filter(m => !m.reply_to_message_id);
     
-    // For each root, build the path forward
+    // Build path forward, tracking visible messages
     rootMessages.forEach(root => {
-      this._buildPathForward(root, msgById, branchGroups, pathIds);
+      this._buildPathForwardWithTracking(root, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
     });
 
     // Build result with branch info
@@ -293,6 +311,38 @@ export class UnicomChatWithSidebar extends LitElement {
   }
 
   /**
+   * Build path forward with tracking of visible message IDs
+   */
+  _buildPathForwardWithTracking(message, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds) {
+    pathIds.add(message.id);
+    visibleMessageIds.add(message.id);
+    if (message.reply_to_message_id) {
+      visibleReplyToIds.add(message.reply_to_message_id);
+    }
+    
+    // Find children of this message
+    const children = branchGroups.get(message.id) || [];
+    
+    if (children.length === 0) {
+      return;
+    }
+    
+    // Select which child to follow
+    let selectedChild;
+    if (children.length === 1) {
+      selectedChild = children[0];
+    } else {
+      const selectedIndex = this.branchSelections[message.id] !== undefined 
+        ? this.branchSelections[message.id] 
+        : children.length - 1;
+      selectedChild = children[selectedIndex];
+    }
+    
+    // Continue building path from selected child
+    this._buildPathForwardWithTracking(selectedChild, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
+  }
+
+  /**
    * Build path forward from a given message using branch selections
    */
   _buildPathForward(message, msgById, branchGroups, pathIds) {
@@ -302,7 +352,6 @@ export class UnicomChatWithSidebar extends LitElement {
     const children = branchGroups.get(message.id) || [];
     
     if (children.length === 0) {
-      // No children, end of path
       return;
     }
     
@@ -311,7 +360,6 @@ export class UnicomChatWithSidebar extends LitElement {
     if (children.length === 1) {
       selectedChild = children[0];
     } else {
-      // Multiple children - use branch selection or default to latest
       const selectedIndex = this.branchSelections[message.id] !== undefined 
         ? this.branchSelections[message.id] 
         : children.length - 1;
@@ -437,6 +485,8 @@ export class UnicomChatWithSidebar extends LitElement {
 
     this.currentChatId = null;
     this.messages = [];
+    this.processedMessages = [];
+    this.branchSelections = {};
     this._showSidebar = false; // Hide sidebar on mobile
   }
 
@@ -520,12 +570,47 @@ export class UnicomChatWithSidebar extends LitElement {
    * Handle new message from real-time updates
    */
   _handleNewMessage(message, chatId) {
+    console.log('New message received:', message.id, 'for chat:', chatId);
+    console.log('Message reply_to_message_id:', message.reply_to_message_id);
+    
     // Only add message if it's for the current chat
     if (chatId === this.currentChatId) {
-      // Check if message already exists (avoid duplicates)
-      const messageExists = this.messages.some(m => m.id === message.id);
-      if (!messageExists) {
+      // Check if message already exists
+      const existingIndex = this.messages.findIndex(m => m.id === message.id);
+      if (existingIndex >= 0) {
+        // Update existing message to ensure all fields are current
+        console.log('Updating existing message with latest data');
+        this.messages[existingIndex] = message;
+        this.messages = [...this.messages]; // Trigger reactivity
+        this.processedMessages = this._processMessagesWithBranching(this.messages);
+        this.requestUpdate();
+      } else {
+        console.log('Adding new message to chat');
+        console.log('Message before adding:', message);
+        
+        // If message replies to an older message, remove all chronologically later messages
+        if (message.reply_to_message_id) {
+          const replyToMsg = this.messages.find(m => m.id === message.reply_to_message_id);
+          if (replyToMsg) {
+            console.log('Message replies to older message, removing later messages');
+            const replyToTimestamp = new Date(replyToMsg.timestamp);
+            const originalCount = this.messages.length;
+            this.messages = this.messages.filter(m => 
+              new Date(m.timestamp) <= replyToTimestamp || m.id === message.id
+            );
+            console.log(`Removed ${originalCount - this.messages.length} messages`);
+          }
+        }
+        
+        // Add the new message
         this.messages = [...this.messages, message];
+        console.log('Total messages now:', this.messages.length);
+        console.log('Added message reply_to_message_id:', this.messages[this.messages.length - 1].reply_to_message_id);
+        
+        this.processedMessages = this._processMessagesWithBranching(this.messages);
+        console.log('Processed messages:', this.processedMessages.length);
+        
+        this.requestUpdate();
       }
     }
 
@@ -599,16 +684,38 @@ export class UnicomChatWithSidebar extends LitElement {
   _handleEditMessage(e) {
     const { messageId } = e.detail;
     
-    // Find the message to edit
-    const message = this.messages.find(m => m.id === messageId);
-    if (!message) return;
+    console.log('Looking for message to edit:', messageId);
+    console.log('Available in this.messages:');
+    this.messages.forEach(m => console.log(`  ${m.id}: reply_to=${m.reply_to_message_id}`));
+    console.log('Available in this.processedMessages:');
+    this.processedMessages.forEach(m => console.log(`  ${m.id}: reply_to=${m.reply_to_message_id}`));
+    
+    // Find the message to edit in both raw messages and processed messages
+    let message = this.messages.find(m => m.id === messageId);
+    if (!message) {
+      message = this.processedMessages.find(m => m.id === messageId);
+    }
+    
+    if (!message) {
+      console.error('Message not found for editing:', messageId);
+      return;
+    }
+    
+    console.log('Found message for editing:', message);
+    console.log('Editing message:', messageId, 'reply_to:', message.reply_to_message_id);
     
     // Set edit mode in message input
     const messageInput = this.shadowRoot.querySelector('message-input');
     if (messageInput) {
       // For editing: set reply_to_message_id to the message's parent (creates branch)
-      messageInput.editingMessageId = message.reply_to_message_id;
+      // If message has no parent (root message), use null to create branch at root level
+      messageInput.editingMessageId = message.reply_to_message_id || null;
       messageInput.inputText = message.text || '';
+      
+      console.log('Set editingMessageId to:', message.reply_to_message_id || null);
+      
+      // Force update of message input to trigger edit mode
+      messageInput.requestUpdate();
       
       // Focus the textarea
       setTimeout(() => {
