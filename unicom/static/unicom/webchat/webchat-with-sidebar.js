@@ -551,7 +551,8 @@ export class UnicomChatWithSidebar extends LitElement {
       }
 
       // Add the sent message to the list (if not already added by real-time update)
-      if (response.message) {
+      // Skip immediate addition for edits - let real-time update handle branching logic
+      if (response.message && !options.reply_to_message_id) {
         const messageExists = this.messages.some(m => m.id === response.message.id);
         if (!messageExists) {
           this.messages = [...this.messages, response.message];
@@ -586,26 +587,23 @@ export class UnicomChatWithSidebar extends LitElement {
         this.requestUpdate();
       } else {
         console.log('Adding new message to chat');
-        console.log('Message before adding:', message);
-        
-        // If message replies to an older message, remove all chronologically later messages
-        if (message.reply_to_message_id) {
-          const replyToMsg = this.messages.find(m => m.id === message.reply_to_message_id);
-          if (replyToMsg) {
-            console.log('Message replies to older message, removing later messages');
-            const replyToTimestamp = new Date(replyToMsg.timestamp);
-            const originalCount = this.messages.length;
-            this.messages = this.messages.filter(m => 
-              new Date(m.timestamp) <= replyToTimestamp || m.id === message.id
-            );
-            console.log(`Removed ${originalCount - this.messages.length} messages`);
-          }
-        }
         
         // Add the new message
         this.messages = [...this.messages, message];
-        console.log('Total messages now:', this.messages.length);
-        console.log('Added message reply_to_message_id:', this.messages[this.messages.length - 1].reply_to_message_id);
+        
+        // If this message creates a branch, ensure it's selected as the latest
+        if (message.reply_to_message_id) {
+          const siblings = this.messages.filter(m => m.reply_to_message_id === message.reply_to_message_id);
+          if (siblings.length > 1) {
+            // Sort siblings by timestamp and select the latest (this message)
+            siblings.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const messageIndex = siblings.findIndex(m => m.id === message.id);
+            this.branchSelections = {
+              ...this.branchSelections,
+              [message.reply_to_message_id]: messageIndex
+            };
+          }
+        }
         
         this.processedMessages = this._processMessagesWithBranching(this.messages);
         console.log('Processed messages:', this.processedMessages.length);
