@@ -23,6 +23,34 @@ export class MessageList extends LitElement {
     this._shouldScrollToBottom = true;
   }
 
+  _processMessages(messages) {
+    // Merge tool_call and tool_response pairs into single status messages
+    const processed = [];
+    const toolCallMap = new Map();
+
+    for (const msg of messages) {
+      if (msg.media_type === 'tool_call') {
+        // Store tool call and render as pending
+        toolCallMap.set(msg.id, { ...msg, _toolStatus: 'pending' });
+        processed.push(toolCallMap.get(msg.id));
+      } else if (msg.media_type === 'tool_response' && msg.reply_to_message_id) {
+        // Find matching tool call and update its status
+        const toolCall = toolCallMap.get(msg.reply_to_message_id);
+        if (toolCall) {
+          toolCall._toolStatus = 'completed';
+          toolCall._toolResponse = msg;
+          // Don't add tool_response as separate message
+        } else {
+          processed.push(msg); // Fallback if no matching tool call
+        }
+      } else {
+        processed.push(msg);
+      }
+    }
+
+    return processed;
+  }
+
   updated(changedProperties) {
     super.updated(changedProperties);
 
@@ -76,7 +104,9 @@ export class MessageList extends LitElement {
   }
 
   render() {
-    if (this.messages.length === 0 && !this.loading) {
+    const processedMessages = this._processMessages(this.messages);
+
+    if (processedMessages.length === 0 && !this.loading) {
       return html`
         <div class="message-list">
           <div class="empty-state">
@@ -99,7 +129,7 @@ export class MessageList extends LitElement {
           </button>
         ` : ''}
 
-        ${this.messages.map(msg => html`
+        ${processedMessages.map(msg => html`
           <message-item 
             .message=${msg} 
             @edit-message=${this._handleEditMessage}
