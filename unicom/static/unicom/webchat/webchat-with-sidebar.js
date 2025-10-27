@@ -24,6 +24,7 @@ export class UnicomChatWithSidebar extends LitElement {
     filters: { type: Object },  // Custom filters (e.g., {metadata__project_id: 123})
     metadataDefaults: { type: Object, attribute: 'metadata-defaults' }, // Default metadata to send with every message
     disableWebsocket: { type: Boolean, attribute: 'disable-websocket' },
+    enableWebsocketOnly: { type: Boolean, attribute: 'enable-websocket-only' },
 
     // Internal state
     chats: { type: Array, state: true },
@@ -38,6 +39,8 @@ export class UnicomChatWithSidebar extends LitElement {
     hasMore: { type: Boolean, state: true },
     connectionStatus: { type: String, state: true },  // 'connected', 'disconnected'
     connectionType: { type: String, state: true },     // 'websocket', 'polling'
+    isRetrying: { type: Boolean, state: true },        // WebSocket retry status
+    retryDelay: { type: Number, state: true },         // Next retry delay in ms
   };
 
   static styles = [
@@ -99,6 +102,48 @@ export class UnicomChatWithSidebar extends LitElement {
         }
       }
 
+      .retry-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        color: white;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .retry-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top: 3px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .retry-text {
+        text-align: center;
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      .retry-detail {
+        text-align: center;
+        font-size: 14px;
+        opacity: 0.8;
+      }
+
       @container (min-width: 769px) {
         .mobile-back-btn {
           display: none;
@@ -118,6 +163,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.filters = {};
     this.metadataDefaults = {};
     this.disableWebsocket = false;
+    this.enableWebsocketOnly = false;
 
     this.chats = [];
     this.currentChatId = null;
@@ -131,6 +177,8 @@ export class UnicomChatWithSidebar extends LitElement {
     this.hasMore = false;
     this.connectionStatus = 'disconnected';
     this.connectionType = 'polling';
+    this.isRetrying = false;
+    this.retryDelay = 0;
 
     this.client = null;
     this._showSidebar = true;
@@ -144,6 +192,7 @@ export class UnicomChatWithSidebar extends LitElement {
     // Initialize real-time client
     this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl, {
       disableWebsocket: this.disableWebsocket,
+      enableWebsocket: this.enableWebsocketOnly,
     });
 
     // Set up event handlers
@@ -152,6 +201,10 @@ export class UnicomChatWithSidebar extends LitElement {
     this.client.onConnectionChange = (connected, type) => {
       this.connectionStatus = connected ? 'connected' : 'disconnected';
       this.connectionType = type;
+    };
+    this.client.onRetryStatusChange = (isRetrying, nextRetryIn) => {
+      this.isRetrying = isRetrying;
+      this.retryDelay = nextRetryIn;
     };
     this.client.onError = (error) => {
       console.error('WebChat error:', error);
@@ -176,6 +229,10 @@ export class UnicomChatWithSidebar extends LitElement {
 
     if (changedProperties.has('disableWebsocket') && this.client) {
       this.client.setWebSocketEnabled(!this.disableWebsocket);
+    }
+
+    if (changedProperties.has('enableWebsocketOnly') && this.client) {
+      this.client.setWebSocketEnabled(this.enableWebsocketOnly);
     }
   }
 
@@ -672,6 +729,16 @@ export class UnicomChatWithSidebar extends LitElement {
             </message-input>
           </div>
         </div>
+
+        ${this.isRetrying ? html`
+          <div class="retry-overlay">
+            <div class="retry-spinner"></div>
+            <div class="retry-text">Reconnecting to WebSocket...</div>
+            <div class="retry-detail">
+              ${this.retryDelay > 0 ? `Next attempt in ${Math.ceil(this.retryDelay / 1000)}s` : 'Attempting to reconnect...'}
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   }

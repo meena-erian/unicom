@@ -1102,6 +1102,27 @@ The `<unicom-chat-with-sidebar>` component accepts these attributes:
 - **`theme`**: `"light"` or `"dark"` (default: `"light"`)
 - **`max-messages`**: Max messages to load per chat (default: 50)
 - **`auto-refresh`**: Polling interval in seconds (default: 5, set to 0 to disable)
+- **`disable-websocket`**: Force HTTP polling only (default: false)
+- **`enable-websocket-only`**: Force WebSocket only with retry on failure (default: false)
+
+**WebSocket Connection Modes:**
+
+```html
+<!-- Default: Try WebSocket first, fallback to polling if it fails -->
+<unicom-chat-with-sidebar api-base="/unicom/webchat"></unicom-chat-with-sidebar>
+
+<!-- WebSocket-only: Retry with exponential backoff, never fallback to polling -->
+<unicom-chat-with-sidebar 
+    api-base="/unicom/webchat" 
+    enable-websocket-only="true">
+</unicom-chat-with-sidebar>
+
+<!-- Polling-only: Never attempt WebSocket connection -->
+<unicom-chat-with-sidebar 
+    api-base="/unicom/webchat" 
+    disable-websocket="true">
+</unicom-chat-with-sidebar>
+```
 
 **Customization via CSS Custom Properties:**
 

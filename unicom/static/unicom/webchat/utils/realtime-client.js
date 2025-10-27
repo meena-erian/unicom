@@ -2,6 +2,9 @@
  * Lightweight real-time helper used by the WebChat components.
  * It prefers WebSockets but automatically falls back to HTTP polling
  * whenever Channels is not available or the connection cannot be established.
+ * 
+ * When WebSocket is explicitly enabled (websocketOnly mode), it will retry
+ * with exponential backoff instead of falling back to polling.
  */
 
 import { WebChatAPI } from './api-client.js';
@@ -26,13 +29,22 @@ export class RealTimeWebChatClient {
     this.connected = false;
     if (explicitlyEnable === true) {
       this.useWebSocket = true;
+      this.websocketOnly = true; // Force WebSocket only mode
     } else if (explicitlyEnable === false) {
       this.useWebSocket = false;
+      this.websocketOnly = false;
     } else {
       this.useWebSocket = !explicitlyDisable; // Try WebSocket first unless disabled
+      this.websocketOnly = false; // Allow fallback
     }
     this.pollingInterval = null;
     this.pollingRate = 5000; // 5 seconds default
+
+    // Retry logic for WebSocket-only mode
+    this.retryAttempt = 0;
+    this.maxRetryInterval = 60000; // Cap at 1 minute
+    this.retryTimeout = null;
+    this.isRetrying = false;
 
     // Filters and subscriptions
     this.filters = {};
@@ -44,6 +56,7 @@ export class RealTimeWebChatClient {
     this.onChatsUpdate = null;
     this.onConnectionChange = null;
     this.onError = null;
+    this.onRetryStatusChange = null; // New handler for retry status
 
     // Message cache for polling
     this.lastMessageId = null;
@@ -62,6 +75,7 @@ export class RealTimeWebChatClient {
     const activeChat = this.currentChatId;
     this.disconnect();
     this.useWebSocket = shouldUseWebSocket;
+    this.websocketOnly = shouldUseWebSocket; // Set WebSocket-only mode when explicitly enabled
     this.connect();
     if (activeChat) {
       this.subscribeToChat(activeChat);
@@ -98,6 +112,7 @@ export class RealTimeWebChatClient {
    * Disconnect from real-time updates.
    */
   disconnect() {
+    this._clearRetryTimeout();
     if (this.ws) {
       // Prevent reconnection attempts after manual disconnect.
       this.ws.onclose = null;
@@ -109,8 +124,11 @@ export class RealTimeWebChatClient {
       this.pollingInterval = null;
     }
     this.connected = false;
+    this.isRetrying = false;
+    this.retryAttempt = 0;
     const transport = this.useWebSocket ? 'websocket' : 'polling';
     this._notifyConnectionChange(false, transport);
+    this._notifyRetryStatus(false, 0);
   }
 
   /**
@@ -156,6 +174,10 @@ export class RealTimeWebChatClient {
       this.connected = false;
       this._notifyConnectionChange(false, 'websocket');
     }
+    this._clearRetryTimeout();
+    this.retryAttempt = 0;
+    this.isRetrying = false;
+    this._notifyRetryStatus(false, 0);
   }
 
   /**
@@ -204,8 +226,12 @@ export class RealTimeWebChatClient {
     try {
       this.ws = new WebSocket(url);
     } catch (err) {
-      console.warn('Failed to create WebSocket, falling back to polling.', err);
-      this._fallbackToPolling();
+      console.warn('Failed to create WebSocket:', err);
+      if (this.websocketOnly) {
+        this._scheduleWebSocketRetry(chatId);
+      } else {
+        this._fallbackToPolling();
+      }
       return;
     }
 
@@ -240,17 +266,25 @@ export class RealTimeWebChatClient {
       }
 
       if (!wasConnected) {
-        // Handshake failed or access denied – fall back to polling.
-        this._fallbackToPolling();
+        // Handshake failed or access denied
+        if (this.websocketOnly) {
+          this._scheduleWebSocketRetry(chatId);
+        } else {
+          this._fallbackToPolling();
+        }
         return;
       }
 
       if (shouldAttemptReconnect) {
-        setTimeout(() => {
-          if (this.useWebSocket && this.currentChatId === chatId) {
-            this._connectChatWebSocket(chatId);
-          }
-        }, this.pollingRate);
+        if (this.websocketOnly) {
+          this._scheduleWebSocketRetry(chatId);
+        } else {
+          setTimeout(() => {
+            if (this.useWebSocket && this.currentChatId === chatId) {
+              this._connectChatWebSocket(chatId);
+            }
+          }, this.pollingRate);
+        }
       }
     };
   }
@@ -259,7 +293,10 @@ export class RealTimeWebChatClient {
     switch (data.type) {
       case 'ready':
         this.connected = true;
+        this.retryAttempt = 0; // Reset retry counter on successful connection
+        this.isRetrying = false;
         this._notifyConnectionChange(true, 'websocket');
+        this._notifyRetryStatus(false, 0);
         break;
 
       case 'new_message':
@@ -301,11 +338,44 @@ export class RealTimeWebChatClient {
   }
 
   _fallbackToPolling() {
+    if (this.websocketOnly) {
+      // In WebSocket-only mode, don't fall back to polling
+      console.warn('WebSocket connection failed in WebSocket-only mode. Will retry...');
+      return;
+    }
+    
     if (this.useWebSocket) {
       console.warn('Falling back to HTTP polling for WebChat updates.');
     }
     this.useWebSocket = false;
     this._startPolling();
+  }
+
+  _scheduleWebSocketRetry(chatId) {
+    this._clearRetryTimeout();
+    
+    // Calculate retry delay with exponential backoff
+    const baseDelay = 1000; // Start with 1 second
+    const delay = Math.min(baseDelay * Math.pow(2, this.retryAttempt), this.maxRetryInterval);
+    
+    this.retryAttempt++;
+    this.isRetrying = true;
+    this._notifyRetryStatus(true, delay);
+    
+    console.log(`WebSocket retry attempt ${this.retryAttempt} in ${delay}ms`);
+    
+    this.retryTimeout = setTimeout(() => {
+      if (this.useWebSocket && this.currentChatId === chatId) {
+        this._connectChatWebSocket(chatId);
+      }
+    }, delay);
+  }
+
+  _clearRetryTimeout() {
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
   }
 
   _startPolling() {
@@ -357,6 +427,12 @@ export class RealTimeWebChatClient {
     }
   }
 
+  _notifyRetryStatus(isRetrying, nextRetryIn) {
+    if (this.onRetryStatusChange) {
+      this.onRetryStatusChange(isRetrying, nextRetryIn);
+    }
+  }
+
   setPollingRate(ms) {
     this.pollingRate = ms;
     if (this.pollingInterval && !this.useWebSocket) {
@@ -371,5 +447,13 @@ export class RealTimeWebChatClient {
 
   isConnected() {
     return this.connected;
+  }
+
+  isRetryingWebSocket() {
+    return this.isRetrying;
+  }
+
+  getRetryAttempt() {
+    return this.retryAttempt;
   }
 }

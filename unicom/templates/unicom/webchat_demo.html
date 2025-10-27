@@ -180,6 +180,7 @@
                     theme="dark"
                     max-messages="50"
                     auto-refresh="5"
+                    enable-websocket-only="true"
                     style="height: 100%; --unicom-primary-color: #2e7d32;"
                     filters="{&quot;metadata__project_id&quot;:62}"
                     metadata-defaults="{&quot;project_id&quot;:62}">
@@ -195,7 +196,7 @@
                     <li>Upload and display images</li>
                     <li>Upload and play audio files</li>
                     <li>HTML content rendering</li>
-                    <li>Real-time updates via WebSocket (auto fallback to polling)</li>
+                    <li>Real-time updates via WebSocket (with fallback to polling or WebSocket-only mode)</li>
                     <li>Load earlier messages</li>
                 </ul>
             </div>
@@ -239,7 +240,7 @@
             <div class="feature-card">
                 <h3>⚡ Performance</h3>
                 <ul>
-                    <li>WebSocket push with efficient polling fallback</li>
+                    <li>WebSocket push with configurable fallback or retry-only modes</li>
                     <li>Only refreshes when visible</li>
                     <li>Cursor-based pagination</li>
                     <li>Smooth animations</li>
@@ -289,6 +290,13 @@
         --unicom-primary-color: #ff5722;
         --unicom-border-radius: 16px;
     "&gt;
+&lt;/unicom-chat-with-sidebar&gt;
+
+&lt;!-- WebSocket-only mode (retry on failure, no polling fallback) --&gt;
+&lt;unicom-chat-with-sidebar
+    theme="light"
+    enable-websocket-only="true"
+    style="height: 700px;"&gt;
 &lt;/unicom-chat-with-sidebar&gt;{% endverbatim %}</code></pre>
         </div>
 
