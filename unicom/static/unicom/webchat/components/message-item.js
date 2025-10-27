@@ -80,6 +80,14 @@ export class MessageItem extends LitElement {
     }
   }
 
+  _handleEditMessage() {
+    this.dispatchEvent(new CustomEvent('edit-message', {
+      detail: { messageId: this.message.id },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   render() {
     if (!this.message) return html``;
 
@@ -108,7 +116,12 @@ export class MessageItem extends LitElement {
         ` : ''}
         <div class="${bubbleClasses.join(' ')}">
           ${this._renderMessageContent(message)}
-          <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
+          <div class="message-footer">
+            <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
+            ${isUserMessage ? html`
+              <button class="edit-btn" @click=${this._handleEditMessage} title="Edit message">✏️</button>
+            ` : ''}
+          </div>
         </div>
       </div>
     `;

@@ -212,6 +212,34 @@ export const messageStyles = css`
     margin-top: 6px;
   }
 
+  .message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    gap: 8px;
+  }
+
+  .edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    opacity: 0.6;
+    transition: opacity 0.2s, background-color 0.2s;
+  }
+
+  .edit-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .edit-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
   .message-media {
     margin: 0;
   }
@@ -272,6 +300,46 @@ export const inputStyles = css`
     display: flex;
     align-items: flex-end;
     gap: 12px;
+  }
+
+  .edit-mode-indicator {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid #ffc107;
+    font-size: 0.9em;
+    color: #856404;
+  }
+
+  .dark .edit-mode-indicator {
+    background: rgba(255, 193, 7, 0.2);
+    color: #fff3cd;
+  }
+
+  .cancel-edit-btn {
+    background: none;
+    border: 1px solid #ffc107;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background-color 0.2s;
+  }
+
+  .cancel-edit-btn:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+  }
+
+  .dark .cancel-edit-btn {
+    color: #fff3cd;
+    border-color: #fff3cd;
+  }
+
+  .dark .cancel-edit-btn:hover {
+    background-color: rgba(255, 193, 7, 0.2);
   }
 
   .input-row textarea {

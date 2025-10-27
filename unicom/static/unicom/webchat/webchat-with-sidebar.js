@@ -289,7 +289,7 @@ export class UnicomChatWithSidebar extends LitElement {
    * Send a message
    */
   async _handleSendMessage(e) {
-    const { text, file } = e.detail;
+    const { text, file, replyToMessageId } = e.detail;
 
     if (this.sending) return;
     if (!text && !file) return;
@@ -298,12 +298,22 @@ export class UnicomChatWithSidebar extends LitElement {
     this.error = null;
 
     try {
+      // Build options object
+      const options = {};
+      
       // Include filter metadata when creating a new chat
-      const metadata = !this.currentChatId
-        ? { ...(this.filters || {}), ...(this.metadataDefaults || {}) }
-        : this.metadataDefaults || {};
+      if (!this.currentChatId) {
+        options.metadata = { ...(this.filters || {}), ...(this.metadataDefaults || {}) };
+      } else if (this.metadataDefaults) {
+        options.metadata = this.metadataDefaults;
+      }
+      
+      // Include reply_to_message_id for message editing/branching
+      if (replyToMessageId) {
+        options.reply_to_message_id = replyToMessageId;
+      }
 
-      const response = await this.client.sendMessage(text, this.currentChatId, file, metadata);
+      const response = await this.client.sendMessage(text, this.currentChatId, file, options);
 
       // Update or set current chat ID
       if (response.chat_id) {
@@ -394,7 +404,8 @@ export class UnicomChatWithSidebar extends LitElement {
               .messages=${this.messages}
               .loading=${this.loading}
               .hasMore=${this.hasMore}
-              @load-more=${this._handleLoadMore}>
+              @load-more=${this._handleLoadMore}
+              @edit-message=${this._handleEditMessage}>
             </message-list>
 
             <message-input
@@ -405,6 +416,33 @@ export class UnicomChatWithSidebar extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Handle edit message requests.
+   */
+  _handleEditMessage(e) {
+    const { messageId } = e.detail;
+    
+    // Find the message to edit
+    const message = this.messages.find(m => m.id === messageId);
+    if (!message) return;
+    
+    // Set edit mode in message input
+    const messageInput = this.shadowRoot.querySelector('message-input');
+    if (messageInput) {
+      messageInput.editingMessageId = messageId;
+      messageInput.inputText = message.text || '';
+      
+      // Focus the textarea
+      setTimeout(() => {
+        const textarea = messageInput.shadowRoot?.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+      }, 100);
+    }
   }
 
   /**

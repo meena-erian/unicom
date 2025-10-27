@@ -38,7 +38,15 @@ def send_webchat_message_api(request):
     Request body (form data or JSON):
         - text: Message text (required unless media is provided)
         - chat_id: Chat ID (optional - auto-creates if not provided)
+        - reply_to_message_id: Message ID to "edit" (creates branch) (optional)
         - media: File upload (optional)
+
+    Behavior:
+        - If reply_to_message_id provided: Creates new message branching from that point
+        - Otherwise: Creates message replying to last assistant message (normal flow)
+        
+    Note: "Editing" creates a new message with the same reply_to_message as the 
+    target message, creating a conversation branch. Original message remains in DB.
 
     Returns:
         JSON with message details and chat_id
@@ -55,10 +63,12 @@ def send_webchat_message_api(request):
             data = json.loads(request.body)
             text = data.get('text', '').strip()
             chat_id = data.get('chat_id')
+            reply_to_message_id = data.get('reply_to_message_id')
             media_file = None
         else:
             text = request.POST.get('text', '').strip()
             chat_id = request.POST.get('chat_id')
+            reply_to_message_id = request.POST.get('reply_to_message_id')
             media_file = request.FILES.get('media')
 
         # Validate
@@ -92,6 +102,7 @@ def send_webchat_message_api(request):
         message_data = {
             'text': text or f'**{media_type.title()}**',
             'chat_id': chat_id,
+            'reply_to_message_id': reply_to_message_id,
             'media_type': media_type,
             'file': media_file,
             'metadata': chat_metadata,  # Pass metadata for new chat creation
@@ -127,10 +138,83 @@ def send_webchat_message_api(request):
         return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
 
 
+def _get_latest_branch_messages(chat, limit, before=None, after=None):
+    """
+    Get messages from the latest conversation branch.
+    Follows reply_to_message chain to get contextually relevant messages.
+    """
+    messages = Message.objects.filter(chat=chat)
+    
+    if before:
+        try:
+            before_msg = Message.objects.get(id=before, chat=chat)
+            messages = messages.filter(timestamp__lt=before_msg.timestamp)
+        except Message.DoesNotExist:
+            pass
+    
+    if after:
+        try:
+            after_msg = Message.objects.get(id=after, chat=chat)
+            messages = messages.filter(timestamp__gt=after_msg.timestamp)
+        except Message.DoesNotExist:
+            pass
+    
+    # Get latest messages and build context chain
+    latest_messages = list(messages.order_by('-timestamp')[:limit])
+    
+    # If we have messages, ensure we include the context chain
+    if latest_messages and not after:
+        # Start from the latest message and follow reply_to_message chain
+        context_messages = set()
+        for msg in latest_messages:
+            current = msg
+            depth = 0
+            while current and depth < 20:  # Prevent infinite loops
+                context_messages.add(current.id)
+                current = current.reply_to_message
+                depth += 1
+        
+        # Get all messages in the context chain
+        chain_messages = Message.objects.filter(
+            id__in=context_messages,
+            chat=chat
+        ).order_by('-timestamp')
+        
+        return list(chain_messages)
+    
+    return latest_messages
+
+
+def _get_branch_messages(chat, branch_message_id, limit):
+    """
+    Get messages from a specific branch starting from branch_message_id.
+    """
+    try:
+        branch_msg = Message.objects.get(id=branch_message_id, chat=chat)
+        
+        # Get all messages that share the same reply_to_message (siblings in branch)
+        if branch_msg.reply_to_message:
+            siblings = Message.objects.filter(
+                chat=chat,
+                reply_to_message=branch_msg.reply_to_message
+            ).order_by('-timestamp')[:limit]
+        else:
+            # Root level messages
+            siblings = Message.objects.filter(
+                chat=chat,
+                reply_to_message__isnull=True
+            ).order_by('-timestamp')[:limit]
+        
+        return list(siblings)
+        
+    except Message.DoesNotExist:
+        return []
+
+
 @require_http_methods(["GET"])
 def get_webchat_messages_api(request):
     """
-    Get messages for a chat with optional filtering.
+    Get messages for a chat with optional filtering and branch navigation.
 
     GET /unicom/webchat/messages/
 
@@ -139,9 +223,15 @@ def get_webchat_messages_api(request):
         - limit: Max messages to return (default: 50, max: 100)
         - before: Message ID cursor for pagination (get messages before this)
         - after: Message ID cursor for pagination (get messages after this)
+        - branch: Branch mode - 'latest' (default), 'all', or message_id for specific branch
         - is_outgoing: Filter by message direction (true/false)
         - media_type: Filter by media type (text/image/audio)
         - sender_name: Filter by sender name
+
+    Branch modes:
+        - 'latest': Only show latest conversation branch (performance optimized)
+        - 'all': Load all messages for branch navigation UI
+        - message_id: Load specific branch starting from that message
 
     Returns:
         JSON with list of messages
@@ -160,6 +250,7 @@ def get_webchat_messages_api(request):
         limit = min(int(request.GET.get('limit', 50)), 100)
         before = request.GET.get('before')
         after = request.GET.get('after')
+        branch_mode = request.GET.get('branch', 'latest')  # 'latest', 'all', or message_id
 
         # If no chat_id provided, return empty list
         if not chat_id:
@@ -178,11 +269,37 @@ def get_webchat_messages_api(request):
         except (Chat.DoesNotExist, AccountChat.DoesNotExist):
             return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
 
-        # Build query
-        messages = Message.objects.filter(chat=chat).order_by('-timestamp')
+        # Build query based on branch mode
+        if branch_mode == 'latest':
+            # Default: Only show latest branch (performance optimized)
+            messages_list = _get_latest_branch_messages(chat, limit, before, after)
+        elif branch_mode == 'all':
+            # Load all messages for branch navigation UI
+            messages = Message.objects.filter(chat=chat).order_by('-timestamp')
+            
+            # Apply cursor pagination for 'all' mode
+            if before:
+                try:
+                    before_msg = Message.objects.get(id=before, chat=chat)
+                    messages = messages.filter(timestamp__lt=before_msg.timestamp)
+                except Message.DoesNotExist:
+                    pass
+            
+            if after:
+                try:
+                    after_msg = Message.objects.get(id=after, chat=chat)
+                    messages = messages.filter(timestamp__gt=after_msg.timestamp)
+                except Message.DoesNotExist:
+                    pass
+            
+            messages_list = list(messages[:limit])
+        else:
+            # Load specific branch starting from message_id
+            messages_list = _get_branch_messages(chat, branch_mode, limit)
 
         # Apply custom filters
-        reserved_params = {'chat_id', 'limit', 'before', 'after'}
+        reserved_params = {'chat_id', 'limit', 'before', 'after', 'branch'}
+        filter_kwargs = {}
         for key, value in request.GET.items():
             if key in reserved_params:
                 continue
@@ -193,30 +310,23 @@ def get_webchat_messages_api(request):
 
             # Apply filter if it's a valid Message field
             if hasattr(Message, key):
-                messages = messages.filter(**{key: value})
+                filter_kwargs[key] = value
+        
+        # Apply filters to the message list
+        if filter_kwargs:
+            message_ids = [msg.id for msg in messages_list]
+            filtered_messages = Message.objects.filter(
+                id__in=message_ids,
+                **filter_kwargs
+            ).order_by('-timestamp')
+            messages_list = list(filtered_messages)
 
-        # Apply cursor pagination
-        if before:
-            try:
-                before_msg = Message.objects.get(id=before)
-                messages = messages.filter(timestamp__lt=before_msg.timestamp)
-            except Message.DoesNotExist:
-                pass
-
-        if after:
-            try:
-                after_msg = Message.objects.get(id=after)
-                messages = messages.filter(timestamp__gt=after_msg.timestamp)
-            except Message.DoesNotExist:
-                pass
-
-        # Fetch messages
-        messages_list = list(messages[:limit + 1])  # +1 to check if there are more
+        # Check for pagination (has_more)
         has_more = len(messages_list) > limit
         if has_more:
             messages_list = messages_list[:limit]
 
-        # Reverse to get chronological order
+        # Reverse to get chronological order for display
         messages_list.reverse()
 
         # Serialize messages
@@ -229,6 +339,7 @@ def get_webchat_messages_api(request):
             'timestamp': msg.timestamp.isoformat(),
             'media_type': msg.media_type,
             'media_url': msg.media.url if msg.media else None,
+            'reply_to_message_id': msg.reply_to_message_id if msg.reply_to_message else None,
         } for msg in messages_list]
 
         return JsonResponse({
@@ -236,7 +347,8 @@ def get_webchat_messages_api(request):
             'chat_id': chat_id,
             'messages': messages_data,
             'has_more': has_more,
-            'next_cursor': messages_list[0].id if messages_list and has_more else None
+            'next_cursor': messages_list[0].id if messages_list and has_more else None,
+            'branch_mode': branch_mode
         })
 
     except ValueError as e:

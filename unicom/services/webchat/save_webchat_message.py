@@ -17,6 +17,7 @@ def save_webchat_message(channel, message_data, request, user=None):
             {
                 'text': str,  # Required
                 'chat_id': str,  # Optional - if not provided, use Account.id
+                'reply_to_message_id': str,  # Optional - for message editing/branching
                 'media_type': str,  # 'text', 'image', 'audio' (default: 'text')
                 'file': UploadedFile,  # Optional - for media messages
             }
@@ -25,6 +26,11 @@ def save_webchat_message(channel, message_data, request, user=None):
 
     Returns:
         Message instance
+        
+    Note: When reply_to_message_id is provided, creates a conversation branch by
+    setting the new message's reply_to_message to the same value as the target message.
+    This enables message "editing" from the user's perspective while maintaining
+    conversation history and enabling branch navigation.
     """
     Message = apps.get_model('unicom', 'Message')
     Chat = apps.get_model('unicom', 'Chat')
@@ -79,6 +85,7 @@ def save_webchat_message(channel, message_data, request, user=None):
     text = message_data.get('text', '').strip()
     media_type = message_data.get('media_type', 'text')
     media_file = message_data.get('file')
+    reply_to_message_id = message_data.get('reply_to_message_id')
 
     # Generate message ID
     import uuid
@@ -103,6 +110,31 @@ def save_webchat_message(channel, message_data, request, user=None):
             'user_id': user.id if user else None,
         }
     )
+
+    # Set reply_to_message for context chain and branching
+    if reply_to_message_id:
+        # EDITING MODE: User is "editing" by replying to specific message
+        # This creates a branch - new message with same reply_to_message as the "edited" one
+        try:
+            target_msg = Message.objects.get(id=reply_to_message_id, chat=chat)
+            # Verify user has access to this message's chat
+            if not AccountChat.objects.filter(account=account, chat=chat).exists():
+                reply_to_message_id = None  # Fallback to normal mode
+            else:
+                message.reply_to_message = target_msg.reply_to_message  # Same parent = branch
+        except Message.DoesNotExist:
+            # Invalid message ID - fallback to normal chain
+            reply_to_message_id = None
+    
+    if not reply_to_message_id:
+        # NORMAL MODE: Reply to last assistant message to maintain context chain
+        last_assistant_msg = Message.objects.filter(
+            chat=chat, 
+            is_outgoing=True
+        ).order_by('-timestamp').first()
+        
+        if last_assistant_msg:
+            message.reply_to_message = last_assistant_msg
 
     # Handle media file
     if media_file:

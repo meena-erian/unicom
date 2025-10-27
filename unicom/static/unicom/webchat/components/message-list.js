@@ -44,6 +44,15 @@ export class MessageList extends LitElement {
     });
   }
 
+  _handleEditMessage(e) {
+    // Pass through edit message events to parent
+    this.dispatchEvent(new CustomEvent('edit-message', {
+      detail: e.detail,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   _handleScroll(e) {
     // Detect if user is at the top for "load more"
     // This is handled by the parent component
@@ -82,7 +91,7 @@ export class MessageList extends LitElement {
         ` : ''}
 
         ${this.messages.map(msg => html`
-          <message-item .message=${msg}></message-item>
+          <message-item .message=${msg} @edit-message=${this._handleEditMessage}></message-item>
         `)}
       </div>
     `;
