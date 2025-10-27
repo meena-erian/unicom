@@ -162,8 +162,8 @@ export class RealTimeWebChatClient {
    * Send a message using the REST API.
    * Keeping message submission via HTTP keeps the websocket consumer simple.
    */
-  async sendMessage(text, chatId = null, mediaFile = null, metadata = null) {
-    return await this.api.sendMessage(text, chatId, mediaFile, metadata);
+  async sendMessage(text, chatId = null, mediaFile = null, options = {}) {
+    return await this.api.sendMessage(text, chatId, mediaFile, options);
   }
 
   /**
@@ -177,8 +177,8 @@ export class RealTimeWebChatClient {
   /**
    * Get messages for a chat (REST).
    */
-  async getMessages(chatId, limit = 50) {
-    const response = await this.api.getMessages(chatId, limit);
+  async getMessages(chatId, limit = 50, branch = 'latest') {
+    const response = await this.api.getMessages(chatId, limit, null, null, branch);
     return response.messages;
   }
 

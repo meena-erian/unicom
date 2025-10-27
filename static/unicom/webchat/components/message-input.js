@@ -10,6 +10,7 @@ import './voice-recorder.js';
 export class MessageInput extends LitElement {
   static properties = {
     disabled: { type: Boolean },
+    editingMessageId: { type: String, attribute: 'editing-message-id' },
     inputText: { type: String, state: true },
     previewFile: { type: Object, state: true },
     isRecording: { type: Boolean, state: true },
@@ -20,6 +21,7 @@ export class MessageInput extends LitElement {
   constructor() {
     super();
     this.disabled = false;
+    this.editingMessageId = null;
     this.inputText = '';
     this.previewFile = null;
     this.isRecording = false;
@@ -49,14 +51,16 @@ export class MessageInput extends LitElement {
       detail: {
         text: text,
         file: this.previewFile,
+        replyToMessageId: this.editingMessageId, // Include for editing/branching
       },
       bubbles: true,
       composed: true,
     }));
 
-    // Clear input
+    // Clear input and edit mode
     this.inputText = '';
     this.previewFile = null;
+    this.editingMessageId = null;
 
     // Reset textarea height
     const textarea = this.shadowRoot.querySelector('textarea');
@@ -131,13 +135,33 @@ export class MessageInput extends LitElement {
     this.isRecording = false;
   }
 
+  _handleCancelEdit() {
+    this.editingMessageId = null;
+    this.inputText = '';
+    this.previewFile = null;
+    
+    // Reset textarea height
+    const textarea = this.shadowRoot.querySelector('textarea');
+    if (textarea) {
+      textarea.style.height = 'auto';
+    }
+  }
+
   render() {
     const hasText = Boolean(this.inputText.trim());
     const hasAttachment = Boolean(this.previewFile);
     const showSend = !this.isRecording && (hasText || hasAttachment);
+    const isEditing = Boolean(this.editingMessageId);
 
     return html`
       <div class="message-input-container">
+        ${isEditing ? html`
+          <div class="edit-mode-indicator">
+            <span>✏️ Editing message</span>
+            <button class="cancel-edit-btn" @click=${this._handleCancelEdit}>Cancel</button>
+          </div>
+        ` : ''}
+
         ${this.previewFile ? html`
           <media-preview
             .file=${this.previewFile}
@@ -158,7 +182,7 @@ export class MessageInput extends LitElement {
               .value=${this.inputText}
               @input=${this._handleInput}
               @keydown=${this._handleKeyDown}
-              placeholder="Type a message..."
+              placeholder=${isEditing ? "Edit your message..." : "Type a message..."}
               ?disabled=${this.disabled}
               rows="1"></textarea>
           `}
@@ -169,7 +193,7 @@ export class MessageInput extends LitElement {
                 class="send-btn"
                 @click=${this._handleSend}
                 ?disabled=${this.disabled || (!hasText && !hasAttachment)}>
-                Send
+                ${isEditing ? 'Update' : 'Send'}
               </button>
             ` : html`
               <voice-recorder

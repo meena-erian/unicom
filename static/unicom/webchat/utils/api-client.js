@@ -26,15 +26,21 @@ export class WebChatAPI {
    * @param {string} text - Message text
    * @param {string|null} chatId - Optional chat ID
    * @param {File|null} mediaFile - Optional media file (image/audio)
-   * @param {Object|null} metadata - Optional metadata for new chat creation (e.g., {project_id: 123})
+   * @param {Object|null} options - Optional parameters
+   *   - metadata: Metadata for new chat creation (e.g., {project_id: 123})
+   *   - reply_to_message_id: Message ID to "edit" (creates branch)
    * @returns {Promise<Object>} Response data
    */
-  async sendMessage(text, chatId = null, mediaFile = null, metadata = null) {
+  async sendMessage(text, chatId = null, mediaFile = null, options = {}) {
     const formData = new FormData();
     formData.append('text', text);
     if (chatId) formData.append('chat_id', chatId);
     if (mediaFile) formData.append('media', mediaFile);
+    
+    // Handle options
+    const { metadata, reply_to_message_id } = options;
     if (metadata) formData.append('metadata', JSON.stringify(metadata));
+    if (reply_to_message_id) formData.append('reply_to_message_id', reply_to_message_id);
 
     const response = await fetch(`${this.baseURL}/send/`, {
       method: 'POST',
@@ -58,14 +64,16 @@ export class WebChatAPI {
    * @param {number} limit - Max messages to fetch
    * @param {string|null} before - Cursor for pagination (message ID)
    * @param {string|null} after - Cursor for new messages (message ID)
+   * @param {string} branch - Branch mode: 'latest', 'all', or message_id
    * @returns {Promise<Object>} Response with messages array
    */
-  async getMessages(chatId = null, limit = 50, before = null, after = null) {
+  async getMessages(chatId = null, limit = 50, before = null, after = null, branch = 'latest') {
     const params = new URLSearchParams();
     if (chatId) params.append('chat_id', chatId);
     params.append('limit', limit);
     if (before) params.append('before', before);
     if (after) params.append('after', after);
+    params.append('branch', branch);
 
     const response = await fetch(`${this.baseURL}/messages/?${params}`, {
       credentials: 'same-origin',
