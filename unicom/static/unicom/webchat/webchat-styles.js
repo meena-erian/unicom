@@ -220,6 +220,51 @@ export const messageStyles = css`
     gap: 8px;
   }
 
+  .message-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .branch-navigation {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+  }
+
+  .branch-nav-btn {
+    background: none;
+    border: 1px solid var(--unicom-border-color);
+    color: var(--unicom-text-color);
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+
+  .branch-nav-btn:hover:not(:disabled) {
+    background-color: var(--unicom-primary-color);
+    color: white;
+  }
+
+  .branch-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .branch-counter {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    min-width: 30px;
+    text-align: center;
+  }
+
   .edit-btn {
     background: none;
     border: none;

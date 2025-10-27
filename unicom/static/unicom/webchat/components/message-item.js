@@ -88,6 +88,23 @@ export class MessageItem extends LitElement {
     }));
   }
 
+  _handleBranchNavigation(direction) {
+    console.log('Branch navigation clicked:', direction, 'for message:', this.message.id);
+    
+    // Stop event from bubbling to prevent double handling
+    const event = new CustomEvent('branch-navigation', {
+      detail: { 
+        groupId: this.message.branchInfo.groupId,
+        direction: direction
+      },
+      bubbles: true,
+      composed: true,
+    });
+    
+    this.dispatchEvent(event);
+    console.log('Branch navigation event dispatched');
+  }
+
   render() {
     if (!this.message) return html``;
 
@@ -118,9 +135,30 @@ export class MessageItem extends LitElement {
           ${this._renderMessageContent(message)}
           <div class="message-footer">
             <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
-            ${isUserMessage ? html`
-              <button class="edit-btn" @click=${this._handleEditMessage} title="Edit message">✏️</button>
-            ` : ''}
+            <div class="message-actions">
+              ${message.branchInfo ? html`
+                <div class="branch-navigation">
+                  <button 
+                    class="branch-nav-btn" 
+                    ?disabled=${!message.branchInfo.canGoPrev}
+                    @click=${() => this._handleBranchNavigation('prev')}>
+                    ‹
+                  </button>
+                  <span class="branch-counter">
+                    ${message.branchInfo.current} / ${message.branchInfo.total}
+                  </span>
+                  <button 
+                    class="branch-nav-btn" 
+                    ?disabled=${!message.branchInfo.canGoNext}
+                    @click=${() => this._handleBranchNavigation('next')}>
+                    ›
+                  </button>
+                </div>
+              ` : ''}
+              ${isUserMessage ? html`
+                <button class="edit-btn" @click=${this._handleEditMessage} title="Edit message">✏️</button>
+              ` : ''}
+            </div>
           </div>
         </div>
       </div>

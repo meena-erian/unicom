@@ -29,6 +29,8 @@ export class UnicomChatWithSidebar extends LitElement {
     chats: { type: Array, state: true },
     currentChatId: { type: String, state: true },
     messages: { type: Array, state: true },
+    processedMessages: { type: Array, state: true },  // Messages with branch info
+    branchSelections: { type: Object, state: true },  // Track selected branch per group
     loading: { type: Boolean, state: true },
     loadingChats: { type: Boolean, state: true },
     sending: { type: Boolean, state: true },
@@ -120,6 +122,8 @@ export class UnicomChatWithSidebar extends LitElement {
     this.chats = [];
     this.currentChatId = null;
     this.messages = [];
+    this.processedMessages = [];
+    this.branchSelections = {};
     this.loading = false;
     this.loadingChats = false;
     this.sending = false;
@@ -131,6 +135,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.client = null;
     this._showSidebar = true;
     this._deletingChatId = null;
+    this._branchNavigationTimeout = null; // Add debounce timeout
   }
 
   connectedCallback() {
@@ -220,6 +225,164 @@ export class UnicomChatWithSidebar extends LitElement {
   /**
    * Load messages for current chat
    */
+  /**
+   * Process messages to handle branching with inline navigation
+   */
+  _processMessagesWithBranching(messages) {
+    if (!messages || messages.length === 0) return [];
+
+    // Create message lookup and branch groups
+    const msgById = new Map();
+    const branchGroups = new Map();
+    
+    messages.forEach(msg => {
+      msgById.set(msg.id, msg);
+      
+      // Group by reply_to_message_id
+      const replyTo = msg.reply_to_message_id;
+      if (replyTo) {
+        if (!branchGroups.has(replyTo)) {
+          branchGroups.set(replyTo, []);
+        }
+        branchGroups.get(replyTo).push(msg);
+      }
+    });
+
+    // Sort branch groups by timestamp
+    branchGroups.forEach(group => {
+      group.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    });
+
+    // Build selected path using branch selections
+    const pathIds = new Set();
+    
+    // Start from root messages (no reply_to_message_id)
+    const rootMessages = messages.filter(m => !m.reply_to_message_id);
+    
+    // For each root, build the path forward
+    rootMessages.forEach(root => {
+      this._buildPathForward(root, msgById, branchGroups, pathIds);
+    });
+
+    // Build result with branch info
+    const result = [];
+    messages.forEach(msg => {
+      if (pathIds.has(msg.id)) {
+        const replyTo = msg.reply_to_message_id;
+        let branchInfo = null;
+        
+        if (replyTo && branchGroups.has(replyTo)) {
+          const group = branchGroups.get(replyTo);
+          if (group.length > 1) {
+            const currentIndex = group.findIndex(m => m.id === msg.id);
+            branchInfo = {
+              current: currentIndex + 1,
+              total: group.length,
+              groupId: replyTo,
+              canGoPrev: currentIndex > 0,
+              canGoNext: currentIndex < group.length - 1
+            };
+          }
+        }
+        
+        result.push({ ...msg, branchInfo });
+      }
+    });
+
+    return result.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  }
+
+  /**
+   * Build path forward from a given message using branch selections
+   */
+  _buildPathForward(message, msgById, branchGroups, pathIds) {
+    pathIds.add(message.id);
+    
+    // Find children of this message
+    const children = branchGroups.get(message.id) || [];
+    
+    if (children.length === 0) {
+      // No children, end of path
+      return;
+    }
+    
+    // Select which child to follow
+    let selectedChild;
+    if (children.length === 1) {
+      selectedChild = children[0];
+    } else {
+      // Multiple children - use branch selection or default to latest
+      const selectedIndex = this.branchSelections[message.id] !== undefined 
+        ? this.branchSelections[message.id] 
+        : children.length - 1;
+      selectedChild = children[selectedIndex];
+    }
+    
+    // Continue building path from selected child
+    this._buildPathForward(selectedChild, msgById, branchGroups, pathIds);
+  }
+
+  /**
+   * Handle branch navigation (prev/next)
+   */
+  _handleBranchNavigation(e) {
+    e.stopPropagation();
+    
+    // Debounce to prevent multiple rapid executions
+    if (this._branchNavigationTimeout) {
+      clearTimeout(this._branchNavigationTimeout);
+    }
+    
+    this._branchNavigationTimeout = setTimeout(() => {
+      this._processBranchNavigation(e.detail);
+      this._branchNavigationTimeout = null;
+    }, 10);
+  }
+
+  /**
+   * Process branch navigation after debounce
+   */
+  _processBranchNavigation(detail) {
+    console.log('Main component received branch navigation:', detail);
+    const { groupId, direction } = detail;
+    
+    // Find the group
+    const group = this.messages.filter(m => m.reply_to_message_id === groupId)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    console.log('Found group with', group.length, 'messages for groupId:', groupId);
+    
+    if (group.length <= 1) return;
+    
+    // Get current selection
+    const currentSelection = this.branchSelections[groupId] !== undefined 
+      ? this.branchSelections[groupId] 
+      : group.length - 1;
+    
+    console.log('Current selection:', currentSelection);
+    
+    let newSelection = currentSelection;
+    if (direction === 'prev' && currentSelection > 0) {
+      newSelection = currentSelection - 1;
+    } else if (direction === 'next' && currentSelection < group.length - 1) {
+      newSelection = currentSelection + 1;
+    }
+    
+    console.log('New selection:', newSelection);
+    
+    if (newSelection !== currentSelection) {
+      this.branchSelections = {
+        ...this.branchSelections,
+        [groupId]: newSelection
+      };
+      
+      console.log('Updated branchSelections:', this.branchSelections);
+      this.processedMessages = this._processMessagesWithBranching(this.messages);
+      console.log('Reprocessed messages, new count:', this.processedMessages.length);
+      this.requestUpdate();
+    }
+  }
+
   async loadMessages() {
     if (!this.currentChatId) {
       this.messages = [];
@@ -235,6 +398,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
       const messages = await this.client.getMessages(this.currentChatId, this.maxMessages);
       this.messages = messages || [];
+      this.processedMessages = this._processMessagesWithBranching(this.messages);
       this.client.updateBaselineFromMessages(this.messages);
       // Note: hasMore not supported in current getMessages - could be added later
       this.hasMore = false;
@@ -308,9 +472,18 @@ export class UnicomChatWithSidebar extends LitElement {
         options.metadata = this.metadataDefaults;
       }
       
-      // Include reply_to_message_id for message editing/branching
+      // Determine reply_to_message_id
       if (replyToMessageId) {
         options.reply_to_message_id = replyToMessageId;
+      } else if (this.processedMessages.length > 0) {
+        // New message - reply to last visible assistant message
+        const lastAssistantMessage = [...this.processedMessages]
+          .reverse()
+          .find(msg => msg.is_outgoing === true);
+        
+        if (lastAssistantMessage) {
+          options.reply_to_message_id = lastAssistantMessage.id;
+        }
       }
 
       const response = await this.client.sendMessage(text, this.currentChatId, file, options);
@@ -332,6 +505,7 @@ export class UnicomChatWithSidebar extends LitElement {
         const messageExists = this.messages.some(m => m.id === response.message.id);
         if (!messageExists) {
           this.messages = [...this.messages, response.message];
+          this.processedMessages = this._processMessagesWithBranching(this.messages);
         }
       }
     } catch (err) {
@@ -401,11 +575,12 @@ export class UnicomChatWithSidebar extends LitElement {
             ` : ''}
 
             <message-list
-              .messages=${this.messages}
+              .messages=${this.processedMessages}
               .loading=${this.loading}
               .hasMore=${this.hasMore}
               @load-more=${this._handleLoadMore}
-              @edit-message=${this._handleEditMessage}>
+              @edit-message=${this._handleEditMessage}
+              @branch-navigation=${this._handleBranchNavigation}>
             </message-list>
 
             <message-input
@@ -431,7 +606,8 @@ export class UnicomChatWithSidebar extends LitElement {
     // Set edit mode in message input
     const messageInput = this.shadowRoot.querySelector('message-input');
     if (messageInput) {
-      messageInput.editingMessageId = messageId;
+      // For editing: set reply_to_message_id to the message's parent (creates branch)
+      messageInput.editingMessageId = message.reply_to_message_id;
       messageInput.inputText = message.text || '';
       
       // Focus the textarea
