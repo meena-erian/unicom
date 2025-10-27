@@ -71,9 +71,30 @@ export class MessageItem extends LitElement {
         `;
 
       case 'tool_call':
+        // Render as status line with loading or completion state
+        console.log('Tool call message:', message); // Debug log
+        const toolName = message.raw?.tool_call?.name || message.text?.match(/Tool call: (.+)/)?.[1] || 'tool';
+        const status = message._toolStatus || 'pending';
+        
+        if (status === 'pending') {
+          return html`
+            <div class="tool-status pending">
+              <span class="tool-icon">⚙️</span>
+              using ${toolName}<span class="loading-dots">...</span>
+            </div>
+          `;
+        } else {
+          return html`
+            <div class="tool-status completed">
+              <span class="tool-icon">✅</span>
+              ${toolName} completed
+            </div>
+          `;
+        }
+
       case 'tool_response':
-        // Display as system message with special styling
-        return html`<div class="message-system">${message.text}</div>`;
+        // This should not render separately anymore (handled by tool_call)
+        return html``;
 
       default:
         return html`<div class="message-text">${message.text}</div>`;
@@ -111,6 +132,16 @@ export class MessageItem extends LitElement {
     const message = this.message;
     const isUserMessage = message.is_outgoing === false;
     const mediaType = message.media_type;
+    
+    // Handle tool calls as simple status lines (no bubble)
+    if (mediaType === 'tool_call') {
+      return html`
+        <div class="message-item system">
+          ${this._renderMessageContent(message)}
+        </div>
+      `;
+    }
+
     const alignment = isUserMessage ? 'outgoing' : 'incoming';
     const classes = ['message-item', alignment];
     const bubbleClasses = ['message-bubble'];

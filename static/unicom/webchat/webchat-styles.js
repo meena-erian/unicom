@@ -321,6 +321,31 @@ export const messageStyles = css`
     font-size: 0.9em;
   }
 
+  .tool-status {
+    font-size: 0.85em;
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.25em 0;
+    color: var(--message-text-incoming, #212529);
+  }
+
+  .tool-icon {
+    font-size: 0.9em;
+  }
+
+  .loading-dots {
+    animation: loading-dots 1.5s infinite;
+  }
+
+  @keyframes loading-dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+  }
+
   @container (max-width: 768px) {
     .message-bubble {
       max-width: calc(100% - 24px);
