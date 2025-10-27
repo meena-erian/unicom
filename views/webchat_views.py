@@ -64,11 +64,13 @@ def send_webchat_message_api(request):
             text = data.get('text', '').strip()
             chat_id = data.get('chat_id')
             reply_to_message_id = data.get('reply_to_message_id')
+            is_editing = data.get('is_editing', False)
             media_file = None
         else:
             text = request.POST.get('text', '').strip()
             chat_id = request.POST.get('chat_id')
             reply_to_message_id = request.POST.get('reply_to_message_id')
+            is_editing = request.POST.get('is_editing', 'false').lower() == 'true'
             media_file = request.FILES.get('media')
 
         # Validate

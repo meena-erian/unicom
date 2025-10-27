@@ -113,15 +113,14 @@ def save_webchat_message(channel, message_data, request, user=None):
 
     # Set reply_to_message for context chain and branching
     if reply_to_message_id:
-        # EDITING MODE: User is "editing" by replying to specific message
-        # This creates a branch - new message with same reply_to_message as the "edited" one
+        # User specified a message to reply to - use it directly
         try:
             target_msg = Message.objects.get(id=reply_to_message_id, chat=chat)
             # Verify user has access to this message's chat
             if not AccountChat.objects.filter(account=account, chat=chat).exists():
                 reply_to_message_id = None  # Fallback to normal mode
             else:
-                message.reply_to_message = target_msg.reply_to_message  # Same parent = branch
+                message.reply_to_message = target_msg  # Reply to the specified message
         except Message.DoesNotExist:
             # Invalid message ID - fallback to normal chain
             reply_to_message_id = None
