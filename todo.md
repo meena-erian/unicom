@@ -1,5 +1,5 @@
 Top issues and todo:
-[ ] Messages with action buttons are only supported on Telegram. There has to be an abstract crossplatform wrapper that works on WebChat too.
+[X] Messages with action buttons are only supported on Telegram. There has to be an abstract crossplatform wrapper that works on WebChat too.
 [X] Poor UI issue: tool calls and tool responses look very ugly and big in webchat.
 [X] Message context chain is broken: Currently, when a user responds on webchat, the reply_to_message isn't even set, and as a results, the bot doesn't include any previous messages in the context. Add feature where users can branch conversations in chats, by their message, where on the UI, it would look like the user edited their message and now their message shows some navigation buttons to go back and forth between different version of the message, but in the database, the new version of the message is actually a separate message sent with reply_to_message set to the same reply_to_message value of the message they're editing (which could be null if its a first message in a chat)
 [X] Performance critical issue: whenever a temporary disconnection occurs, the WebChat fallsback permanatly to polling mode until the user relads the page. This can risk server performance and client satisfaction. it should instead periodically try to reconnect to the websocket. 
