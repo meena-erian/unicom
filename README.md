@@ -1171,17 +1171,33 @@ The `<unicom-chat-with-sidebar>` component accepts these attributes:
 ```
 
 Available CSS variables:
-- `--unicom-primary-color` - Primary brand color
-- `--unicom-background-color` - Background color
-- `--unicom-text-color` - Text color
-- `--unicom-message-bg-incoming` - Incoming message background
-- `--unicom-message-bg-outgoing` - Outgoing message background
-- `--unicom-message-text-incoming` - Incoming message text color
-- `--unicom-message-text-outgoing` - Outgoing message text color
-- `--unicom-border-color` - Border color
-- `--unicom-border-radius` - Border radius
-- `--unicom-font-family` - Font family
-- `--unicom-max-width` - Max width of component
+- `--unicom-primary-color` - Primary brand color (default: #007bff)
+- `--unicom-secondary-color` - Secondary color for subtle text (default: #6c757d)
+- `--unicom-background-color` - Main background color (default: #ffffff)
+- `--unicom-text-color` - Primary text color (default: #212529)
+- `--unicom-border-color` - Border color (default: #dee2e6)
+- `--unicom-border-radius` - Component border radius (default: 0px)
+- `--unicom-bubble-radius` - Message bubble border radius (default: 16px)
+- `--unicom-control-radius` - Input controls border radius (default: 12px)
+- `--unicom-media-radius` - Media files border radius (default: 12px)
+- `--unicom-message-bg-incoming` - Incoming message background (default: #f1f3f4)
+- `--unicom-message-bg-outgoing` - Outgoing message background (default: #007bff)
+- `--unicom-message-text-incoming` - Incoming message text color (default: #212529)
+- `--unicom-message-text-outgoing` - Outgoing message text color (default: #ffffff)
+- `--unicom-scrollbar-track` - Scrollbar track color (default: rgba(0, 0, 0, 0.04))
+- `--unicom-scrollbar-thumb` - Scrollbar thumb color (default: rgba(0, 0, 0, 0.18))
+- `--unicom-sidebar-bg` - Sidebar background color (default: same as background)
+- `--unicom-sidebar-border-color` - Sidebar border color (default: same as border)
+- `--unicom-sidebar-text-color` - Sidebar text color (default: same as text)
+- `--unicom-sidebar-secondary-text` - Sidebar secondary text color (default: same as secondary)
+- `--unicom-sidebar-header-bg` - Sidebar header background (default: same as primary)
+- `--unicom-sidebar-header-text` - Sidebar header text color (default: #ffffff)
+- `--unicom-sidebar-item-border` - Sidebar item border color (default: same as border)
+- `--unicom-sidebar-item-hover` - Sidebar item hover background (default: rgba(0, 0, 0, 0.03))
+- `--unicom-sidebar-item-selected` - Selected sidebar item background (default: same as primary)
+- `--unicom-sidebar-item-selected-text` - Selected sidebar item text color (default: #ffffff)
+- `--unicom-sidebar-item-selected-subtext` - Selected sidebar item subtext color (default: rgba(255, 255, 255, 0.8))
+- `--unicom-font-family` - Font family (default: system fonts)
 
 #### 🌐 WebChat User Types
 

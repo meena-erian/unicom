@@ -70,19 +70,19 @@ export const baseStyles = css`
   }
 
   .unicom-chat-container.dark {
-    --background-color: #1e1e1e;
-    --text-color: #ffffff;
-    --border-color: #444;
-    --message-bg-incoming: #2d2d2d;
-    --message-bg-outgoing: #0056b3;
-    --message-text-incoming: #ffffff;
-    --sidebar-bg: #1b1b1b;
-    --sidebar-border-color: #2d2d2d;
-    --sidebar-text-color: #f3f3f3;
-    --sidebar-secondary-text: #b0b0b0;
-    --sidebar-header-bg: #1f1f1f;
-    --sidebar-header-text: #f3f3f3;
-    --sidebar-item-border: rgba(255, 255, 255, 0.08);
+    --background-color: var(--unicom-background-color, #1e1e1e);
+    --text-color: var(--unicom-text-color, #ffffff);
+    --border-color: var(--unicom-border-color, #444);
+    --message-bg-incoming: var(--unicom-message-bg-incoming, #2d2d2d);
+    --message-bg-outgoing: var(--unicom-message-bg-outgoing, #0056b3);
+    --message-text-incoming: var(--unicom-message-text-incoming, #ffffff);
+    --sidebar-bg: var(--unicom-sidebar-bg, #1b1b1b);
+    --sidebar-border-color: var(--unicom-sidebar-border-color, #2d2d2d);
+    --sidebar-text-color: var(--unicom-sidebar-text-color, #f3f3f3);
+    --sidebar-secondary-text: var(--unicom-sidebar-secondary-text, #b0b0b0);
+    --sidebar-header-bg: var(--unicom-sidebar-header-bg, #1f1f1f);
+    --sidebar-header-text: var(--unicom-sidebar-header-text, #f3f3f3);
+    --sidebar-item-border: var(--unicom-sidebar-item-border, rgba(255, 255, 255, 0.08));
     --sidebar-item-hover: rgba(255, 255, 255, 0.08);
     --sidebar-item-selected: var(--primary-color);
     --sidebar-item-selected-text: #ffffff;
