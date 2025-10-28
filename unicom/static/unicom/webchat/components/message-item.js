@@ -10,6 +10,7 @@ import { formatTimestamp } from '../utils/datetime-formatter.js';
 export class MessageItem extends LitElement {
   static properties = {
     message: { type: Object },
+    loadingButtons: { type: Set },
   };
 
   static styles = [messageStyles];
@@ -17,6 +18,7 @@ export class MessageItem extends LitElement {
   constructor() {
     super();
     this.message = null;
+    this.loadingButtons = new Set();
   }
 
   _sanitizeHTML(html) {
@@ -38,14 +40,17 @@ export class MessageItem extends LitElement {
       <div class="interactive-buttons">
         ${buttons.map(row => html`
           <div class="button-row">
-            ${row.map(button => html`
-              <button 
-                class="interactive-btn ${button.style || 'primary'}"
-                @click=${() => this._handleButtonClick(button)}
-                ?disabled=${button.disabled}>
-                ${button.text}
-              </button>
-            `)}
+            ${row.map(button => {
+              const isLoading = this.loadingButtons.has(button.callback_execution_id);
+              return html`
+                <button 
+                  class="interactive-btn ${button.style || 'primary'}"
+                  @click=${() => this._handleButtonClick(button)}
+                  ?disabled=${button.disabled || isLoading}>
+                  ${isLoading ? '⏳' : button.text}
+                </button>
+              `;
+            })}
           </div>
         `)}
       </div>
@@ -59,6 +64,13 @@ export class MessageItem extends LitElement {
     }
     
     if (button.type === 'callback' && button.callback_execution_id) {
+      // Prevent multiple clicks
+      if (this.loadingButtons.has(button.callback_execution_id)) return;
+      
+      // Add to loading set
+      this.loadingButtons.add(button.callback_execution_id);
+      this.requestUpdate();
+      
       // Send button click to backend
       fetch('/unicom/webchat/button-click/', {
         method: 'POST',
@@ -81,6 +93,10 @@ export class MessageItem extends LitElement {
         }
       }).catch(error => {
         console.error('Button click error:', error);
+      }).finally(() => {
+        // Remove from loading set
+        this.loadingButtons.delete(button.callback_execution_id);
+        this.requestUpdate();
       });
     }
   }
