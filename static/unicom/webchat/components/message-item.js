@@ -229,7 +229,6 @@ export class MessageItem extends LitElement {
         ` : ''}
         <div class="${bubbleClasses.join(' ')}">
           ${this._renderMessageContent(message)}
-          ${this._renderInteractiveButtons(message.interactive_buttons)}
           <div class="message-footer">
             <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
             <div class="message-actions">
@@ -258,6 +257,7 @@ export class MessageItem extends LitElement {
             </div>
           </div>
         </div>
+        ${this._renderInteractiveButtons(message.interactive_buttons)}
       </div>
     `;
   }

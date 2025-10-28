@@ -351,6 +351,95 @@ export const messageStyles = css`
       max-width: calc(100% - 24px);
     }
   }
+
+  /* Interactive Buttons - Telegram-style positioning and theming */
+  .interactive-buttons {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: calc(100% - 32px);
+  }
+
+  .message-item.outgoing .interactive-buttons {
+    align-self: flex-end;
+    margin-left: auto;
+  }
+
+  .message-item.incoming .interactive-buttons {
+    align-self: flex-start;
+    margin-right: auto;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .interactive-btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: var(--bubble-radius);
+    cursor: pointer;
+    font-size: inherit;
+    font-weight: inherit;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    flex: 1;
+    min-height: 44px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    word-wrap: break-word;
+    word-break: break-word;
+    box-sizing: border-box;
+  }
+
+  /* Use exact message bubble colors and styling */
+  .message-item.outgoing .interactive-btn {
+    background: var(--primary-color);
+    color: var(--message-text-outgoing);
+    border-bottom-right-radius: clamp(4px, calc(var(--bubble-radius) / 2), var(--bubble-radius));
+  }
+
+  .message-item.incoming .interactive-btn {
+    background: var(--message-bg-incoming);
+    color: var(--message-text-incoming);
+    border-bottom-left-radius: clamp(4px, calc(var(--bubble-radius) / 2), var(--bubble-radius));
+  }
+
+  .interactive-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  .interactive-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .interactive-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Responsive button sizing */
+  @container (max-width: 768px) {
+    .interactive-buttons {
+      max-width: calc(100% - 24px);
+      align-self: center !important;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+
+  /* Desktop: Match message bubble width */
+  @container (min-width: 769px) {
+    .interactive-buttons {
+      max-width: min(calc(100% - 32px), 460px);
+    }
+  }
 `;
 
 export const inputStyles = css`
@@ -659,62 +748,5 @@ export const previewStyles = css`
 
   .preview-remove:hover {
     color: #dc3545;
-  }
-
-  /* Interactive Buttons */
-  .interactive-buttons {
-    margin-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .button-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .interactive-btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 0.9em;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    flex: 1;
-    min-width: 80px;
-  }
-
-  .interactive-btn.primary {
-    background: var(--primary-color);
-    color: white;
-  }
-
-  .interactive-btn.primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--primary-color) 85%, black);
-  }
-
-  .interactive-btn.secondary {
-    background: var(--border-color);
-    color: var(--text-color);
-  }
-
-  .interactive-btn.secondary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--border-color) 85%, black);
-  }
-
-  .interactive-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .dark .interactive-btn.secondary {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .dark .interactive-btn.secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
   }
 `;
