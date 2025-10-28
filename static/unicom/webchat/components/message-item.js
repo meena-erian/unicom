@@ -31,6 +31,71 @@ export class MessageItem extends LitElement {
     return formatTimestamp(timestamp);
   }
 
+  _renderInteractiveButtons(buttons) {
+    if (!buttons || !buttons.length) return '';
+    
+    return html`
+      <div class="interactive-buttons">
+        ${buttons.map(row => html`
+          <div class="button-row">
+            ${row.map(button => html`
+              <button 
+                class="interactive-btn ${button.style || 'primary'}"
+                @click=${() => this._handleButtonClick(button)}
+                ?disabled=${button.disabled}>
+                ${button.text}
+              </button>
+            `)}
+          </div>
+        `)}
+      </div>
+    `;
+  }
+
+  _handleButtonClick(button) {
+    if (button.type === 'url') {
+      window.open(button.url, '_blank');
+      return;
+    }
+    
+    if (button.type === 'callback' && button.callback_execution_id) {
+      // Send button click to backend
+      fetch('/unicom/webchat/button-click/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': this._getCSRFToken()
+        },
+        body: JSON.stringify({
+          callback_execution_id: button.callback_execution_id
+        })
+      }).then(response => {
+        if (response.ok) {
+          // Refresh messages to show any updates
+          this.dispatchEvent(new CustomEvent('refresh-messages', {
+            bubbles: true,
+            composed: true
+          }));
+        } else {
+          console.error('Button click failed:', response.statusText);
+        }
+      }).catch(error => {
+        console.error('Button click error:', error);
+      });
+    }
+  }
+
+  _getCSRFToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'csrftoken') {
+        return value;
+      }
+    }
+    return '';
+  }
+
   _openImageModal(url) {
     // Open image in new tab for now
     // Could be enhanced with a lightbox modal in future
@@ -164,6 +229,7 @@ export class MessageItem extends LitElement {
         ` : ''}
         <div class="${bubbleClasses.join(' ')}">
           ${this._renderMessageContent(message)}
+          ${this._renderInteractiveButtons(message.interactive_buttons)}
           <div class="message-footer">
             <div class="message-timestamp">${this._formatTimestamp(message.timestamp)}</div>
             <div class="message-actions">

@@ -478,6 +478,15 @@ export class UnicomChatWithSidebar extends LitElement {
     }
   }
 
+  /**
+   * Handle refresh messages request (e.g., after button click)
+   */
+  _handleRefreshMessages(e) {
+    e.stopPropagation();
+    console.log('Refreshing messages after button click');
+    this._loadMessages();
+  }
+
   async loadMessages() {
     if (!this.currentChatId) {
       this.messages = [];
@@ -710,7 +719,8 @@ export class UnicomChatWithSidebar extends LitElement {
               .hasMore=${this.hasMore}
               @load-more=${this._handleLoadMore}
               @edit-message=${this._handleEditMessage}
-              @branch-navigation=${this._handleBranchNavigation}>
+              @branch-navigation=${this._handleBranchNavigation}
+              @refresh-messages=${this._handleRefreshMessages}>
             </message-list>
 
             <message-input

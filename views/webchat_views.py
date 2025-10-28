@@ -9,6 +9,8 @@ from django.contrib.sessions.middleware import SessionMiddleware
 from unicom.models import Channel, Message, Chat, AccountChat
 from unicom.services.webchat.save_webchat_message import save_webchat_message
 from unicom.services.webchat.get_or_create_account import get_or_create_account
+from unicom.models import CallbackExecution
+from unicom.signals import interactive_button_clicked
 
 
 def _get_webchat_channel():
@@ -342,6 +344,7 @@ def get_webchat_messages_api(request):
             'media_type': msg.media_type,
             'media_url': msg.media.url if msg.media else None,
             'reply_to_message_id': msg.reply_to_message_id if msg.reply_to_message else None,
+            'interactive_buttons': msg.raw.get('interactive_buttons') if msg.raw else None,
         } for msg in messages_list]
 
         return JsonResponse({
@@ -585,6 +588,81 @@ def delete_webchat_chat_api(request, chat_id):
             'message': message
         })
 
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def handle_webchat_button_click(request):
+    """
+    Handle WebChat button clicks - mirrors Telegram callback system.
+    
+    POST /unicom/webchat/button-click/
+    
+    Request body:
+        - callback_execution_id: ID of the CallbackExecution record
+    
+    Returns:
+        JSON with success status
+    """
+    try:
+        _ensure_session(request)
+        
+        # Get channel
+        channel = _get_webchat_channel()
+        
+        # Get account
+        account = get_or_create_account(channel, request)
+        
+        # Parse request body
+        import json
+        data = json.loads(request.body)
+        callback_execution_id = data.get('callback_execution_id')
+        
+        if not callback_execution_id:
+            return JsonResponse({'error': 'callback_execution_id is required'}, status=400)
+        
+        # Lookup CallbackExecution
+        try:
+            execution = CallbackExecution.objects.select_related(
+                'original_message', 'intended_account'
+            ).get(id=callback_execution_id)
+        except CallbackExecution.DoesNotExist:
+            return JsonResponse({'error': 'Button not found or expired'}, status=404)
+        
+        # Check if expired
+        if execution.is_expired():
+            return JsonResponse({'error': 'Button has expired'}, status=403)
+        
+        # Security check: Only the intended account can click
+        if account.id != execution.intended_account.id:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+        
+        # Additional security for guest users: verify session key matches
+        if account.id.startswith('webchat_guest_'):
+            expected_session_key = account.raw.get('session_key')
+            current_session_key = request.session.session_key
+            
+            if expected_session_key != current_session_key:
+                return JsonResponse({'error': 'Session mismatch'}, status=403)
+        
+        # Fire cross-platform signal
+        interactive_button_clicked.send(
+            sender=handle_webchat_button_click,
+            callback_execution=execution,
+            clicking_account=account,
+            original_message=execution.original_message,
+            platform='WebChat',
+            tool_call=execution.tool_call
+        )
+        
+        return JsonResponse({'success': True})
+        
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:

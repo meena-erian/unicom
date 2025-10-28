@@ -83,7 +83,13 @@ def create_callback_button(text: str, callback_data: Any, message=None, account=
 
         # Default to message sender if no account specified
         if not account:
-            account = message.sender if not message.is_outgoing else message.chat.accounts.first()
+            if message.is_outgoing:
+                # For outgoing messages, find the first account in the chat
+                from unicom.models import AccountChat
+                account_chat = AccountChat.objects.filter(chat=message.chat).first()
+                account = account_chat.account if account_chat else message.sender
+            else:
+                account = message.sender
 
         execution = CallbackExecution.objects.create(
             original_message=message,

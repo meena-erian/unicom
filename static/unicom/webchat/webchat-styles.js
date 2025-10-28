@@ -660,4 +660,61 @@ export const previewStyles = css`
   .preview-remove:hover {
     color: #dc3545;
   }
+
+  /* Interactive Buttons */
+  .interactive-buttons {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .interactive-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .interactive-btn.primary {
+    background: var(--primary-color);
+    color: white;
+  }
+
+  .interactive-btn.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary-color) 85%, black);
+  }
+
+  .interactive-btn.secondary {
+    background: var(--border-color);
+    color: var(--text-color);
+  }
+
+  .interactive-btn.secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--border-color) 85%, black);
+  }
+
+  .interactive-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .dark .interactive-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .dark .interactive-btn.secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+  }
 `;

@@ -12,6 +12,7 @@ from unicom.views.webchat_views import (
     list_webchat_chats_api,
     update_webchat_chat_api,
     delete_webchat_chat_api,
+    handle_webchat_button_click,
 )
 from unicom.views.webchat_demo_view import webchat_demo_view
 
@@ -31,6 +32,7 @@ urlpatterns = [
     path('webchat/chats/', list_webchat_chats_api, name='webchat_chats'),
     path('webchat/chat/<str:chat_id>/', update_webchat_chat_api, name='webchat_update_chat'),
     path('webchat/chat/<str:chat_id>/delete/', delete_webchat_chat_api, name='webchat_delete_chat'),
+    path('webchat/button-click/', handle_webchat_button_click, name='webchat_button_click'),
     # WebChat demo page
     path('webchat/demo/', webchat_demo_view, name='webchat_demo'),
 ]
