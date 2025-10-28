@@ -150,10 +150,15 @@ That's it! Unicom can now register and manage public-facing webhooks (e.g., for 
 Django Unicom supports the following communication platforms:
 
 - **Email** - SMTP/IMAP with auto-discovery, rich HTML content, link tracking
-- **Telegram** - Bot API integration with webhooks, media support, typing indicators
+- **Telegram** - Bot API integration with webhooks, media support, typing indicators, interactive buttons
 - **WhatsApp** - Business API integration, template messages, delivery status
-- **WebChat** - Web-based chat interface with multi-chat support, real-time updates, guest users
+- **WebChat** - Web-based chat interface with multi-chat support, real-time updates, guest users, interactive buttons
 - **Internal** - System-to-system messaging within your application
+
+**Cross-Platform Features:**
+- 🌐 **Interactive Buttons**: Work on both Telegram and WebChat with the same API
+- 🔒 **Secure Button Clicks**: Session-based security with expiration support
+- 🎯 **Unified Handlers**: Same signal receivers handle clicks from all platforms
 
 Throughout this documentation, features will be marked as:
 - ✅ **All platforms**: Works across all communication channels
@@ -656,38 +661,45 @@ message = telegram_channel.send_message({
 })
 ```
 
-#### 📱 Interactive Messages with Action Buttons
+#### 🌐 Interactive Messages with Action Buttons (Cross-Platform)
 
-Telegram channels support inline keyboard buttons. Pass any JSON-serializable `callback_data`:
+Interactive buttons work across **Telegram and WebChat** with the same API. Pass any JSON-serializable `callback_data`:
 
 ```python
-from unicom.services.telegram.create_inline_keyboard import (
-    create_inline_keyboard, create_callback_button, create_url_button
-)
-
-# When replying to existing messages, pass message and account for full features
-# This creates CallbackExecution records and enables security + tool integration
-incoming_message.reply_with({
+# ✅ Cross-platform: Works on both Telegram and WebChat
+message.reply_with({
     'text': 'Do you want to continue?',
-    'reply_markup': create_inline_keyboard([
-        [create_callback_button("Yes", {"action": "confirm"}, message=incoming_message)],
-        [create_callback_button("No", {"action": "cancel"}, message=incoming_message)],
-        [create_url_button("Visit Website", "https://example.com")]
-    ])
+    'buttons': [
+        [
+            {"text": "Yes", "callback_data": {"action": "confirm"}, "type": "callback"},
+            {"text": "No", "callback_data": {"action": "cancel"}, "type": "callback"}
+        ],
+        [
+            {"text": "Visit Website", "url": "https://example.com", "type": "url"}
+        ]
+    ]
 })
 
 # Rich data structures with any JSON-serializable data
-incoming_message.reply_with({
+message.reply_with({
     'text': 'Choose a product:',
-    'reply_markup': create_inline_keyboard([
-        [create_callback_button("Product A", {"product_id": 123, "price": 29.99, "stock": 5}, message=incoming_message)],
-        [create_callback_button("Product B", {"product_id": 456, "price": 49.99, "stock": 12}, message=incoming_message)]
-    ])
+    'buttons': [
+        [
+            {"text": "Product A", "callback_data": {"product_id": 123, "price": 29.99}, "type": "callback"},
+            {"text": "Product B", "callback_data": {"product_id": 456, "price": 49.99}, "type": "callback"}
+        ]
+    ]
 })
 
-# Optional expiration for time-limited offers
-from django.utils import timezone
-from datetime import timedelta
+# 📱 Telegram-specific (legacy): Still supported for Telegram-only code
+from unicom.services.telegram.create_inline_keyboard import create_inline_keyboard, create_callback_button
+
+incoming_message.reply_with({
+    'text': 'Telegram-specific buttons:',
+    'reply_markup': create_inline_keyboard([
+        [create_callback_button("Yes", {"action": "confirm"}, message=incoming_message)]
+    ])
+})
 
 incoming_message.reply_with({
     'text': 'Limited time offer!',
@@ -702,18 +714,18 @@ incoming_message.reply_with({
 })
 ```
 
-#### 📱 Handling Button Clicks
+#### 🌐 Handling Button Clicks (Cross-Platform)
 
-When users click buttons, handle them with Django signals - no configuration needed:
+When users click buttons, handle them with Django signals - **works for both Telegram and WebChat automatically**:
 
 ```python
 from django.dispatch import receiver
 from unicom.signals import telegram_callback_received
 
-@receiver(telegram_callback_received)
+@receiver(telegram_callback_received)  # Handles BOTH Telegram AND WebChat clicks!
 def handle_button_clicks(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
     """
-    Handle button clicks.
+    Handle button clicks from any platform.
 
     Args:
         callback_execution: CallbackExecution instance with callback_data
@@ -721,7 +733,7 @@ def handle_button_clicks(sender, callback_execution, clicking_account, original_
         original_message: The Message containing the buttons
         tool_call: Optional ToolCall if button was from a tool (None otherwise)
 
-    Note: unicom.Account represents a platform user (e.g., Telegram user, email address).
+    Note: unicom.Account represents a platform user (e.g., Telegram user, WebChat session).
     To access Django auth.User: clicking_account.member.user (if member exists)
     """
     data = callback_execution.callback_data
@@ -736,11 +748,16 @@ def handle_button_clicks(sender, callback_execution, clicking_account, original_
             product_id = data['product_id']
             product = get_product(product_id)
 
-            # Create new buttons with callback_data
+            # Create new buttons - works on both platforms
             original_message.reply_with({
                 'text': f'Product: {product.name}\nPrice: ${product.price}',
-                'reply_markup': create_inline_keyboard([
-                    [create_callback_button('Confirm Purchase', {'action': 'confirm_purchase', 'product_id': product_id}, message=original_message, account=clicking_account)],
+                'buttons': [
+                    [
+                        {"text": "Confirm Purchase", "callback_data": {"action": "confirm_purchase", "product_id": product_id}, "type": "callback"},
+                        {"text": "Cancel", "callback_data": {"action": "cancel"}, "type": "callback"}
+                    ]
+                ]
+            })
                     [create_callback_button('Cancel', {'action': 'cancel'}, message=original_message, account=clicking_account)]
                 ])
             })
@@ -787,19 +804,31 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
 - **No Message Creation**: Button clicks don't create Message objects - they only trigger handlers
 - **Tool Integration**: When buttons are from tools, handlers can use `tool_call.respond()` to inform the LLM
 
-#### 📱 Tool-Generated Buttons (Advanced)
+#### 🌐 Tool-Generated Buttons (Cross-Platform)
 
-When a tool sends buttons, you can link them to the ToolCall so handlers can respond to the LLM:
+Tools can create interactive buttons that work on both Telegram and WebChat:
 
 ```python
 # In your tool code (e.g., unibot Tool model)
 def my_interactive_tool(question: str) -> str:
     """Ask user a question with buttons and wait for response."""
 
-    # tool_call is available in tool context - no need to query!
-    # Just use it directly
+    # Send cross-platform message with buttons
+    message.reply_with({
+        'text': f'Question: {question}',
+        'buttons': [
+            [
+                {"text": "Yes", "callback_data": {"tool": "my_interactive_tool", "action": "answer", "value": "yes"}, "type": "callback"},
+                {"text": "No", "callback_data": {"tool": "my_interactive_tool", "action": "answer", "value": "no"}, "type": "callback"}
+            ]
+        ]
+    })
 
-    # Send message with buttons linked to this tool call
+    # Return None to prevent duplicate messages
+    return None
+
+# 📱 Telegram-specific (legacy): Still supported
+def my_telegram_tool(question: str) -> str:
     message.reply_with({
         'text': f'Question: {question}',
         'reply_markup': create_inline_keyboard([
@@ -807,10 +836,11 @@ def my_interactive_tool(question: str) -> str:
                 "Yes",
                 {"tool": "my_interactive_tool", "action": "answer", "value": "yes"},
                 message=message,
-                tool_call=tool_call  # Use the context variable
-            )],
-            [create_callback_button(
-                "No",
+                tool_call=tool_call  # Links to ToolCall for LLM response
+            )]
+        ])
+    })
+    return None
                 {"tool": "my_interactive_tool", "action": "answer", "value": "no"},
                 message=message,
                 tool_call=tool_call

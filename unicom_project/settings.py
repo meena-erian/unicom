@@ -52,7 +52,7 @@ origin = os.environ.get('DJANGO_PUBLIC_ORIGIN', 'localhost')
 
 print(f"DJANGO_PUBLIC_ORIGIN: {origin}")
 parsed = urlparse(origin)
-ALLOWED_HOSTS = [parsed.hostname, '192.168.0.200', 'http://192.168.0.200:800/'] if parsed.hostname else []
+ALLOWED_HOSTS = [parsed.hostname, '192.168.0.200', 'http://192.168.0.200:800/', 'localhost', '127.0.0.1', 'testserver'] if parsed.hostname else ['localhost', '127.0.0.1', 'testserver']
 
 CSRF_TRUSTED_ORIGINS = [origin] if origin else []
 

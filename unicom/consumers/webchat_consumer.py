@@ -277,6 +277,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             "media_type": message.media_type,
             "media_url": message.media.url if message.media else None,
             "reply_to_message_id": message.reply_to_message_id if message.reply_to_message else None,
+            "interactive_buttons": message.raw.get('interactive_buttons') if message.raw else None,
         }
 
 

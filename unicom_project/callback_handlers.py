@@ -1,6 +1,6 @@
 # Callback handlers for interactive menu buttons
 from django.dispatch import receiver
-from unicom.signals import telegram_callback_received
+from unicom.signals import telegram_callback_received, interactive_button_clicked
 from unicom.services.telegram.create_inline_keyboard import create_simple_keyboard, create_inline_keyboard, create_callback_button, create_url_button
 import random
 import platform
@@ -21,35 +21,51 @@ RANDOM_FACTS = [
 
 @receiver(telegram_callback_received)
 def handle_interactive_menu_buttons(sender, callback_execution, clicking_account, original_message, tool_call, **kwargs):
-    """
-    Handle button clicks from the interactive menu tool.
+    """Handle button clicks from Telegram"""
+    handle_button_clicks(callback_execution, clicking_account, original_message, 'Telegram', tool_call)
 
-    Args:
-        callback_execution: The CallbackExecution instance with callback_data
-        clicking_account: The Account that clicked the button
-        original_message: The Message containing the buttons
-        tool_call: Optional ToolCall if button was from a tool (can be None)
+@receiver(interactive_button_clicked)
+def handle_webchat_buttons(sender, callback_execution, clicking_account, original_message, platform, tool_call, **kwargs):
+    """Handle button clicks from WebChat"""
+    handle_button_clicks(callback_execution, clicking_account, original_message, platform, tool_call)
+
+def handle_button_clicks(callback_execution, clicking_account, original_message, platform, tool_call):
+    """
+    Unified handler for button clicks from any platform.
     """
     button_data = callback_execution.callback_data
-
     username = clicking_account.raw.get('username', clicking_account.name)
-    print(f"🎯 HANDLER DEBUG: Button clicked: {button_data} by {username}")
-    print(f"   - Original Message ID: {original_message.id}")
-    print(f"   - Account: {username} ({clicking_account.id})")
-    if tool_call:
-        print(f"   - Associated with ToolCall: {tool_call.tool_name}:{tool_call.call_id}")
-
+    
+    print(f"🎯 BUTTON CLICK: {platform} button clicked: {button_data} by {username}")
+    
     # Handle dict-based callback_data
     if isinstance(button_data, dict):
-        # Menu navigation
-        if button_data.get("menu") == "main":
+        action = button_data.get("action")
+        
+        if action == "confirm":
+            test_type = button_data.get("test", "unknown")
+            original_message.reply_with({
+                'text': f'✅ **Confirmed!**\n\nTest: {test_type}\nPlatform: {platform}\nUser: {username}'
+            })
+            
+        elif action == "cancel":
+            test_type = button_data.get("test", "unknown")
+            original_message.reply_with({
+                'text': f'❌ **Cancelled**\n\nTest: {test_type}\nPlatform: {platform}\nUser: {username}'
+            })
+            
+        elif action == "info":
+            original_message.reply_with({
+                'text': f'ℹ️ **Button Info**\n\n• Platform: {platform}\n• User: {username}\n• Data: {button_data}'
+            })
+            
+        # Handle existing menu actions for backward compatibility
+        elif button_data.get("menu") == "main":
             show_main_menu(original_message, clicking_account)
         elif button_data.get("menu") == "tools":
             show_tools_menu(original_message, clicking_account)
         elif button_data.get("menu") == "info":
             show_info_menu(original_message, clicking_account)
-
-        # Actions
         elif button_data.get("action") == "random_fact":
             show_random_fact(original_message, clicking_account)
         elif button_data.get("action") == "timer":
@@ -61,7 +77,6 @@ def handle_interactive_menu_buttons(sender, callback_execution, clicking_account
         elif button_data.get("action") == "performance":
             show_performance_info(original_message, clicking_account)
         elif button_data.get("action") == "start_timer":
-            # Handle timer with seconds from data
             seconds = button_data.get("seconds", 10)
             start_actual_timer(original_message, clicking_account, seconds)
         else:

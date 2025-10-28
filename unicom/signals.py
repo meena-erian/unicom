@@ -16,6 +16,7 @@ import imaplib
 # Callback signals for button click handling
 telegram_callback_received = Signal()
 callback_received = Signal()  # Future extension for other platforms
+interactive_button_clicked = Signal()  # Cross-platform button clicks
 
 
 @receiver(pre_save, sender=Channel)

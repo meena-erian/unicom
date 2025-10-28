@@ -106,6 +106,39 @@ def send_webchat_message(channel, msg, user=None):
 
     message.save()
 
+    # Handle interactive buttons
+    buttons = msg.get('buttons')
+    if buttons:
+        from unicom.models import CallbackExecution, AccountChat
+        
+        # Get intended account (recipient)
+        account_chat = AccountChat.objects.filter(chat=chat).first()
+        intended_account = account_chat.account if account_chat else None
+        
+        if intended_account:
+            # Process buttons and create CallbackExecution records
+            processed_buttons = []
+            for row in buttons:
+                processed_row = []
+                for button in row:
+                    if button.get('type') == 'callback':
+                        execution = CallbackExecution.objects.create(
+                            original_message=message,
+                            callback_data=button['callback_data'],
+                            intended_account=intended_account,
+                            expires_at=button.get('expires_at')
+                        )
+                        button = button.copy()
+                        button['callback_execution_id'] = str(execution.id)
+                    processed_row.append(button)
+                processed_buttons.append(processed_row)
+            
+            # Store in message raw data
+            if not message.raw:
+                message.raw = {}
+            message.raw['interactive_buttons'] = processed_buttons
+            message.save(update_fields=['raw'])
+
     # Update chat cache fields
     if not chat.first_message:
         chat.first_message = message
