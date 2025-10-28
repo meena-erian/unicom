@@ -336,7 +336,7 @@ export class UnicomChatWithSidebar extends LitElement {
         const replyTo = msg.reply_to_message_id;
         let branchInfo = null;
         
-        if (replyTo && branchGroups.has(replyTo)) {
+        if (replyTo && branchGroups.has(replyTo) && msg.is_outgoing === false) {
           const group = branchGroups.get(replyTo);
           if (group.length > 1) {
             const currentIndex = group.findIndex(m => m.id === msg.id);
@@ -374,19 +374,28 @@ export class UnicomChatWithSidebar extends LitElement {
       return;
     }
     
-    // Select which child to follow
-    let selectedChild;
-    if (children.length === 1) {
-      selectedChild = children[0];
-    } else {
-      const selectedIndex = this.branchSelections[message.id] !== undefined 
-        ? this.branchSelections[message.id] 
-        : children.length - 1;
-      selectedChild = children[selectedIndex];
+    // Check if children are user messages (is_outgoing === false) or assistant messages
+    const userChildren = children.filter(child => child.is_outgoing === false);
+    const assistantChildren = children.filter(child => child.is_outgoing !== false);
+    
+    // For user message branches: only follow the selected one
+    if (userChildren.length > 0) {
+      let selectedChild;
+      if (userChildren.length === 1) {
+        selectedChild = userChildren[0];
+      } else {
+        const selectedIndex = this.branchSelections[message.id] !== undefined 
+          ? this.branchSelections[message.id] 
+          : userChildren.length - 1;
+        selectedChild = userChildren[selectedIndex];
+      }
+      this._buildPathForwardWithTracking(selectedChild, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
     }
     
-    // Continue building path from selected child
-    this._buildPathForwardWithTracking(selectedChild, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
+    // For assistant message branches: follow ALL of them
+    assistantChildren.forEach(child => {
+      this._buildPathForwardWithTracking(child, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
+    });
   }
 
   /**
