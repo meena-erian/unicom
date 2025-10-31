@@ -17,7 +17,7 @@
   - Template variable API returns labels, descriptions, placeholders, and sample outputs to guide authors and LLM tools.
 
 - **Marketing dashboards**:
-  - Staff-only pages at `/unicrm/communications/` list communications, show live status summaries, and allow regenerating drafts.
+  - Staff-only pages at `/unicrm/communications/` list communications, show live status summaries (scheduled, sent, delivered, opened, clicked, failed), and allow regenerating drafts.
   - Communication detail pages surface per-contact delivery metadata, linked draft/message IDs, and templating errors.
 
 - **Tests & dependencies**:

@@ -68,6 +68,7 @@ def apply(qs):
         self.assertIn('Hello John', delivery.draft.subject)
         self.assertIn('Hello John', delivery.draft.html)
         self.assertEqual(communication.status_summary.get('scheduled'), 1)
+        self.assertEqual(communication.status_summary.get('clicked'), 0)
 
     def test_signal_updates_summary_when_draft_sent(self):
         communication = Communication.objects.create(

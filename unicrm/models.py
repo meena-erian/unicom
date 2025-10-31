@@ -385,6 +385,9 @@ class Communication(TimeStamped):
             'opened': self.messages.filter(
                 Q(message__opened=True) | Q(message__seen=True)
             ).count(),
+            'clicked': self.messages.filter(
+                Q(message__link_clicked=True) | Q(message__clicked_links__len__gt=0)
+            ).count(),
         }
         totals['pending'] = max(
             totals['total'] - (totals['sent'] + totals['failed']),
