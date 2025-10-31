@@ -15,9 +15,29 @@
         return;
     }
 
+    let templateVariablePromise = null;
+
+    function getTemplateVariables() {
+        if (!templateVariablePromise) {
+            templateVariablePromise = fetch('/unicrm/api/template-variables/')
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Failed to load template variables');
+                    }
+                    return response.json();
+                })
+                .catch(function(err) {
+                    console.error(err);
+                    templateVariablePromise = null;
+                    throw err;
+                });
+        }
+        return templateVariablePromise;
+    }
+
     const DEFAULT_CONFIG = {
         plugins: 'link image lists table code unicom_ai_template',
-        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | unicom_ai_template',
+        toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | indent outdent | bullist numlist | code | table | unicom_variables | unicom_ai_template',
         menubar: 'file edit view insert format tools table',
         convert_urls: false,
         height: 400,
@@ -34,9 +54,43 @@
          * <textarea> is always kept in sync.
          */
         setup: function (ed) {
+            ed.ui.registry.addMenuButton('unicom_variables', {
+                text: 'Variables',
+                tooltip: 'Insert template variables',
+                fetch: function (callback) {
+                    getTemplateVariables().then(function (variables) {
+                        if (!variables || !variables.length) {
+                            callback([{
+                                type: 'menuitem',
+                                text: 'No variables configured',
+                                enabled: false
+                            }]);
+                            return;
+                        }
+                        const items = variables.map(function (variable) {
+                            return {
+                                type: 'menuitem',
+                                text: variable.label,
+                                icon: 'insert',
+                                tooltip: variable.description || variable.placeholder,
+                                onAction: function () {
+                                    ed.insertContent(variable.placeholder);
+                                }
+                            };
+                        });
+                        callback(items);
+                    }).catch(function () {
+                        callback([{
+                            type: 'menuitem',
+                            text: 'Error loading variables',
+                            enabled: false
+                        }]);
+                    });
+                }
+            });
+
             // Patch: Add a space to empty <i> and <span> elements before cleanup
             ed.on('BeforeSetContent', function (e) {
-                console.log('BeforeSetContent', e);
                 if (e.content) {
                     e.content = e.content.replace(
                         /<(i|span)([^>]*)><\/\1>/g,
@@ -87,6 +141,11 @@
             const config = mergeConfigs(DEFAULT_CONFIG, overrides);
             // Ensure selector always matches passed element.
             config.selector = selector;
+            config.protect = (config.protect || []).concat([
+                /\{#[\s\S]*?#\}/g,  // Jinja comments
+                /\{\{[\s\S]*?\}\}/g,
+                /\{%[\s\S]*?%\}/g
+            ]);
             return global.tinymce.init(config);
         }
 

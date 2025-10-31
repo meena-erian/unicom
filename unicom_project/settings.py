@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'django_ace',
     'unicom',  # Required dependency for unibot
     'unibot',
+    'unicrm',
     'unicom_project',  # For callback handlers
     'reversion',  # Required for model versioning
 ]

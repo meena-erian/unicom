@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('unicom/', include('unicom.urls')),
     path('unibot/', include('unibot.urls')),
+    path('unicrm/', include('unicrm.urls')),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

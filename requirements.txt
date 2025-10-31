@@ -7,6 +7,7 @@ IMAPClient>=3.0.1
 fa2svg==0.1.9
 dnspython>=2.7.0,<3.0
 django-ace>=1.39.2
+Jinja2>=3.1.4,<4.0
 
 # Email authentication dependencies
 authheaders>=0.15.0
