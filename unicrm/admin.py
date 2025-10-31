@@ -100,14 +100,22 @@ class SegmentAdmin(admin.ModelAdmin):
     def contact_sample(self, obj):
         if not obj.pk:
             return _('Save to preview contacts')
-        contacts = obj.sample_contacts(limit=10)
-        if not contacts:
-            return _('No contacts match this segment yet.')
-        rows = [(str(contact), contact.email) for contact in contacts]
-        return format_html(
-            '<ul style="margin:0;">{}</ul>',
-            format_html_join('', '<li><strong>{}</strong> &lt;{}&gt;</li>', rows)
-        )
+        try:
+            contacts = obj.apply().select_related('company')[:10]
+            if not contacts:
+                return _('No contacts match this segment yet.')
+            
+            rows = []
+            for contact in contacts:
+                company_info = f" ({contact.company.name})" if contact.company else ""
+                rows.append((f"{contact}{company_info}", contact.email))
+            
+            return format_html(
+                '<div style="max-height: 300px; overflow-y: auto;"><ul style="margin:0; padding-left: 20px;">{}</ul></div>',
+                format_html_join('', '<li><strong>{}</strong> &lt;{}&gt;</li>', rows)
+            )
+        except Exception as exc:
+            return format_html('<span style="color:red;">Error: {}</span>', exc)
 
     contact_sample.short_description = _('Sample contacts')
 

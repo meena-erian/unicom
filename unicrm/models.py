@@ -47,10 +47,10 @@ def _default_segment_code() -> str:
 def compile_callable(code: str, func_name: str, extra_globals: dict[str, object] | None = None) -> Callable:
     """
     Compiles the provided code and returns the function with name ``func_name``.
-    Exposes only a curated set of builtins and caller-supplied globals.
+    Allows full Python execution for staff users.
     """
     namespace: dict[str, object] = {}
-    globals_dict: dict[str, object] = {'__builtins__': SAFE_BUILTINS.copy()}
+    globals_dict: dict[str, object] = {'__builtins__': __builtins__}
     if extra_globals:
         globals_dict.update(extra_globals)
     exec(code, globals_dict, namespace)
