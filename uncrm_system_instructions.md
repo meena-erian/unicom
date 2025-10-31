@@ -47,3 +47,9 @@ I think it would be better if I help you by at least defining the phases. So, Ph
 - TinyMCE now includes a **Variables** menu (fed by `/unicrm/api/template-variables/`) so editors can insert `{{ variables.<key> }}` snippets without leaving the WYSIWYG view.
 - Jinja blocks are protected from TinyMCE cleanup (`{{ ... }}`, `{% ... %}`, `{# ... #}`), allowing advanced users to switch to the Code view for manual edits.
 - Rendering falls back to the original HTML and surfaces errors if a placeholder is missing, making it obvious when additional context is required.
+
+# Phase 3 – Campaign scheduling & monitoring
+- Communications can be prepared into `DraftMessage`s via the staff-only Email Marketing pages (`/unicrm/communications/`).
+- Draft generation renders templates per contact, stores variables/context snapshots, and schedules the resulting drafts for the existing `DraftMessage` scheduler.
+- Signals on drafts/messages keep `communication.status_summary` in sync so dashboards show scheduled, sent, delivered, opened, and failed counts in real time.
+- Staff detail view exposes per-contact delivery state, linked draft/message IDs, and any templating errors to allow for quick troubleshooting.

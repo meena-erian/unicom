@@ -9,7 +9,8 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
 # Install system dependencies (incl. those required by Playwright's browsers)
-COPY requirements.txt /app/
+COPY requirements.txt /app/requirements.txt
+COPY unicrm/requirements.txt /app/unicrm/requirements.txt
 # Update package list & install needed libs BEFORE fetching Playwright browsers
 RUN apt-get update && apt-get install -y \
         wget curl netcat \
@@ -21,7 +22,8 @@ RUN apt-get update && apt-get install -y \
         libasound2 libdrm2 fonts-liberation libappindicator3-1 lsb-release xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r unicrm/requirements.txt
 
 # RUN python -m playwright install --with-deps
 

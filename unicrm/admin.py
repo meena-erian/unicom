@@ -141,19 +141,21 @@ class TemplateVariableAdmin(admin.ModelAdmin):
 
 @admin.register(models.Communication)
 class CommunicationAdmin(admin.ModelAdmin):
-    list_display = ('template', 'segment', 'status', 'scheduled_for', 'created_at')
-    list_filter = ('status',)
+    list_display = ('template', 'segment', 'channel', 'status', 'scheduled_for', 'created_at')
+    list_filter = ('status', 'channel')
     search_fields = ('template__title', 'segment__name')
-    autocomplete_fields = ('segment', 'template', 'initiated_by')
+    autocomplete_fields = ('segment', 'template', 'channel', 'initiated_by')
     readonly_fields = ('created_at', 'updated_at', 'status_summary_pretty')
 
     fieldsets = (
-        (None, {'fields': ('template', 'segment', 'initiated_by', 'status', 'scheduled_for')}),
+        (None, {'fields': ('template', 'segment', 'channel', 'initiated_by')}),
+        (_('Scheduling'), {'fields': ('subject_template', 'scheduled_for', 'status')}),
         (_('Status summary'), {'fields': ('status_summary_pretty',)}),
         (_('Timestamps'), {'fields': ('created_at', 'updated_at')}),
     )
 
     def status_summary_pretty(self, obj):
+        obj.refresh_status_summary(commit=False)
         summary = json.dumps(obj.status_summary or {}, indent=2, default=str)
         return format_html('<pre style="white-space:pre-wrap;">{}</pre>', summary)
 
@@ -162,9 +164,9 @@ class CommunicationAdmin(admin.ModelAdmin):
 
 @admin.register(models.CommunicationMessage)
 class CommunicationMessageAdmin(admin.ModelAdmin):
-    list_display = ('communication', 'contact', 'message', 'derived_status', 'created_at')
-    search_fields = ('communication__template__title', 'contact__email', 'message__id')
-    autocomplete_fields = ('communication', 'contact', 'message')
+    list_display = ('communication', 'contact', 'draft', 'message', 'derived_status', 'created_at')
+    search_fields = ('communication__template__title', 'contact__email', 'message__id', 'draft__id')
+    autocomplete_fields = ('communication', 'contact', 'draft', 'message')
     readonly_fields = ('created_at', 'updated_at', 'derived_status')
 
     def derived_status(self, obj):

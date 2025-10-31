@@ -1,0 +1,97 @@
+{% extends "admin/base_site.html" %}
+{% load humanize %}
+
+{% block title %}Communication {{ communication.pk }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="unicrm-communication-detail">
+  <h1>{{ communication.template.title }}</h1>
+  <p>
+    Segment: <strong>{{ communication.segment.name }}</strong><br>
+    Channel: <strong>{{ communication.channel }}</strong><br>
+    Scheduled for:
+    <strong>
+      {% if communication.scheduled_for %}
+        {{ communication.scheduled_for|naturaltime }}
+      {% else %}
+        Not scheduled
+      {% endif %}
+    </strong>
+  </p>
+
+  <div class="mb-3">
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">
+        Generate/Refresh Drafts
+      </button>
+      <a href="{% url 'unicrm:communications-list' %}" class="btn btn-secondary">Back to list</a>
+    </form>
+  </div>
+
+  <h2>Status Summary</h2>
+  <pre>{{ communication.status_summary|default:"{}" }}</pre>
+
+  <h2>Deliveries</h2>
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Contact</th>
+        <th>Status</th>
+        <th>Draft</th>
+        <th>Message</th>
+        <th>Errors</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for delivery in deliveries %}
+        <tr>
+          <td>
+            <strong>{{ delivery.contact }}</strong><br>
+            <small>{{ delivery.contact.email }}</small>
+          </td>
+          <td>
+            <span class="badge bg-info text-dark">
+              {{ delivery.message_status }}
+            </span>
+          </td>
+          <td>
+            {% if delivery.draft %}
+              #{{ delivery.draft.pk }} — {{ delivery.draft.get_status_display|default:delivery.draft.status }}
+              {% if delivery.draft.send_at %}<br><small>Send {{ delivery.draft.send_at|naturaltime }}</small>{% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if delivery.message %}
+              #{{ delivery.message.id }}<br>
+              Sent {{ delivery.message.timestamp|naturaltime }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% with errors=delivery.metadata.errors %}
+              {% if errors %}
+                <ul class="mb-0">
+                  {% for error in errors %}
+                    <li>{{ error }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            {% endwith %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5">No deliveries prepared yet.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+

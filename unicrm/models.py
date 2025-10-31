@@ -329,6 +329,15 @@ class Communication(TimeStamped):
         on_delete=models.PROTECT,
         related_name='unicrm_communications'
     )
+    channel = models.ForeignKey(
+        'unicom.Channel',
+        on_delete=models.PROTECT,
+        related_name='unicrm_communications',
+        verbose_name=_('Channel'),
+        help_text=_('Channel used to send this communication.'),
+        null=True,
+        blank=True,
+    )
     initiated_by = models.ForeignKey(
         get_user_model(),
         on_delete=models.SET_NULL,
@@ -337,6 +346,12 @@ class Communication(TimeStamped):
         related_name='initiated_communications'
     )
     scheduled_for = models.DateTimeField(_('Scheduled for'), null=True, blank=True)
+    subject_template = models.CharField(
+        _('Subject template'),
+        max_length=255,
+        blank=True,
+        help_text=_('Optional Jinja2 template used for the email subject line.')
+    )
     status = models.CharField(_('Status'), max_length=20, choices=STATUS_CHOICES, default='draft')
     status_summary = models.JSONField(
         _('Status summary'),
@@ -350,6 +365,55 @@ class Communication(TimeStamped):
 
     def __str__(self) -> str:
         return f"{self.template.title} ({self.segment.name})"
+
+    def refresh_status_summary(self, commit: bool = True) -> dict[str, int]:
+        """
+        Aggregates delivery metrics and updates the communication status.
+        """
+        from django.db.models import Q
+
+        totals = {
+            'total': self.messages.count(),
+            'scheduled': self.messages.filter(
+                Q(draft__status='draft') | Q(draft__status='scheduled')
+            ).count(),
+            'failed': self.messages.filter(draft__status='failed').count(),
+            'sent': self.messages.filter(
+                Q(draft__status='sent') | Q(message__sent=True)
+            ).count(),
+            'delivered': self.messages.filter(message__delivered=True).count(),
+            'opened': self.messages.filter(
+                Q(message__opened=True) | Q(message__seen=True)
+            ).count(),
+        }
+        totals['pending'] = max(
+            totals['total'] - (totals['sent'] + totals['failed']),
+            0,
+        )
+
+        new_status = self.status
+        if self.status != 'cancelled':
+            if totals['total'] == 0:
+                new_status = 'draft'
+            elif totals['scheduled'] > 0:
+                new_status = 'scheduled'
+            elif totals['pending'] > 0:
+                new_status = 'sending'
+            else:
+                new_status = 'completed'
+
+        updates = {}
+        if self.status_summary != totals:
+            self.status_summary = totals
+            updates['status_summary'] = totals
+        if new_status != self.status:
+            self.status = new_status
+            updates['status'] = new_status
+
+        if updates and commit:
+            self.save(update_fields=list(updates.keys()) + ['updated_at'])
+
+        return totals
 
 
 class CommunicationMessage(TimeStamped):
@@ -367,15 +431,24 @@ class CommunicationMessage(TimeStamped):
         on_delete=models.CASCADE,
         related_name='communications'
     )
+    draft = models.ForeignKey(
+        'unicom.DraftMessage',
+        on_delete=models.CASCADE,
+        related_name='unicrm_links',
+        null=True,
+        blank=True
+    )
     message = models.ForeignKey(
         'unicom.Message',
         on_delete=models.CASCADE,
-        related_name='unicrm_links'
+        related_name='unicrm_links',
+        null=True,
+        blank=True
     )
     metadata = models.JSONField(_('Metadata'), default=dict, blank=True)
 
     class Meta:
-        unique_together = ('communication', 'contact', 'message')
+        unique_together = ('communication', 'contact')
         ordering = ('-created_at',)
 
     def __str__(self) -> str:
@@ -383,12 +456,18 @@ class CommunicationMessage(TimeStamped):
 
     def message_status(self) -> str:
         """
-        Derives a coarse status based on the linked unicom message fields.
+        Derives a coarse status based on draft and message state.
         """
+        if self.draft:
+            draft_status = self.draft.status
+            if draft_status in ('draft', 'scheduled'):
+                return draft_status
+            if draft_status == 'failed':
+                return 'failed'
         msg = self.message
         if not msg:
-            return 'missing'
-        if getattr(msg, 'seen', False):
+            return 'draft' if self.draft else 'pending'
+        if getattr(msg, 'seen', False) or getattr(msg, 'opened', False):
             return 'seen'
         if getattr(msg, 'delivered', False):
             return 'delivered'
