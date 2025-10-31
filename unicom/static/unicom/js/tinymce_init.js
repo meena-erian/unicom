@@ -16,24 +16,127 @@
     }
 
     let templateVariablePromise = null;
+    let templateVariables = [];
+    let templateVariablesEnabled = false;
 
-    function getTemplateVariables() {
-        if (!templateVariablePromise) {
-            templateVariablePromise = fetch('/unicrm/api/template-variables/')
-                .then(function(response) {
-                    if (!response.ok) {
-                        throw new Error('Failed to load template variables');
-                    }
-                    return response.json();
-                })
-                .catch(function(err) {
-                    console.error(err);
-                    templateVariablePromise = null;
-                    throw err;
-                });
+    function preloadTemplateVariables() {
+        if (templateVariablePromise) {
+            return templateVariablePromise;
         }
+
+        if (typeof fetch !== 'function') {
+            templateVariables = [];
+            templateVariablesEnabled = false;
+            templateVariablePromise = Promise.resolve(null);
+            return templateVariablePromise;
+        }
+
+        templateVariablePromise = fetch('/unicrm/api/template-variables/')
+            .then(function (response) {
+                if (response.status === 404) {
+                    templateVariables = [];
+                    templateVariablesEnabled = false;
+                    return null;
+                }
+                if (!response.ok) {
+                    throw new Error('Failed to load template variables');
+                }
+                return response.json().then(function (data) {
+                    if (!Array.isArray(data)) {
+                        throw new Error('Unexpected template variables payload');
+                    }
+                    templateVariables = data;
+                    templateVariablesEnabled = true;
+                    return templateVariables;
+                });
+            })
+            .catch(function (err) {
+                if (err) {
+                    console.info('Template variables unavailable:', err.message || err);
+                }
+                templateVariables = [];
+                templateVariablesEnabled = false;
+                return null;
+            });
+
         return templateVariablePromise;
     }
+
+    function registerVariablesMenu(ed) {
+        if (!templateVariablesEnabled) {
+            return;
+        }
+
+        const variables = templateVariables.slice();
+        ed.ui.registry.addMenuButton('unicom_variables', {
+            text: 'Variables',
+            tooltip: 'Insert template variables',
+            fetch: function (callback) {
+                if (!variables.length) {
+                    callback([{
+                        type: 'menuitem',
+                        text: 'No variables configured',
+                        enabled: false
+                    }]);
+                    return;
+                }
+                const items = variables.map(function (variable) {
+                    return {
+                        type: 'menuitem',
+                        text: variable.label,
+                        icon: 'insert',
+                        tooltip: variable.description || variable.placeholder,
+                        onAction: function () {
+                            ed.insertContent(variable.placeholder);
+                        }
+                    };
+                });
+                callback(items);
+            }
+        });
+    }
+
+    function removeToolbarControl(toolbarConfig, controlName) {
+        if (!toolbarConfig) {
+            return toolbarConfig;
+        }
+
+        if (Array.isArray(toolbarConfig)) {
+            return toolbarConfig
+                .map(function (entry) {
+                    return removeToolbarControl(entry, controlName);
+                })
+                .filter(function (entry) {
+                    if (typeof entry === 'string') {
+                        return entry.length > 0;
+                    }
+                    return Boolean(entry);
+                });
+        }
+
+        if (typeof toolbarConfig === 'string') {
+            const cleanedGroups = toolbarConfig
+                .split('|')
+                .map(function (group) {
+                    const items = group
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .filter(function (item) {
+                            return item !== controlName;
+                        });
+                    return items.join(' ');
+                })
+                .filter(function (group) {
+                    return group.trim().length > 0;
+                });
+            return cleanedGroups.join(cleanedGroups.length ? ' | ' : '');
+        }
+
+        return toolbarConfig;
+    }
+
+    // Preload variables so the fetch happens before any editor renders.
+    preloadTemplateVariables();
 
     const DEFAULT_CONFIG = {
         plugins: 'link image lists table code unicom_ai_template',
@@ -54,40 +157,7 @@
          * <textarea> is always kept in sync.
          */
         setup: function (ed) {
-            ed.ui.registry.addMenuButton('unicom_variables', {
-                text: 'Variables',
-                tooltip: 'Insert template variables',
-                fetch: function (callback) {
-                    getTemplateVariables().then(function (variables) {
-                        if (!variables || !variables.length) {
-                            callback([{
-                                type: 'menuitem',
-                                text: 'No variables configured',
-                                enabled: false
-                            }]);
-                            return;
-                        }
-                        const items = variables.map(function (variable) {
-                            return {
-                                type: 'menuitem',
-                                text: variable.label,
-                                icon: 'insert',
-                                tooltip: variable.description || variable.placeholder,
-                                onAction: function () {
-                                    ed.insertContent(variable.placeholder);
-                                }
-                            };
-                        });
-                        callback(items);
-                    }).catch(function () {
-                        callback([{
-                            type: 'menuitem',
-                            text: 'Error loading variables',
-                            enabled: false
-                        }]);
-                    });
-                }
-            });
+            registerVariablesMenu(ed);
 
             // Patch: Add a space to empty <i> and <span> elements before cleanup
             ed.on('BeforeSetContent', function (e) {
@@ -137,16 +207,21 @@
 
     function init(selector, overrides) {
         function actuallyInit() {
-            removeExisting(selector);
-            const config = mergeConfigs(DEFAULT_CONFIG, overrides);
-            // Ensure selector always matches passed element.
-            config.selector = selector;
-            config.protect = (config.protect || []).concat([
-                /\{#[\s\S]*?#\}/g,  // Jinja comments
-                /\{\{[\s\S]*?\}\}/g,
-                /\{%[\s\S]*?%\}/g
-            ]);
-            return global.tinymce.init(config);
+            return preloadTemplateVariables().then(function () {
+                removeExisting(selector);
+                const config = mergeConfigs(DEFAULT_CONFIG, overrides);
+                if (!templateVariablesEnabled) {
+                    config.toolbar = removeToolbarControl(config.toolbar, 'unicom_variables');
+                }
+                // Ensure selector always matches passed element.
+                config.selector = selector;
+                config.protect = (config.protect || []).concat([
+                    /\{#[\s\S]*?#\}/g,  // Jinja comments
+                    /\{\{[\s\S]*?\}\}/g,
+                    /\{%[\s\S]*?%\}/g
+                ]);
+                return global.tinymce.init(config);
+            });
         }
 
         // TinyMCE may not be loaded yet if our helper is referenced before the CDN script executes.
