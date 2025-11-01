@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from unicom.models import Channel, MessageTemplate
+from unicom.models import Channel
 from unicrm.models import (
     Communication,
     CommunicationMessage,
@@ -32,10 +32,7 @@ class CommunicationSchedulerTests(TestCase):
             config={},
             active=True,
         )
-        self.template = MessageTemplate.objects.create(
-            title='Welcome Campaign',
-            content='<p>Hello {{ contact.first_name }}!</p>',
-        )
+        self.html_content = '<p>Hello {{ contact.first_name }}!</p>'
         self.segment = Segment.objects.create(
             name='All Contacts',
             description='All contacts',
@@ -45,14 +42,14 @@ def apply(qs):
 """,
         )
 
-    def test_generate_drafts_creates_communication_messages(self):
+    def test_preparation_creates_payloads(self):
         communication = Communication.objects.create(
-            template=self.template,
             segment=self.segment,
             channel=self.channel,
             initiated_by=self.user,
             scheduled_for=timezone.now() + timedelta(hours=1),
             subject_template="Hello {{ contact.first_name }}",
+            content=self.html_content,
         )
 
         result = generate_drafts_for_communication(communication)
@@ -62,30 +59,31 @@ def apply(qs):
         self.assertEqual(communication.status, 'scheduled')
         self.assertEqual(communication.messages.count(), 1)
         delivery = communication.messages.first()
-        self.assertIsNotNone(delivery.draft)
-        self.assertEqual(delivery.draft.to, [self.contact.email])
-        self.assertEqual(delivery.draft.status, 'scheduled')
-        self.assertIn('Hello John', delivery.draft.subject)
-        self.assertIn('Hello John', delivery.draft.html)
+        payload = delivery.metadata.get('payload')
+        self.assertEqual(payload['to'], [self.contact.email])
+        self.assertIn('Hello John', payload['subject'])
+        self.assertIn('Hello John', payload['html'])
         self.assertEqual(communication.status_summary.get('scheduled'), 1)
         self.assertEqual(communication.status_summary.get('clicked'), 0)
 
-    def test_signal_updates_summary_when_draft_sent(self):
+    def test_refresh_summary_updates_when_sent(self):
         communication = Communication.objects.create(
-            template=self.template,
             segment=self.segment,
             channel=self.channel,
             initiated_by=self.user,
             scheduled_for=timezone.now(),
+            content=self.html_content,
         )
         generate_drafts_for_communication(communication)
 
         delivery = communication.messages.first()
-        draft = delivery.draft
-        draft.status = 'sent'
-        draft.save()
+        metadata = delivery.metadata or {}
+        metadata['status'] = 'sent'
+        delivery.metadata = metadata
+        delivery.save(update_fields=['metadata'])
 
         communication.refresh_from_db()
+        communication.refresh_status_summary()
         self.assertEqual(communication.status_summary.get('sent'), 1)
         self.assertEqual(communication.status, 'completed')
 
@@ -95,11 +93,11 @@ def apply(qs):
             email='',
         )
         communication = Communication.objects.create(
-            template=self.template,
             segment=self.segment,
             channel=self.channel,
             initiated_by=self.user,
             scheduled_for=timezone.now(),
+            content=self.html_content,
         )
 
         result = generate_drafts_for_communication(communication)

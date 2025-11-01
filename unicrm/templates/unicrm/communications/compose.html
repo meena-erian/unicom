@@ -1,0 +1,294 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Compose Communication | {{ block.super }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+{% include "admin/unicom/includes/loading_indicators.html" %}
+<style>
+.unicrm-compose {
+  max-width: 960px;
+}
+.unicrm-compose h1 {
+  margin-bottom: 1.5rem;
+}
+.compose-card {
+  background: var(--body-bg);
+  border: 1px solid var(--hairline-color);
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.compose-card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--hairline-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.compose-card-header h2 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+.compose-card-body {
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+.field-group {
+  display: flex;
+  flex-direction: column;
+}
+.field-group label {
+  font-weight: 600;
+  margin-bottom: .35rem;
+  color: var(--body-quiet-color);
+}
+.field-group select,
+.field-group input[type="text"],
+.field-group input[type="datetime-local"],
+.field-group textarea {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: .55rem .65rem;
+  background: var(--body-bg);
+  color: var(--body-fg);
+}
+.field-help {
+  font-size: .85rem;
+  color: var(--body-quiet-color);
+  margin-top: .25rem;
+}
+.field-errors {
+  margin-top: .35rem;
+  color: #ba2121;
+  font-size: .88rem;
+}
+.compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+}
+.compose-actions button,
+.compose-actions a {
+  padding: .6rem 1.2rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+.primary-action {
+  background: var(--button-bg);
+  color: var(--button-fg);
+}
+.primary-action:hover {
+  background: var(--button-hover-bg);
+}
+.cancel-link {
+  background: var(--darkened-bg);
+  color: var(--body-fg);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.toggle-advanced {
+  font-size: .9rem;
+  color: var(--body-quiet-color);
+  cursor: pointer;
+}
+.toggle-advanced:hover {
+  text-decoration: underline;
+}
+.advanced-section {
+  display: none;
+}
+.advanced-section.active {
+  display: grid;
+}
+.radio-group {
+  display: flex;
+  gap: 1rem;
+}
+.radio-group label {
+  font-weight: 500;
+  color: var(--body-fg);
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+.schedule-field {
+  max-width: 340px;
+  display: none;
+}
+.schedule-field.active {
+  display: block;
+}
+.required-badge::after {
+  content: " *";
+  color: #ba2121;
+}
+.form-errors {
+  border: 1px solid #ba2121;
+  border-radius: 4px;
+  padding: .9rem 1rem;
+  background: rgba(186, 33, 33, 0.08);
+  margin-bottom: 1rem;
+}
+@media (max-width: 768px) {
+  .compose-card-body {
+    grid-template-columns: 1fr;
+  }
+  .radio-group {
+    flex-direction: column;
+  }
+  .compose-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="unicrm-compose">
+  <h1>Compose Communication</h1>
+  <p class="text-muted">
+    Prepare a targeted email blast, customise the content, and either send immediately or schedule it for later.
+  </p>
+
+  {% if form.non_field_errors %}
+    <div class="form-errors">
+      {% for error in form.non_field_errors %}
+        <div>{{ error }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" id="communication-compose-form">
+    {% csrf_token %}
+    <input type="hidden" name="timezone" id="compose-timezone" value="{{ request.GET.timezone|default:'' }}">
+
+    <div class="compose-card">
+      <div class="compose-card-header">
+        <h2>Audience & Channel</h2>
+        <span class="toggle-advanced" data-target="#advanced-options">Advanced options</span>
+      </div>
+      <div class="compose-card-body">
+        <div class="field-group">
+          <label for="id_segment" class="required-badge">Segment</label>
+          <select name="segment" id="id_segment" required>
+            <option value="">Select a segment</option>
+            {% for segment in segments %}
+              <option value="{{ segment.pk }}" {% if form.segment.value|default:'' == segment.pk|stringformat:"s" %}selected{% endif %}>
+                {{ segment.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <p class="field-help">Contacts matching this segment will receive the email.</p>
+          {% if form.segment.errors %}
+            <div class="field-errors">
+              {% for error in form.segment.errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="field-group">
+          <label for="id_channel" class="required-badge">Channel</label>
+          <select name="channel" id="id_channel" required>
+            <option value="">Select an email channel</option>
+            {% for channel in channels %}
+              <option value="{{ channel.pk }}" data-platform="{{ channel.platform }}"
+                {% if form.channel.value|default:'' == channel.pk|stringformat:"s" %}selected{% endif %}>
+                {{ channel.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <p class="field-help">Only active email channels can be used for mass outreach.</p>
+          {% if form.channel.errors %}
+            <div class="field-errors">
+              {% for error in form.channel.errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+
+    <div class="compose-card advanced-section{% if form.subject_template.errors or form.send_at.errors or form.send_at.value %} active{% endif %}" id="advanced-options">
+      <div class="compose-card-header">
+        <h2>Subject & Scheduling</h2>
+      </div>
+      <div class="compose-card-body">
+        <div class="field-group">
+          <label for="id_subject_template">Subject</label>
+          <input type="text" name="subject_template" id="id_subject_template" value="{{ form.subject_template.value|default_if_none:'' }}">
+          <p class="field-help">Use {{ '{' }}{{ ' variables.key ' }}{{ '}' }} placeholders to personalise the subject line.</p>
+          {% if form.subject_template.errors %}
+            <div class="field-errors">
+              {% for error in form.subject_template.errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="field-group">
+          <label>Delivery</label>
+          <div class="radio-group">
+            <label>
+              <input type="radio" name="delivery_mode" value="now" checked>
+              Send now
+            </label>
+            <label>
+              <input type="radio" name="delivery_mode" value="schedule">
+              Schedule for later
+            </label>
+          </div>
+          <div class="field-group schedule-field{% if form.send_at.value or form.send_at.errors %} active{% endif %}" data-delivery-schedule>
+            <label for="id_send_at">Send at</label>
+            <input type="datetime-local" name="send_at" id="id_send_at" value="{{ form.send_at.value|default_if_none:'' }}">
+            <p class="field-help">Times are saved in UTC based on your local timezone.</p>
+            {% if form.send_at.errors %}
+              <div class="field-errors">
+                {% for error in form.send_at.errors %}<div>{{ error }}</div>{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="compose-card">
+      <div class="compose-card-header">
+        <h2>Email content</h2>
+      </div>
+      <div class="compose-card-body">
+        <div class="field-group">
+          <textarea name="content" id="id_content" data-tinymce="1">{{ form.content.value|default_if_none:'' }}</textarea>
+          <p class="field-help">
+            Personalise the HTML before sending. Use the TinyMCE toolbar to insert saved templates or variables.
+          </p>
+          {% if form.content.errors %}
+            <div class="field-errors">
+              {% for error in form.content.errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="compose-actions">
+      <a href="{% url 'unicrm:communications-list' %}" class="cancel-link">Cancel</a>
+      <button type="submit" class="primary-action" id="compose-submit">Send now</button>
+    </div>
+  </form>
+</div>
+
+{% if tinymce_api_key %}
+  <script src="https://cdn.tiny.cloud/1/{{ tinymce_api_key }}/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% else %}
+  <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% endif %}
+<script src="{% static 'unicom/js/tinymce_init.js' %}"></script>
+<script src="{% static 'unicom/js/tinymce_ai_template.js' %}"></script>
+<script src="{% static 'unicrm/js/communication_compose.js' %}"></script>
+{% include "admin/unicom/includes/ai_template_modal.html" %}
+{% endblock %}

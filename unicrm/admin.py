@@ -1,6 +1,7 @@
 import json
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 from django.utils.translation import gettext_lazy as _
@@ -149,18 +150,44 @@ class TemplateVariableAdmin(admin.ModelAdmin):
 
 @admin.register(models.Communication)
 class CommunicationAdmin(admin.ModelAdmin):
-    list_display = ('template', 'segment', 'channel', 'status', 'scheduled_for', 'created_at')
+    change_form_template = 'admin/unicrm/communication/change_form.html'
+    list_display = ('display_title', 'segment', 'channel', 'status', 'scheduled_for', 'created_at')
     list_filter = ('status', 'channel')
-    search_fields = ('template__title', 'segment__name')
-    autocomplete_fields = ('segment', 'template', 'channel', 'initiated_by')
+    search_fields = ('subject_template', 'segment__name', 'content')
+    autocomplete_fields = ('segment', 'channel', 'initiated_by')
     readonly_fields = ('created_at', 'updated_at', 'status_summary_pretty')
 
     fieldsets = (
-        (None, {'fields': ('template', 'segment', 'channel', 'initiated_by')}),
-        (_('Scheduling'), {'fields': ('subject_template', 'scheduled_for', 'status')}),
+        (None, {'fields': ('segment', 'channel', 'initiated_by')}),
+        (_('Content'), {'fields': ('subject_template', 'content')}),
+        (_('Scheduling'), {'fields': ('scheduled_for', 'status')}),
         (_('Status summary'), {'fields': ('status_summary_pretty',)}),
         (_('Timestamps'), {'fields': ('created_at', 'updated_at')}),
     )
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.Media = type('Media', (), {
+            'css': {'all': ('admin/css/forms.css',)},
+            'js': (
+                'unicom/js/tinymce_init.js',
+            )
+        })
+        return form
+
+    def render_change_form(self, request, context, *args, **kwargs):
+        context['tinymce_api_key'] = getattr(settings, 'UNICOM_TINYMCE_API_KEY', None)
+        return super().render_change_form(request, context, *args, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'content':
+            kwargs['widget'] = forms.Textarea(attrs={'class': 'tinymce', 'data-tinymce': 'true'})
+        return super().formfield_for_dbfield(db_field, **kwargs)
+
+    def display_title(self, obj):
+        return obj.display_title
+
+    display_title.short_description = _('Title')
 
     def status_summary_pretty(self, obj):
         obj.refresh_status_summary(commit=False)
@@ -173,7 +200,7 @@ class CommunicationAdmin(admin.ModelAdmin):
 @admin.register(models.CommunicationMessage)
 class CommunicationMessageAdmin(admin.ModelAdmin):
     list_display = ('communication', 'contact', 'draft', 'message', 'derived_status', 'created_at')
-    search_fields = ('communication__template__title', 'contact__email', 'message__id', 'draft__id')
+    search_fields = ('communication__subject_template', 'communication__content', 'contact__email', 'message__id', 'draft__id')
     autocomplete_fields = ('communication', 'contact', 'draft', 'message')
     readonly_fields = ('created_at', 'updated_at', 'derived_status')
 

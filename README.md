@@ -1898,7 +1898,14 @@ python manage.py send_scheduled_messages
 
 # Custom interval (30 seconds)  
 python manage.py send_scheduled_messages --interval 30
+
+# Process scheduled unicrm communications
+python manage.py send_scheduled_communications
+# or run continuously with a custom interval
+python manage.py send_scheduled_communications --interval 30
 ```
+
+Use `--run-once` with either command to execute a single pass and exit.
 
 Add this as a background service or cron job in production.
 

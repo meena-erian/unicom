@@ -8,6 +8,10 @@
   <h1>Email Communications</h1>
   <p>Manage scheduled campaigns and monitor delivery status.</p>
 
+  <p>
+    <a class="btn btn-primary" href="{% url 'unicrm:communications-compose' %}">Compose new communication</a>
+  </p>
+
   <table class="table table-striped">
     <thead>
       <tr>
@@ -24,7 +28,7 @@
       {% for communication in communications %}
         {% with summary=communication.status_summary %}
           <tr>
-            <td>{{ communication.template.title }}</td>
+            <td>{{ communication.display_title }}</td>
             <td>{{ communication.segment.name }}</td>
             <td>{{ communication.channel }}</td>
             <td><span class="badge bg-primary">{{ communication.get_status_display }}</span></td>
@@ -64,4 +68,3 @@
   </table>
 </div>
 {% endblock %}
-

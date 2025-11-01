@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="unicrm-communication-detail">
-  <h1>{{ communication.template.title }}</h1>
+  <h1>{{ communication.display_title }}</h1>
   <p>
     Segment: <strong>{{ communication.segment.name }}</strong><br>
     Channel: <strong>{{ communication.channel }}</strong><br>
@@ -56,12 +56,17 @@
             </span>
           </td>
           <td>
-            {% if delivery.draft %}
-              #{{ delivery.draft.pk }} — {{ delivery.draft.get_status_display|default:delivery.draft.status }}
-              {% if delivery.draft.send_at %}<br><small>Send {{ delivery.draft.send_at|naturaltime }}</small>{% endif %}
-            {% else %}
-              —
-            {% endif %}
+            {% with payload=delivery.metadata.payload %}
+              {% if payload %}
+                <strong>{{ payload.subject }}</strong><br>
+                <small>{{ payload.to|join:', ' }}</small>
+                {% if delivery.metadata.send_at %}
+                  <br><small>Send {{ delivery.metadata.send_at }}</small>
+                {% endif %}
+              {% else %}
+                —
+              {% endif %}
+            {% endwith %}
           </td>
           <td>
             {% if delivery.message %}
@@ -94,4 +99,3 @@
   </table>
 </div>
 {% endblock %}
-

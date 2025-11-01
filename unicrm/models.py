@@ -312,7 +312,7 @@ class TemplateVariable(TimeStamped):
 
 class Communication(TimeStamped):
     """
-    Represents a planned outreach effort using a template and a segment of contacts.
+    Represents a planned outreach effort using rich HTML content and a segment of contacts.
     """
 
     STATUS_CHOICES = [
@@ -324,11 +324,6 @@ class Communication(TimeStamped):
     ]
 
     segment = models.ForeignKey(Segment, on_delete=models.PROTECT, related_name='communications')
-    template = models.ForeignKey(
-        'unicom.MessageTemplate',
-        on_delete=models.PROTECT,
-        related_name='unicrm_communications'
-    )
     channel = models.ForeignKey(
         'unicom.Channel',
         on_delete=models.PROTECT,
@@ -352,6 +347,11 @@ class Communication(TimeStamped):
         blank=True,
         help_text=_('Optional Jinja2 template used for the email subject line.')
     )
+    content = models.TextField(
+        _('Content'),
+        blank=True,
+        help_text=_('HTML content customised specifically for this communication.')
+    )
     status = models.CharField(_('Status'), max_length=20, choices=STATUS_CHOICES, default='draft')
     status_summary = models.JSONField(
         _('Status summary'),
@@ -364,7 +364,23 @@ class Communication(TimeStamped):
         ordering = ('-created_at',)
 
     def __str__(self) -> str:
-        return f"{self.template.title} ({self.segment.name})"
+        title = self.display_title
+        return f"{title} ({self.segment.name})"
+
+    def get_renderable_content(self) -> str:
+        """
+        Returns the HTML content that should be rendered for this communication.
+        """
+        return self.content or ''
+
+    @property
+    def display_title(self) -> str:
+        if self.subject_template:
+            return self.subject_template
+        if self.content:
+            text = self.content.strip()
+            return text[:60] + ('…' if len(text) > 60 else '')
+        return f"Communication {self.pk or ''}".strip()
 
     def refresh_status_summary(self, commit: bool = True) -> dict[str, int]:
         """
@@ -372,27 +388,48 @@ class Communication(TimeStamped):
         """
         from django.db.models import Q
 
+        deliveries = self.messages.select_related('message')
+        total = deliveries.count()
+        scheduled = 0
+        failed = 0
+        sent = 0
+        delivered = 0
+        opened = 0
+        clicked = 0
+
+        for delivery in deliveries:
+            metadata = delivery.metadata or {}
+            status = metadata.get('status')
+            if not status:
+                status = 'sent' if delivery.message_id else 'pending'
+
+            if status == 'failed':
+                failed += 1
+            elif status == 'sent':
+                sent += 1
+            else:
+                scheduled += 1
+
+            message = delivery.message
+            if message:
+                if getattr(message, 'delivered', False):
+                    delivered += 1
+                if getattr(message, 'opened', False) or getattr(message, 'seen', False):
+                    opened += 1
+                if getattr(message, 'link_clicked', False) or getattr(message, 'clicked_links', None):
+                    if getattr(message, 'clicked_links', []):
+                        clicked += 1
+
         totals = {
-            'total': self.messages.count(),
-            'scheduled': self.messages.filter(
-                Q(draft__status='draft') | Q(draft__status='scheduled')
-            ).count(),
-            'failed': self.messages.filter(draft__status='failed').count(),
-            'sent': self.messages.filter(
-                Q(draft__status='sent') | Q(message__sent=True)
-            ).count(),
-            'delivered': self.messages.filter(message__delivered=True).count(),
-            'opened': self.messages.filter(
-                Q(message__opened=True) | Q(message__seen=True)
-            ).count(),
-            'clicked': self.messages.filter(
-                Q(message__link_clicked=True) | Q(message__clicked_links__len__gt=0)
-            ).count(),
+            'total': total,
+            'scheduled': scheduled,
+            'failed': failed,
+            'sent': sent,
+            'delivered': delivered,
+            'opened': opened,
+            'clicked': clicked,
         }
-        totals['pending'] = max(
-            totals['total'] - (totals['sent'] + totals['failed']),
-            0,
-        )
+        totals['pending'] = max(total - (sent + failed), 0)
 
         new_status = self.status
         if self.status != 'cancelled':
@@ -461,15 +498,13 @@ class CommunicationMessage(TimeStamped):
         """
         Derives a coarse status based on draft and message state.
         """
-        if self.draft:
-            draft_status = self.draft.status
-            if draft_status in ('draft', 'scheduled'):
-                return draft_status
-            if draft_status == 'failed':
-                return 'failed'
+        metadata_status = (self.metadata or {}).get('status')
+        if metadata_status:
+            return metadata_status
+
         msg = self.message
         if not msg:
-            return 'draft' if self.draft else 'pending'
+            return 'pending'
         if getattr(msg, 'seen', False) or getattr(msg, 'opened', False):
             return 'seen'
         if getattr(msg, 'delivered', False):

@@ -4,18 +4,16 @@ import json
 from dataclasses import dataclass
 from typing import Iterable, Tuple
 
-from django.db import transaction
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 from jinja2 import TemplateError
 
-from unicom.models import DraftMessage
 from unicrm.models import Communication, CommunicationMessage, Contact
 from unicrm.services.template_renderer import render_template_for_contact, get_jinja_environment
 
 
 @dataclass
-class DraftCreationResult:
+class CommunicationPreparationResult:
     communication: Communication
     created: int
     updated: int
@@ -47,10 +45,9 @@ def _eligible_contacts(communication: Communication) -> Iterable[Contact]:
     return communication.segment.apply()
 
 
-@transaction.atomic
-def generate_drafts_for_communication(communication: Communication) -> DraftCreationResult:
+def generate_drafts_for_communication(communication: Communication) -> CommunicationPreparationResult:
     """
-    Creates or updates DraftMessages and CommunicationMessages for the provided communication.
+    Prepares per-contact payloads for the provided communication.
     """
     if not communication.channel:
         raise ValueError("Communication must define a channel before generating drafts.")
@@ -64,24 +61,21 @@ def generate_drafts_for_communication(communication: Communication) -> DraftCrea
 
     for contact in contacts:
         render_result = render_template_for_contact(
-            communication.template.content,
+            communication.get_renderable_content(),
             contact=contact,
             communication=communication,
         )
         subject_template = (
             communication.subject_template
-            or communication.template.title
-            or communication.template.description
             or f"Communication {communication.pk}"
         )
         subject, subject_errors = _render_subject(subject_template, render_result.context)
         errors.extend(subject_errors)
-        delivery, created_delivery = CommunicationMessage.objects.select_for_update().get_or_create(
+        delivery, created_delivery = CommunicationMessage.objects.get_or_create(
             communication=communication,
             contact=contact,
             defaults={'metadata': {}},
         )
-        draft = delivery.draft
 
         if not contact.email:
             skipped += 1
@@ -93,36 +87,32 @@ def generate_drafts_for_communication(communication: Communication) -> DraftCrea
             display_errors = delivery.metadata.setdefault('errors', [])
             display_errors.extend(render_result.errors)
 
-        draft_kwargs = {
-            'channel': communication.channel,
+        payload = {
             'to': [contact.email],
-            'subject': subject or communication.template.title or communication.template.description or f"Campaign {communication.pk}",
+            'subject': subject or subject_template or f"Communication {communication.pk}",
             'html': render_result.html,
-            'status': 'scheduled',
-            'is_approved': True,
-            'send_at': send_at,
-            'created_by': communication.initiated_by,
         }
-        if draft:
-            for field, value in draft_kwargs.items():
-                setattr(draft, field, value)
-            draft.save()
-            updated += 1
-        else:
-            draft = DraftMessage.objects.create(**draft_kwargs)
-            created += 1
 
-        delivery.draft = draft
-        delivery.metadata['variables'] = json.loads(json.dumps(render_result.variables, cls=DjangoJSONEncoder))
-        delivery.metadata['context'] = json.loads(json.dumps(render_result.context, cls=DjangoJSONEncoder))
-        delivery.save(update_fields=['draft', 'metadata', 'updated_at'])
+        metadata = delivery.metadata or {}
+        metadata['status'] = metadata.get('status', 'pending')
+        metadata['send_at'] = send_at.isoformat()
+        metadata['payload'] = payload
+        metadata['variables'] = json.loads(json.dumps(render_result.variables, cls=DjangoJSONEncoder))
+        metadata['context'] = json.loads(json.dumps(render_result.context, cls=DjangoJSONEncoder))
+        delivery.metadata = metadata
+        delivery.save(update_fields=['metadata', 'updated_at'])
+
+        if created_delivery:
+            created += 1
+        else:
+            updated += 1
 
     communication.status = 'scheduled'
     communication.scheduled_for = send_at
     communication.save(update_fields=['status', 'scheduled_for', 'updated_at'])
     communication.refresh_status_summary()
 
-    return DraftCreationResult(
+    return CommunicationPreparationResult(
         communication=communication,
         created=created,
         updated=updated,
