@@ -148,32 +148,85 @@ class TemplateVariableAdmin(admin.ModelAdmin):
     sample_preview.short_description = _('Sample output')
 
 
+class CommunicationAdminForm(forms.ModelForm):
+    class Meta:
+        model = models.Communication
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        # Extract user from kwargs if passed
+        self._user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filter channel field to only show email channels
+        from unicom.models import Channel
+        email_channels = Channel.objects.filter(platform='Email', active=True)
+        self.fields['channel'].queryset = email_channels
+        
+        # If only one email channel exists, select it by default
+        if not self.instance.pk and email_channels.count() == 1:
+            self.fields['channel'].initial = email_channels.first()
+        
+        # Set default status to 'scheduled' for new objects
+        if not self.instance.pk:
+            self.fields['status'].initial = 'scheduled'
+
+    def save(self, commit=True):
+        # Auto-set initiated_by to current user if not already set
+        if not self.instance.initiated_by and self._user:
+            self.instance.initiated_by = self._user
+        return super().save(commit)
+
+
 @admin.register(models.Communication)
 class CommunicationAdmin(admin.ModelAdmin):
+    form = CommunicationAdminForm
     change_form_template = 'admin/unicrm/communication/change_form.html'
     list_display = ('display_title', 'segment', 'channel', 'status', 'scheduled_for', 'created_at')
     list_filter = ('status', 'channel')
     search_fields = ('subject_template', 'segment__name', 'content')
-    autocomplete_fields = ('segment', 'channel', 'initiated_by')
-    readonly_fields = ('created_at', 'updated_at', 'status_summary_pretty')
+    autocomplete_fields = ('segment',)
+    readonly_fields = ('created_at', 'updated_at', 'status_summary_pretty', 'initiated_by')
 
     fieldsets = (
-        (None, {'fields': ('segment', 'channel', 'initiated_by')}),
+        (None, {'fields': ('segment', 'channel')}),
         (_('Content'), {'fields': ('subject_template', 'content')}),
         (_('Scheduling'), {'fields': ('scheduled_for', 'status')}),
         (_('Status summary'), {'fields': ('status_summary_pretty',)}),
+        (_('Metadata'), {'fields': ('initiated_by',)}),
         (_('Timestamps'), {'fields': ('created_at', 'updated_at')}),
     )
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        form.Media = type('Media', (), {
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'channel':
+            from unicom.models import Channel
+            kwargs['queryset'] = Channel.objects.filter(platform='Email', active=True)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        form_class = super().get_form(request, obj, **kwargs)
+        
+        # Create a wrapper that passes the user to the form
+        class FormWithUser(form_class):
+            def __init__(self, *args, **kwargs):
+                kwargs['user'] = request.user
+                super().__init__(*args, **kwargs)
+        
+        FormWithUser.Media = type('Media', (), {
             'css': {'all': ('admin/css/forms.css',)},
             'js': (
                 'unicom/js/tinymce_init.js',
             )
         })
-        return form
+        return FormWithUser
+
+    def get_changeform_initial_data(self, request):
+        # Set initiated_by to current user for new objects
+        return {'initiated_by': request.user}
+
+    def save_model(self, request, obj, form, change):
+        # Ensure initiated_by is set to current user if not already set
+        if not change and not obj.initiated_by:
+            obj.initiated_by = request.user
+        super().save_model(request, obj, form, change)
 
     def render_change_form(self, request, context, *args, **kwargs):
         context['tinymce_api_key'] = getattr(settings, 'UNICOM_TINYMCE_API_KEY', None)
