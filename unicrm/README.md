@@ -2,6 +2,14 @@
 
 Unicrm provides CRM models, templates, and campaign tooling that can be dropped into any Django project. It depends on **django-unicom**, so make sure Unicom is installed and configured before proceeding.
 
+At a glance you get:
+
+- Models for `Company`, `Contact`, `MailingList`, `Subscription`, `Segment`, `TemplateVariable`, `Communication`, and `CommunicationMessage`.
+- Django-admin integration with code editors (via Django Ace) for template variables and segments, plus live previews.
+- A templating runtime that renders communications through a sandboxed Jinja2 environment (`unicrm.services.template_renderer`).
+- Staff dashboards at `/unicrm/communications/` showing campaign status, per-contact delivery metadata, and draft regeneration actions.
+- A template-variable API used by the TinyMCE integration to offer CRM placeholders.
+
 ## 1. Install
 
 Install the apps into your environment (order matters: Unicom first, then Unicrm):
@@ -89,3 +97,11 @@ python manage.py send_scheduled_communications --run-once -vv
 ```
 
 Use this alongside your existing Unicom worker setup when you want Unicrm campaigns to deliver automatically.
+
+## 8. Operating checklist
+
+1. Populate Companies, Contacts, Mailing Lists, and Subscriptions via Django admin.
+2. Define template variables under **Unicrm → Template variables** (default snippets live in `unicrm/templates/unicrm/snippets/`).
+3. Create or adjust segments via the admin – code snippets are executed through a safe helper before each campaign.
+4. Compose communications in the admin, select a channel, segment, template, optional subject, and schedule.
+5. Trigger draft generation from the `/unicrm/communications/<id>/` dashboard or let the scheduled command handle it.
