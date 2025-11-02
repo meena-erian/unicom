@@ -66,7 +66,9 @@
             preview.innerHTML = tmpl ? tmpl.content : '<em>No template selected.</em>';
             customPreview.innerHTML = '';
             customizedHtml = '';
-            insertBtn.disabled = true;
+            
+            // Enable insert button if template is selected (allow manual insertion)
+            insertBtn.disabled = !tmpl;
             
             // Per user request, always expand the preview when it's updated.
             if (bsCollapse) {
@@ -142,21 +144,28 @@
         // Generate button logic
         generateBtn.addEventListener('click', function() {
             var templateId = select.value;
-            var promptHtml = '';
             var modelSelect = document.getElementById('unicom-ai-template-model-select');
-            var selectedModel = modelSelect ? modelSelect.value : 'gpt-4o';
+            var selectedModel = modelSelect ? modelSelect.value : '';
+            
+            if (!templateId) {
+                alert('Please select a template.');
+                return;
+            }
+            
+            if (!selectedModel) {
+                alert('Please select an AI model to generate customized content.');
+                return;
+            }
+            
+            var promptHtml = '';
             if (global.tinymce) {
                 var ed = global.tinymce.get('unicom-ai-template-prompt');
                 promptHtml = ed ? ed.getContent() : promptTextarea.value;
             } else {
                 promptHtml = promptTextarea.value;
             }
-            if (!templateId) {
-                alert('Please select a template.');
-                return;
-            }
+            
             showLoading('Generating...');
-            insertBtn.disabled = true;
             customizedHtml = '';
             customPreview.innerHTML = '<em>Generating...</em>';
             
@@ -165,7 +174,6 @@
                 if (resp && resp.html) {
                     customPreview.innerHTML = resp.html;
                     customizedHtml = resp.html;
-                    insertBtn.disabled = false;
                     // Collapse original preview after first generation
                     if (firstGeneration && bsCollapse) {
                         bsCollapse.hide();
@@ -186,8 +194,19 @@
 
         // Insert button logic
         insertBtn.addEventListener('click', function() {
-            if (customizedHtml && mainEditor && mainEditor.insertContent) {
-                mainEditor.insertContent(customizedHtml);
+            var templateId = select.value;
+            var tmpl = templatesList.find(t => (t.id || t.title) == templateId);
+            
+            if (!tmpl) {
+                alert('Please select a template.');
+                return;
+            }
+            
+            // Use customized HTML if available, otherwise use original template
+            var contentToInsert = customizedHtml || tmpl.content;
+            
+            if (contentToInsert && mainEditor && mainEditor.insertContent) {
+                mainEditor.insertContent(contentToInsert);
                 if (bootstrapModal) bootstrapModal.hide();
             }
         });
