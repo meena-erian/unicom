@@ -38,6 +38,19 @@ class CommunicationComposeViewTests(TestCase):
             code='''\nfrom unicrm.models import Contact\n\ndef apply(qs):\n    return qs\n''',
         )
 
+    def test_single_channel_preselected(self):
+        Channel.objects.filter(active=True, platform='Email').update(active=False)
+        Channel.objects.filter(pk=self.channel.pk).update(active=True)
+        only_channel = Channel.objects.filter(active=True, platform='Email').first()
+        active_channels = list(Channel.objects.filter(active=True, platform='Email').values_list('pk', 'name'))
+        self.assertEqual(active_channels, [(self.channel.pk, self.channel.name)])
+        response = self.client.get(reverse('unicrm:communications-compose'))
+        if only_channel:
+            self.assertRegex(
+                response.content.decode(),
+                rf'<option value="{only_channel.pk}"[^>]*selected>'
+            )
+
     def test_compose_send_now_prepares_payloads(self):
         response = self.client.post(
             reverse('unicrm:communications-compose'),

@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.conf import settings
 from django.contrib import admin
+from django.shortcuts import redirect
 from django.utils.html import format_html, format_html_join
 from django.utils.translation import gettext_lazy as _
 from django_ace import AceWidget
@@ -196,6 +197,9 @@ class CommunicationAdmin(admin.ModelAdmin):
         (_('Metadata'), {'fields': ('initiated_by',)}),
         (_('Timestamps'), {'fields': ('created_at', 'updated_at')}),
     )
+
+    def add_view(self, request, form_url='', extra_context=None):
+        return redirect('unicrm:communications-compose')
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == 'channel':

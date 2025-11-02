@@ -9,12 +9,45 @@
     }
   }
 
-  function safeDateValue(value) {
-    if (!value) {
-      return null;
+  function formatRelativeTime(dateString) {
+    if (!dateString) {
+      return 'Send Now';
     }
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
+    const scheduledDate = new Date(dateString);
+    if (isNaN(scheduledDate.getTime())) {
+      return 'Send Now';
+    }
+
+    const now = new Date();
+    if (scheduledDate < now) {
+      return 'Send Now';
+    }
+
+    const scheduledDay = new Date(scheduledDate).setHours(0, 0, 0, 0);
+    const today = new Date(now).setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((scheduledDay - today) / (1000 * 60 * 60 * 24));
+
+    const timeStr = scheduledDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    if (diffDays === 0) {
+      return `Send Today at ${timeStr}`;
+    }
+    if (diffDays === 1) {
+      return `Send Tomorrow at ${timeStr}`;
+    }
+    if (diffDays > 1 && diffDays < 7) {
+      const dayName = scheduledDate.toLocaleDateString('en-US', { weekday: 'long' });
+      return `Send ${dayName} at ${timeStr}`;
+    }
+    const dateStr = scheduledDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    return `Send on ${dateStr} at ${timeStr}`;
   }
 
   ready(function () {
@@ -27,21 +60,11 @@
     const channelSelect = document.getElementById('id_channel');
     const subjectInput = document.getElementById('id_subject_template');
     const sendAtInput = document.getElementById('id_send_at');
-    const deliveryRadios = Array.from(document.querySelectorAll('input[name="delivery_mode"]'));
-    const scheduleWrapper = document.querySelector('[data-delivery-schedule]');
     const submitButton = document.getElementById('compose-submit');
-    const advancedToggle = document.querySelector('.toggle-advanced');
-    const advancedSectionSelector = advancedToggle ? advancedToggle.getAttribute('data-target') : null;
-    const advancedSection = advancedSectionSelector ? document.querySelector(advancedSectionSelector) : null;
+    const advancedSection = document.getElementById('advanced-options');
 
     if (timezoneInput && !timezoneInput.value && global.Intl && global.Intl.DateTimeFormat) {
       timezoneInput.value = global.Intl.DateTimeFormat().resolvedOptions().timeZone;
-    }
-
-    if (advancedToggle && advancedSection) {
-      advancedToggle.addEventListener('click', function () {
-        advancedSection.classList.toggle('active');
-      });
     }
 
     let editorInstance = null;
@@ -71,68 +94,20 @@
     }
 
     function updateButtonLabel() {
-      if (!submitButton) {
-        return;
-      }
-      const scheduleDate = safeDateValue(sendAtInput ? sendAtInput.value : null);
-      if (scheduleDate) {
-        submitButton.textContent = 'Schedule for ' + scheduleDate.toLocaleString();
-      } else {
-        submitButton.textContent = 'Send now';
-      }
+    if (!submitButton) {
+      return;
     }
+      const scheduleValue = sendAtInput ? sendAtInput.value : '';
+      submitButton.textContent = formatRelativeTime(scheduleValue);
+  }
 
-    function ensureDeliveryMode() {
-      if (!sendAtInput || !deliveryRadios.length) {
-        return;
-      }
-      const scheduleSelected = !!sendAtInput.value;
-      deliveryRadios.forEach(function (radio) {
-        if (radio.value === 'schedule') {
-          radio.checked = scheduleSelected;
-        } else if (radio.value === 'now') {
-          radio.checked = !scheduleSelected;
-        }
-      });
-      if (scheduleWrapper) {
-        scheduleWrapper.classList.toggle('active', scheduleSelected);
-      }
-      if (scheduleSelected) {
-        sendAtInput.setAttribute('required', 'required');
-      } else {
-        sendAtInput.removeAttribute('required');
-        sendAtInput.value = '';
-      }
-      updateButtonLabel();
-    }
-
-    if (deliveryRadios.length) {
-      deliveryRadios.forEach(function (radio) {
-        radio.addEventListener('change', function () {
-          if (radio.value === 'schedule') {
-            if (scheduleWrapper) {
-              scheduleWrapper.classList.add('active');
-            }
-            sendAtInput.setAttribute('required', 'required');
-          } else {
-            if (scheduleWrapper) {
-              scheduleWrapper.classList.remove('active');
-            }
-            sendAtInput.removeAttribute('required');
-            sendAtInput.value = '';
-          }
-          updateButtonLabel();
-        });
-      });
+  function ensureDeliveryMode() {
+    updateButtonLabel();
     }
 
     if (sendAtInput) {
-      sendAtInput.addEventListener('change', updateButtonLabel);
-    }
-
-    if (subjectInput) {
-      subjectInput.addEventListener('input', function () {
-        subjectInput.dataset.userEdited = '1';
+      ['change', 'input'].forEach(function (evt) {
+        sendAtInput.addEventListener(evt, updateButtonLabel);
       });
     }
 

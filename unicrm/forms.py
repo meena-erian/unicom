@@ -50,6 +50,14 @@ class CommunicationComposeForm(forms.Form):
         self.cleaned_schedule_utc = None
         self.cleaned_schedule_local = None
 
+        if not self.is_bound:
+            channel_qs = self.fields['channel'].queryset
+            if channel_qs.count() == 1:
+                default_channel = channel_qs.first()
+                if default_channel:
+                    self.initial['channel'] = str(default_channel.pk)
+                    self.fields['channel'].initial = str(default_channel.pk)
+
     def clean_content(self) -> str:
         content = (self.cleaned_data.get('content') or '').strip()
         if not content:

@@ -128,11 +128,26 @@ class CommunicationComposeView(View):
         return render(request, self.template_name, self._context(request, form))
 
     def _context(self, request, form):
-        segments = form.fields['segment'].queryset
+        segments = list(form.fields['segment'].queryset)
+        segment_counts = {}
+        for segment in segments:
+            try:
+                segment_counts[segment.pk] = segment.apply().count()
+            except Exception:
+                segment_counts[segment.pk] = 0
         channels = form.fields['channel'].queryset
+        selected_channel = ''
+        if 'channel' in form.fields:
+            selected_channel = form['channel'].value()
+            if not selected_channel:
+                initial_channel = form.fields['channel'].initial or form.initial.get('channel')
+                if initial_channel:
+                    selected_channel = str(initial_channel)
         return {
             'form': form,
             'segments': segments,
+            'segment_counts': segment_counts,
             'channels': channels,
+            'selected_channel': selected_channel,
             'tinymce_api_key': getattr(settings, 'UNICOM_TINYMCE_API_KEY', None),
         }
