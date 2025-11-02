@@ -103,3 +103,16 @@ def apply(qs):
         self.assertEqual(communication.status, 'completed')
         self.assertEqual(details[0]['status'], 'failed')
         self.assertTrue(details[0]['errors'])
+
+    def test_does_not_send_twice(self):
+        scheduled_at = timezone.now() - timedelta(minutes=1)
+        communication = self._create_communication(scheduled_at)
+
+        with mock.patch('unicom.models.channel.Channel.send_message', return_value=None) as send_message:
+            summary1 = process_scheduled_communications(now=timezone.now())
+            self.assertEqual(send_message.call_count, 1)
+            summary2 = process_scheduled_communications(now=timezone.now())
+            self.assertEqual(send_message.call_count, 1)
+
+        self.assertEqual(summary1['messages_sent'], 1)
+        self.assertEqual(summary2['communications_processed'], 0)
