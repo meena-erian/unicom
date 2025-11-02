@@ -9,7 +9,11 @@ from django.core.serializers.json import DjangoJSONEncoder
 from jinja2 import TemplateError
 
 from unicrm.models import Communication, CommunicationMessage, Contact
-from unicrm.services.template_renderer import render_template_for_contact, get_jinja_environment
+from unicrm.services.template_renderer import (
+    render_template_for_contact,
+    get_jinja_environment,
+    unprotect_tinymce_markup,
+)
 
 
 @dataclass
@@ -27,10 +31,11 @@ def _render_subject(subject_template: str, context: dict) -> Tuple[str, list[str
     """
     if not subject_template:
         return '', []
+    template_string = unprotect_tinymce_markup(subject_template)
     env = get_jinja_environment()
     errors: list[str] = []
     try:
-        template = env.from_string(subject_template)
+        template = env.from_string(template_string)
         subject = template.render(context)
     except TemplateError as exc:
         subject = subject_template

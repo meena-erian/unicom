@@ -3,12 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, Iterable, Mapping
+import re
+from urllib.parse import unquote
 
 from django.utils import timezone
 from jinja2 import StrictUndefined, TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from unicrm.models import Communication, Company, Contact, TemplateVariable
+
+
+PROTECTED_PLACEHOLDER_RE = re.compile(r'<!--\s*mce:protected\s+([^>]+?)-->')
 
 
 def _datetime_format(value, fmt: str = "%Y-%m-%d %H:%M %Z") -> str:
@@ -35,6 +40,21 @@ def get_jinja_environment() -> SandboxedEnvironment:
         'now': timezone.now,
     })
     return env
+
+
+def unprotect_tinymce_markup(content: str | None) -> str:
+    """Restore TinyMCE protected placeholders ({{ ... }}) back to plain Jinja markup."""
+    if not content:
+        return content or ''
+
+    def _restore(match: re.Match[str]) -> str:
+        encoded = match.group(1).strip()
+        try:
+            return unquote(encoded)
+        except Exception:  # pragma: no cover - defensive
+            return encoded
+
+    return PROTECTED_PLACEHOLDER_RE.sub(_restore, content)
 
 
 def build_company_context(company: Company | None) -> Dict[str, Any]:
@@ -137,6 +157,7 @@ def render_template_for_contact(
     if extra_context:
         rendered_context.update(extra_context)
 
+    template_html = unprotect_tinymce_markup(template_html)
     template = env.from_string(template_html)
     errors: list[str] = []
     try:

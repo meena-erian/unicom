@@ -1903,6 +1903,8 @@ python manage.py send_scheduled_messages --interval 30
 python manage.py send_scheduled_communications
 # or run continuously with a custom interval
 python manage.py send_scheduled_communications --interval 30
+# verbose troubleshooting (prints rendered subjects & bodies)
+python manage.py send_scheduled_communications --run-once -vv
 ```
 
 Use `--run-once` with either command to execute a single pass and exit.

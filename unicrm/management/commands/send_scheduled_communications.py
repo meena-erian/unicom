@@ -29,10 +29,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         interval = max(options['interval'], 1)
         run_once = options['run_once']
+        verbosity = int(options.get('verbosity', 1))
 
         if run_once:
-            summary = process_scheduled_communications()
-            self._log_summary(summary)
+            summary = process_scheduled_communications(verbosity=verbosity)
+            self._log_summary(summary, verbosity)
             return
 
         self.stdout.write(self.style.SUCCESS(
@@ -41,8 +42,8 @@ class Command(BaseCommand):
 
         try:
             while True:
-                summary = process_scheduled_communications()
-                self._log_summary(summary)
+                summary = process_scheduled_communications(verbosity=verbosity)
+                self._log_summary(summary, verbosity)
                 time.sleep(interval)
         except KeyboardInterrupt:
             self.stdout.write(self.style.WARNING('Scheduler interrupted; shutting down.'))
@@ -50,11 +51,26 @@ class Command(BaseCommand):
             logger.exception('Unicrm scheduler encountered a fatal error: %s', exc)
             raise
 
-    def _log_summary(self, summary):
+    def _log_summary(self, summary, verbosity):
         processed = summary.get('communications_processed', 0)
         sent = summary.get('messages_sent', 0)
         failed = summary.get('messages_failed', 0)
-        if processed or sent or failed:
+        if verbosity >= 1 or processed or sent or failed:
             self.stdout.write(
                 f'Processed {processed} communications (sent={sent}, failed={failed}).'
             )
+        if verbosity >= 2:
+            for detail in summary.get('details', []):
+                email = detail.get('contact_email') or detail.get('contact_id')
+                status = detail.get('status')
+                subject = detail.get('subject') or ''
+                body = detail.get('html') or ''
+                note = detail.get('note')
+                line = f" - Communication {detail.get('communication_id')} -> {email}: status={status}"
+                if note:
+                    line += f" ({note})"
+                self.stdout.write(line)
+                self.stdout.write(f"   Subject: {subject}")
+                self.stdout.write(f"   Body: {body}")
+                for err in detail.get('errors', []) or []:
+                    self.stdout.write(f"   Error: {err}")

@@ -32,7 +32,7 @@ class CommunicationSchedulerTests(TestCase):
             config={},
             active=True,
         )
-        self.html_content = '<p>Hello {{ contact.first_name }}!</p>'
+        self.html_content = '<p>Hello <!--mce:protected %7B%7B%20contact.first_name%20%7D%7D-->!</p>'
         self.segment = Segment.objects.create(
             name='All Contacts',
             description='All contacts',
@@ -48,7 +48,7 @@ def apply(qs):
             channel=self.channel,
             initiated_by=self.user,
             scheduled_for=timezone.now() + timedelta(hours=1),
-            subject_template="Hello {{ contact.first_name }}",
+            subject_template="Hello <!--mce:protected %7B%7B%20contact.first_name%20%7D%7D-->",
             content=self.html_content,
         )
 
@@ -61,7 +61,7 @@ def apply(qs):
         delivery = communication.messages.first()
         payload = delivery.metadata.get('payload')
         self.assertEqual(payload['to'], [self.contact.email])
-        self.assertIn('Hello John', payload['subject'])
+        self.assertEqual(payload['subject'], 'Hello John')
         self.assertIn('Hello John', payload['html'])
         self.assertEqual(communication.status_summary.get('scheduled'), 1)
         self.assertEqual(communication.status_summary.get('clicked'), 0)

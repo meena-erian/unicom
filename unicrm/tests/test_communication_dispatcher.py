@@ -44,8 +44,8 @@ def apply(qs):
             channel=self.channel,
             initiated_by=self.user,
             scheduled_for=scheduled_for,
-            subject_template='Hello {{ contact.first_name }}',
-            content='<p>Hello {{ contact.first_name }}</p>',
+            subject_template='Hello <!--mce:protected %7B%7B%20contact.first_name%20%7D%7D-->',
+            content='<p>Hello <!--mce:protected %7B%7B%20contact.first_name%20%7D%7D--></p>',
             status='scheduled',
         )
 
@@ -59,12 +59,16 @@ def apply(qs):
         send_message.assert_called()
         communication.refresh_from_db()
         status = communication.messages.values_list('metadata__status', flat=True).first()
+        details = summary.get('details', [])
+        self.assertTrue(details)
 
         self.assertEqual(summary['communications_processed'], 1)
         self.assertEqual(summary['messages_sent'], 1)
         self.assertEqual(summary['messages_failed'], 0)
         self.assertEqual(status, 'sent')
         self.assertEqual(communication.status, 'completed')
+        self.assertEqual(details[0]['subject'], 'Hello Jane')
+        self.assertIn('Hello Jane', details[0]['html'])
 
     def test_skips_future_communications(self):
         scheduled_at = timezone.now() + timedelta(hours=1)
@@ -89,9 +93,13 @@ def apply(qs):
 
         communication.refresh_from_db()
         status = communication.messages.values_list('metadata__status', flat=True).first()
+        details = summary.get('details', [])
+        self.assertTrue(details)
 
         self.assertEqual(summary['communications_processed'], 1)
         self.assertEqual(summary['messages_sent'], 0)
         self.assertEqual(summary['messages_failed'], 1)
         self.assertEqual(status, 'failed')
         self.assertEqual(communication.status, 'completed')
+        self.assertEqual(details[0]['status'], 'failed')
+        self.assertTrue(details[0]['errors'])
