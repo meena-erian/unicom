@@ -38,8 +38,8 @@
     - [WebChat Testing](#-webchat-testing)
     - [WebChat Optional Enhancements](#-webchat-optional-enhancements)
   - [LLM Integration](#llm-integration)
-  - [Delayed Tool Calls](#delayed-tool-calls)
-  - [Message Scheduling](#message-scheduling)
+- [Delayed Tool Calls](#delayed-tool-calls)
+- [Message Scheduling](#message-scheduling)
 - [Production Setup](#-production-setup)
   - [IMAP Listeners](#imap-listeners)
   - [Scheduled Message Processing](#scheduled-message-processing)
@@ -1898,13 +1898,6 @@ python manage.py send_scheduled_messages
 
 # Custom interval (30 seconds)  
 python manage.py send_scheduled_messages --interval 30
-
-# Process scheduled unicrm communications
-python manage.py send_scheduled_communications
-# or run continuously with a custom interval
-python manage.py send_scheduled_communications --interval 30
-# verbose troubleshooting (prints rendered subjects & bodies)
-python manage.py send_scheduled_communications --run-once -vv
 ```
 
 Use `--run-once` with either command to execute a single pass and exit.

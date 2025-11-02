@@ -96,7 +96,7 @@ class Contact(TimeStamped):
 
     first_name = models.CharField(_('First name'), max_length=150, blank=True)
     last_name = models.CharField(_('Last name'), max_length=150, blank=True)
-    email = models.EmailField(_('Email'), unique=True)
+    email = models.EmailField(_('Email'), unique=True, blank=True, null=True)
     phone_number = models.CharField(_('Phone number'), max_length=50, blank=True)
     job_title = models.CharField(_('Job title'), max_length=150, blank=True)
     company = models.ForeignKey(
@@ -126,7 +126,19 @@ class Contact(TimeStamped):
 
     def __str__(self) -> str:
         full_name = f"{self.first_name} {self.last_name}".strip()
-        return full_name or self.email
+        if full_name:
+            return full_name
+
+        if self.email:
+            return self.email
+
+        username = (self.attributes or {}).get('auth_user_username')
+        if username:
+            return username
+
+        if self.pk:
+            return f'Contact #{self.pk}'
+        return 'Contact'
 
 
 class MailingList(TimeStamped):
