@@ -1,3 +1,6 @@
 [submodule "unibot"]
 	path = unibot
 	url = git@github.com:meena-erian/unibot.git
+[submodule "unicrm"]
+	path = unicrm
+	url = /home/menas/rf2/unicrm-submodule
