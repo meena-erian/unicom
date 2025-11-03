@@ -639,6 +639,18 @@ The admin interface provides a rich text editor for composing HTML emails with f
 
 Email channels automatically validate DKIM and SPF records for incoming messages, ensuring email authenticity and preventing spoofing.
 
+#### 📧 Pre-Send Email Validation (Reacher)
+
+If you run a Reacher instance alongside Unicom you can block known-bad addresses before the SMTP hand-off. Configure it through environment variables loaded into `settings.py`:
+
+- `REACHER_HOSTNAME` *(or `REACHER_BASE_URL`)* – Base URL of the Reacher API. Leaving it unset disables validation.
+- `REACHER_STRICTNESS` – Controls which Reacher classifications still go out. Options:
+  - `strict` *(default)*: only `"safe"` addresses are sent.
+  - `moderate`: allows `"safe"` and `"risky"` addresses.
+  - `lenient`: allows `"safe"`, `"risky"` and `"unknown"` addresses.
+
+When Reacher denies an address the Message is stored as bounced with the raw payload under `message.raw["reacher_validation"]` so operators can review the decision without resending.
+
 ### Telegram-Specific Features
 
 #### 📱 Typing Indicators

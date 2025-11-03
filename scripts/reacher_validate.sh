@@ -12,25 +12,21 @@ Positional arguments:
 
 Options:
   --host URL           Reacher base URL (default: $REACHER_HOST or http://localhost:8080).
-  --from EMAIL         From email used when probing SMTP (default: noreply@<hello_name>).
-  --hello NAME         HELO/EHLO name for SMTP handshake (default: domain of --from email).
-  --smtp-port PORT     SMTP port sent in JSON payload (default: 25).
+  --strictness LEVEL   Override strictness (strict|moderate|lenient). Default from REACHER_STRICTNESS or strict.
   -v, --verbose        Output full JSON response for each email in addition to the boolean result.
   -h, --help           Show this help text and exit.
 
 Environment variables:
   REACHER_HOST         Override default host URL for the Reacher API.
-  REACHER_SMTP_PORT    Override default SMTP port.
+  REACHER_STRICTNESS   Set allowed Reacher statuses (strict|moderate|lenient).
 
 EOF
 }
 
 HOST="${REACHER_HOST:-http://localhost:8080}"
-SMTP_PORT="${REACHER_SMTP_PORT:-25}"
-FROM_EMAIL=""
-HELLO_NAME=""
 VERBOSE=false
 EMAILS=()
+STRICTNESS="${REACHER_STRICTNESS:-strict}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,19 +39,9 @@ while [[ $# -gt 0 ]]; do
       HOST="$2"
       shift 2
       ;;
-    --from)
-      [[ $# -ge 2 ]] || { echo "error: --from requires an argument" >&2; exit 1; }
-      FROM_EMAIL="$2"
-      shift 2
-      ;;
-    --hello)
-      [[ $# -ge 2 ]] || { echo "error: --hello requires an argument" >&2; exit 1; }
-      HELLO_NAME="$2"
-      shift 2
-      ;;
-    --smtp-port)
-      [[ $# -ge 2 ]] || { echo "error: --smtp-port requires an argument" >&2; exit 1; }
-      SMTP_PORT="$2"
+    --strictness)
+      [[ $# -ge 2 ]] || { echo "error: --strictness requires an argument" >&2; exit 1; }
+      STRICTNESS="$2"
       shift 2
       ;;
     -v|--verbose)
@@ -85,14 +71,21 @@ if [[ ${#EMAILS[@]} -eq 0 ]]; then
   exit 1
 fi
 
-if [[ -z "$FROM_EMAIL" ]]; then
-  DEFAULT_DOMAIN="${HELLO_NAME:-$(hostname -f 2>/dev/null || echo "localhost")}"
-  FROM_EMAIL="noreply@${DEFAULT_DOMAIN#*@}"
-fi
+allowed_statuses() {
+  case "${1,,}" in
+    moderate)
+      echo "safe risky"
+      ;;
+    lenient)
+      echo "safe risky unknown"
+      ;;
+    *)
+      echo "safe"
+      ;;
+  esac
+}
 
-if [[ -z "$HELLO_NAME" ]]; then
-  HELLO_NAME="${FROM_EMAIL##*@}"
-fi
+ALLOWED_STATUSES=" $(allowed_statuses "$STRICTNESS") "
 
 parse_is_reachable() {
   local response="$1"
@@ -133,22 +126,13 @@ pretty_print() {
 }
 
 for TO_EMAIL in "${EMAILS[@]}"; do
-  PAYLOAD=$(cat <<EOF
-{
-  "to_email": "$TO_EMAIL",
-  "from_email": "$FROM_EMAIL",
-  "hello_name": "$HELLO_NAME",
-  "smtp_port": $SMTP_PORT
-}
-EOF
-)
-
   RESPONSE=$(curl -sS -X POST "$HOST/v0/check_email" \
     -H 'Content-Type: application/json' \
-    -d "$PAYLOAD")
+    -d "{\"to_email\": \"${TO_EMAIL}\"}")
 
   IS_REACHABLE=$(parse_is_reachable "$RESPONSE")
-  if [[ "$IS_REACHABLE" == "safe" ]]; then
+  IS_REACHABLE=$(echo -n "$IS_REACHABLE" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+  if [[ -n "$IS_REACHABLE" && "$ALLOWED_STATUSES" == *" $IS_REACHABLE "* ]]; then
     RESULT="True"
   else
     RESULT="False"

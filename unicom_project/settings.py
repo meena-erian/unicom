@@ -32,6 +32,14 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 # Credential encryption key (URL-safe base64-encoded 32-byte key)
 CREDENTIAL_ENCRYPTION_KEY = os.environ.get('CREDENTIAL_ENCRYPTION_KEY')
 
+# Optional Reacher email verification configuration
+REACHER_BASE_URL = (
+    os.environ.get('REACHER_BASE_URL')
+    or os.environ.get('REACHER_HOSTNAME')
+    or os.environ.get('REACHER_HOST')
+)
+REACHER_STRICTNESS = (os.environ.get('REACHER_STRICTNESS') or 'strict').lower()
+
 # Directory containing tool and bot definitions for sync command
 UNIBOT_DEFINITIONS_DIR = BASE_DIR / 'unicom_project' / 'definitions'
 
