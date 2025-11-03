@@ -38,6 +38,18 @@ services:
     restart: always
     depends_on:
       - db
+  imap-listener:
+    build: .
+    entrypoint: ["/app/entrypoint.sh"]
+    command: ["python", "manage.py", "start_imap_listeners"]
+    env_file:
+      - db.env
+    environment:
+      - DOCKER=true
+    volumes:
+      - .:/app
+    restart: always
+    depends_on:
+      - db
 volumes:
   postgres_data:
-
