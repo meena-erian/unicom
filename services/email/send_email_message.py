@@ -13,6 +13,9 @@ import logging
 from email.utils import make_msgid
 import uuid
 import html
+import requests
+from urllib.parse import urljoin
+from django.utils import timezone
 from unicom.services.html_inline_images import html_shortlinks_to_base64_images, html_base64_images_to_shortlinks
 
 logger = logging.getLogger(__name__)
@@ -35,6 +38,80 @@ def convert_text_to_html(text: str) -> str:
     
     # Wrap in pre tag to preserve formatting
     return f'<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">{escaped_text}</pre>'
+
+
+def _get_reacher_base_url() -> str | None:
+    """
+    Resolve the configured Reacher endpoint. Accepts multiple environment aliases
+    to remain backwards compatible across Django projects that include Unicom.
+    """
+    base = getattr(settings, 'REACHER_HOSTNAME', None) or getattr(settings, 'REACHER_HOST', None) \
+        or getattr(settings, 'REACHER_BASE_URL', None)
+    if not base:
+        return None
+    base = base.strip()
+    if not base:
+        return None
+    if not base.startswith(('http://', 'https://')):
+        base = f'http://{base}'
+    return base.rstrip('/')
+
+
+def _reacher_allowed_statuses() -> set[str]:
+    mapping = {
+        'strict': {'safe'},
+        'moderate': {'safe', 'risky'},
+        'lenient': {'safe', 'risky', 'unknown'},
+    }
+    strictness = getattr(settings, 'REACHER_STRICTNESS', 'strict') or 'strict'
+    strictness = str(strictness).lower()
+    return mapping.get(strictness, mapping['strict'])
+
+
+def _validate_recipients_with_reacher(recipients: list[str], from_addr: str) -> tuple[bool, dict[str, dict]]:
+    """
+    Validate the recipient list using Reacher when configured.
+
+    Returns a tuple of (all_safe, results_by_email).
+    If Reacher is not configured or the request fails, we allow sending to proceed.
+    """
+    base_url = _get_reacher_base_url()
+    if not base_url or not recipients:
+        return True, {}
+
+    endpoint = urljoin(f'{base_url}/', 'v0/check_email')
+    timeout = 10
+    results: dict[str, dict] = {}
+    all_safe = True
+    allowed_statuses = _reacher_allowed_statuses()
+
+    seen: set[str] = set()
+    for email in recipients:
+        if not email or email in seen:
+            continue
+        seen.add(email)
+
+        try:
+            response = requests.post(endpoint, json={'to_email': email}, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            logger.warning(
+                "Reacher validation failed for %s: %s. Email will be sent without pre-validation.",
+                email,
+                exc,
+            )
+            return True, {}
+        except ValueError:
+            logger.warning("Reacher returned non-JSON response for %s; skipping validation.", email)
+            return True, {}
+
+        results[email] = data
+        status = str(data.get('is_reachable', '') or '').lower()
+        if status and status not in allowed_statuses:
+            all_safe = False
+
+    return all_safe, results
 
 
 def send_email_message(channel: Channel, params: dict, user: User=None):
@@ -104,6 +181,8 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     chat_id = params.get('chat_id')
     reply_to_id = params.get('reply_to_message_id')
     to_addrs = params.get('to', [])
+    cc_addrs = params.get('cc', [])
+    bcc_addrs = params.get('bcc', [])
     parent = None
     
     # Case 1: Reply to specific message
@@ -134,8 +213,6 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         # Validate subject is provided for new threads
         if not params.get('subject'):
             raise ValueError("Subject is required when starting a new email thread")
-        cc_addrs = params.get('cc', [])
-        bcc_addrs = params.get('bcc', [])
     else:
         raise ValueError("Must provide either 'to' addresses for new thread, or 'chat_id'/'reply_to_message_id' for reply")
 
@@ -244,12 +321,63 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         email_msg.attach_file(fp)
         logger.debug(f"Attached file: {fp}")
 
+    recipients_for_validation = list(to_addrs or []) + list(cc_addrs or []) + list(bcc_addrs or [])
+    all_safe, reacher_results = _validate_recipients_with_reacher(recipients_for_validation, from_addr)
+
     # Get the message object and verify the Message-ID BEFORE sending
     msg_before_send = email_msg.message()
     msg_id_before_send = msg_before_send.get('Message-ID', '').strip()
     logger.info(f"Message-ID before send: {msg_id_before_send}")
     if msg_id_before_send != message_id:
         logger.warning(f"Message-ID changed unexpectedly before send. Original: {message_id}, Current: {msg_id_before_send}")
+
+    if not all_safe:
+        logger.warning("Reacher validation blocked email send. Recipients=%s", recipients_for_validation)
+        mime_bytes = email_msg.message().as_bytes()
+        saved_msg = save_email_message(channel, mime_bytes, user)
+        if not saved_msg:
+            logger.error("save_email_message returned None while recording Reacher-blocked email.")
+            return None
+        saved_msg.tracking_id = tracking_id
+        raw_payload = dict(saved_msg.raw or {})
+        raw_payload['original_urls'] = original_urls
+        raw_payload['reacher_validation'] = reacher_results
+        saved_msg.raw = raw_payload
+        if html_content:
+            html_for_db = remove_tracking(revert_to_original_fa(html_content), original_urls)
+            saved_msg.html = html_for_db
+
+        failure_summaries = []
+        allowed_statuses = _reacher_allowed_statuses()
+        for email, result in reacher_results.items():
+            raw_status = result.get('is_reachable')
+            status = str(raw_status).lower() if raw_status else 'unknown'
+            if status in allowed_statuses:
+                continue
+            smtp_error = (
+                result.get('smtp', {}).get('error', {}).get('message')
+                if isinstance(result.get('smtp'), dict)
+                else None
+            )
+            parts = [status]
+            if smtp_error:
+                parts.append(smtp_error)
+            failure_summaries.append(f"{email}: {' - '.join([part for part in parts if part])}")
+
+        saved_msg.bounced = True
+        saved_msg.bounce_type = saved_msg.bounce_type or 'hard'
+        summary_text = "; ".join(failure_summaries) if failure_summaries else "Validation returned non-safe status."
+        saved_msg.bounce_reason = f"Blocked by Reacher pre-send validation. {summary_text}"
+        saved_msg.time_bounced = timezone.now()
+        details = (saved_msg.bounce_details or {}).copy()
+        details['reacher'] = reacher_results
+        saved_msg.bounce_details = details
+
+        update_fields = ['tracking_id', 'raw', 'bounced', 'bounce_type', 'bounce_reason', 'time_bounced', 'bounce_details']
+        if html_content:
+            update_fields.append('html')
+        saved_msg.save(update_fields=update_fields)
+        return saved_msg
 
     # 2) send via the connection we passed in above
     try:
