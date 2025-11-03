@@ -18,3 +18,4 @@ email_inline_images
 message_template_inline_images
 _version.py
 media/
+reacher.env
