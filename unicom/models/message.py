@@ -33,6 +33,10 @@ class Message(models.Model):
         ('tool_call', 'Tool Call'),
         ('tool_response', 'Tool Response'),
     ]
+    EMAIL_BOUNCE_TYPE_CHOICES = [
+        ('hard', 'Hard bounce'),
+        ('soft', 'Soft bounce'),
+    ]
     id = models.CharField(max_length=500, primary_key=True)
     channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
@@ -98,6 +102,20 @@ class Message(models.Model):
         null=True,
         default=list,
         help_text="List of links that have been clicked"
+    )
+    bounced = models.BooleanField(default=False, help_text="Whether the email was reported as bounced by the provider")
+    bounce_type = models.CharField(
+        max_length=20,
+        choices=EMAIL_BOUNCE_TYPE_CHOICES,
+        blank=True,
+        help_text="Classification of the bounce when available"
+    )
+    time_bounced = models.DateTimeField(null=True, blank=True, help_text="When the bounce notification was received")
+    bounce_reason = models.TextField(blank=True, help_text="Provider-supplied reason for the bounce")
+    bounce_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Raw provider payload for the bounce event"
     )
     imap_uid = models.BigIntegerField(null=True, blank=True, db_index=True, help_text="IMAP UID for marking as seen")
 
