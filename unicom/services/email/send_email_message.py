@@ -269,6 +269,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     # Add tracking
     if html_content:
         html_content = to_inline_png_img(html_content)  # Convert FontAwesome to inline images
+        html_content, _ = html_base64_images_to_shortlinks(html_content)  # Convert to public links
 
     # Prepare HTML content with tracking
     original_urls = []
@@ -276,8 +277,8 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         html_content, original_urls = prepare_email_for_tracking(html_content, tracking_id)
         logger.debug("Added tracking elements to HTML content")
 
-    # --- Convert shortlinks to base64 for sending ---
-    html_content_for_sending = html_shortlinks_to_base64_images(html_content) if html_content else html_content
+    # --- Keep as shortlinks for sending (Gmail compatibility) ---
+    html_content_for_sending = html_content
 
     # 1) construct the EmailMultiAlternatives
     email_msg = EmailMultiAlternatives(
