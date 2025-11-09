@@ -641,7 +641,17 @@ Email channels automatically validate DKIM and SPF records for incoming messages
 
 #### 📧 Pre-Send Email Validation (Reacher)
 
-If you run a Reacher instance alongside Unicom you can block known-bad addresses before the SMTP hand-off. Configure it through environment variables loaded into `settings.py`:
+If you run a Reacher instance alongside Unicom you can block known-bad addresses before the SMTP hand-off. Configure it through environment variables loaded into `settings.py`. When embedding Unicom inside your own Django project, drop the following snippet (taken from `unicom_project/settings.py`) into your project's settings file so the values become available on `django.conf.settings`:
+
+```python
+# Optional Reacher email verification configuration
+REACHER_BASE_URL = (
+    os.environ.get('REACHER_BASE_URL')
+    or os.environ.get('REACHER_HOSTNAME')
+    or os.environ.get('REACHER_HOST')
+)
+REACHER_STRICTNESS = (os.environ.get('REACHER_STRICTNESS') or 'strict').lower()
+```
 
 - `REACHER_HOSTNAME` *(or `REACHER_BASE_URL`)* – Base URL of the Reacher API. Leaving it unset disables validation.
 - `REACHER_STRICTNESS` – Controls which Reacher classifications still go out. Options:
