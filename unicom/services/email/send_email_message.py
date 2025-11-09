@@ -80,7 +80,7 @@ def _validate_recipients_with_reacher(recipients: list[str], from_addr: str) -> 
         return True, {}
 
     endpoint = urljoin(f'{base_url}/', 'v0/check_email')
-    timeout = 10
+    timeout = 120
     results: dict[str, dict] = {}
     all_safe = True
     allowed_statuses = _reacher_allowed_statuses()
