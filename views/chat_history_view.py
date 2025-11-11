@@ -93,13 +93,13 @@ def message_as_llm_chat(request, message_id):
 
     message = get_object_or_404(Message, id=message_id)
     mode = request.GET.get('mode', 'chat')  # 'chat' or 'thread'
-    depth = int(request.GET.get('depth', 10))
+    depth = int(request.GET.get('depth', 129))
 
     if mode not in ['chat', 'thread']:
         return JsonResponse({'error': 'Mode must be "chat" or "thread"'}, status=400)
 
     try:
-        llm_chat = message.as_llm_chat(mode=mode)
+        llm_chat = message.as_llm_chat(mode=mode, depth=depth)
         formatted_json = json.dumps(llm_chat, indent=2, ensure_ascii=False)
         return JsonResponse({
             'success': True,
