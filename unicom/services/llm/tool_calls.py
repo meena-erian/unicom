@@ -149,7 +149,7 @@ def save_tool_call_with_response(chat, tool_name, tool_args, result, user=None, 
     return tool_call_msg, tool_response_msg
 
 
-def get_chat_with_tool_calls(message, depth=10, mode="chat"):
+def get_chat_with_tool_calls(message, depth=129, mode="chat"):
     """
     Get LLM-ready chat history including tool calls.
     

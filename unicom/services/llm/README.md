@@ -253,13 +253,13 @@ Save both a tool call and its response as invisible messages.
 
 **Returns:** Tuple of (tool_call_message, tool_response_message)
 
-### `get_chat_with_tool_calls(message, depth=10, mode="chat")`
+### `get_chat_with_tool_calls(message, depth=129, mode="chat")`
 
 Get LLM-ready chat history including tool calls.
 
 **Parameters:**
 - `message`: Message instance to get conversation for
-- `depth`: Maximum number of messages to include (default: 10)
+- `depth`: Maximum number of messages to include (default: 129)
 - `mode`: Either "chat" (conversation) or "thread" (reply chain)
 
 **Returns:** List of dict objects formatted for LLM APIs
@@ -329,7 +329,7 @@ The tool call format is compatible with:
 
 4. **LLM gets context with tool calls**:
    ```python
-   conversation = message.as_llm_chat(depth=10)
+   conversation = message.as_llm_chat(depth=129)
    # Includes the tool call and response for context
    ```
 

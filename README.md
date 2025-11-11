@@ -1684,7 +1684,7 @@ This enables:
 response = message.reply_using_llm(
     model="gpt-4",
     system_instruction="You are a helpful customer service assistant",
-    depth=10  # Include last 10 messages for context
+    depth=129  # Include last 129 messages for context
 )
 
 # 🤖 Multimodal support (images, audio)

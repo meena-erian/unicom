@@ -266,7 +266,7 @@ class Message(models.Model):
             cur = cur.reply_to_message
         return chain
 
-    def as_llm_chat(self, depth=10, mode="chat", system_instruction=None, multimodal=True):
+    def as_llm_chat(self, depth=129, mode="chat", system_instruction=None, multimodal=True):
         """
         Returns a list of dicts for LLM chat APIs (OpenAI, Gemini, etc), each with 'role' and 'content'.
         - depth: max number of messages to include
@@ -539,7 +539,7 @@ class Message(models.Model):
         
         return tuple(messages) if len(messages) > 1 else messages[0]
 
-    def reply_using_llm(self, model: str, depth=10, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
+    def reply_using_llm(self, model: str, depth=129, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
         """
         Wrapper: Calls as_llm_chat, OpenAI ChatCompletion API, and reply_with.
         - model: OpenAI model string
