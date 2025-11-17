@@ -22,12 +22,15 @@ def compose_view(request):
         'html': request.POST.get('html', ''),
         'chat_id': request.POST.get('chat_id', ''),
         'text': request.POST.get('text', ''),
-        'send_at': request.POST.get('send_at', '')
+        'send_at': request.POST.get('send_at', ''),
+        'skip_reacher': request.POST.get('skip_reacher', '1')
     }
     
     if request.method == 'POST':
         channel_id = request.POST.get('channel')
         send_at = request.POST.get('send_at')
+        skip_reacher_value = request.POST.get('skip_reacher', '1')
+        skip_reacher = str(skip_reacher_value).strip().lower() not in ('', '0', 'false', 'off', 'no')
         
         try:
             channel = Channel.objects.get(id=channel_id)
@@ -45,6 +48,7 @@ def compose_view(request):
                     'bcc': bcc_list,
                     'subject': request.POST.get('subject'),
                     'html': request.POST.get('html'),
+                    'skip_reacher': skip_reacher,
                 }
                 
                 # Validate required fields for email
@@ -105,6 +109,7 @@ def compose_view(request):
                     draft.bcc = msg_params['bcc']
                     draft.subject = msg_params['subject']
                     draft.html = msg_params['html']
+                    draft.skip_reacher_validation = skip_reacher
                 else:  # Telegram
                     draft.chat_id = msg_params['chat_id']
                     draft.text = msg_params['text']

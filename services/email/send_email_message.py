@@ -68,6 +68,15 @@ def _reacher_allowed_statuses() -> set[str]:
     return mapping.get(strictness, mapping['strict'])
 
 
+def _coerce_skip_reacher_flag(value) -> bool:
+    """
+    Convert arbitrary truthy/falsy values into a boolean for the skip flag.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() not in ('', '0', 'false', 'off', 'no')
+    return bool(value)
+
+
 def _validate_recipients_with_reacher(recipients: list[str], from_addr: str) -> tuple[bool, dict[str, dict]]:
     """
     Validate the recipient list using Reacher when configured.
@@ -323,7 +332,11 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         logger.debug(f"Attached file: {fp}")
 
     recipients_for_validation = list(to_addrs or []) + list(cc_addrs or []) + list(bcc_addrs or [])
-    all_safe, reacher_results = _validate_recipients_with_reacher(recipients_for_validation, from_addr)
+    skip_reacher = _coerce_skip_reacher_flag(params.pop('skip_reacher', False))
+    if skip_reacher:
+        all_safe, reacher_results = True, {}
+    else:
+        all_safe, reacher_results = _validate_recipients_with_reacher(recipients_for_validation, from_addr)
 
     # Get the message object and verify the Message-ID BEFORE sending
     msg_before_send = email_msg.message()

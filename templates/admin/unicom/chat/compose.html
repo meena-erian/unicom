@@ -158,6 +158,7 @@ textarea:not(:placeholder-shown):valid {
     <form method="post" id="compose-form">
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input">
+        <input type="hidden" name="skip_reacher" value="1">
         
         <div class="form-row">
             <label for="channel">Channel:</label>
