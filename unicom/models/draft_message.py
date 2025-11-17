@@ -68,6 +68,11 @@ class DraftMessage(models.Model):
         blank=True,
         help_text=_('HTML content for email messages')
     )
+    skip_reacher_validation = models.BooleanField(
+        _('Skip Reacher validation'),
+        default=False,
+        help_text=_('Skip Reacher email validation when sending this draft')
+    )
     
     # Scheduling and status
     send_at = models.DateTimeField(
@@ -173,6 +178,8 @@ class DraftMessage(models.Model):
                 msg_dict['html'] = self.html
             if self.chat_id:
                 msg_dict['chat_id'] = self.chat_id
+            if self.skip_reacher_validation:
+                msg_dict['skip_reacher'] = True
         else:
             msg_dict['chat_id'] = self.chat_id
             msg_dict['text'] = self.text
