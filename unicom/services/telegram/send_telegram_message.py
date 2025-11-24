@@ -17,6 +17,17 @@ if TYPE_CHECKING:
     from unicom.models import Channel
 
 
+def _extract_telegram_message_id(message_id):
+    """
+    Strip internal namespace (telegram.<channel>.<chat>.<message>) back to provider id.
+    """
+    if message_id is None:
+        return None
+    if isinstance(message_id, str) and message_id.startswith("telegram."):
+        return message_id.split(".")[-1]
+    return message_id
+
+
 def send_telegram_message(channel: Channel, params: dict, user: User=None, retry_interval=60, max_retries=7):
     """
     Params must include at least chat_id and text (if sending a text message or caption).
@@ -87,6 +98,8 @@ def send_telegram_message(channel: Channel, params: dict, user: User=None, retry
 
         # Convert reply_markup to JSON string for the API call if it exists
         request_params = params.copy()
+        if 'reply_to_message_id' in request_params:
+            request_params['reply_to_message_id'] = _extract_telegram_message_id(request_params['reply_to_message_id'])
         if 'reply_markup' in request_params:
             import json
             request_params['reply_markup'] = json.dumps(request_params['reply_markup'])

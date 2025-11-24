@@ -38,6 +38,13 @@ class Message(models.Model):
         ('soft', 'Soft bounce'),
     ]
     id = models.CharField(max_length=500, primary_key=True)
+    provider_message_id = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Raw provider message id (e.g., Telegram message_id)"
+    )
     channel = models.ForeignKey('unicom.Channel', on_delete=models.CASCADE)
     platform = models.CharField(max_length=100, choices=channels)
     sender = models.ForeignKey('unicom.Account', on_delete=models.RESTRICT)
