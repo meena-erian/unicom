@@ -4,8 +4,16 @@ from unicom.services.telegram.get_file_path import get_file_path
 from unicom.services.telegram.download_file import download_file
 from django.core.files.base import ContentFile
 from django.apps import apps
+from django.db import models
 import mimetypes
 from django.utils import timezone
+
+
+def _namespaced_message_id(channel, chat_id: str, message_id: str) -> str:
+    """
+    Telegram message_ids are unique only per chat/bot; namespace for DB storage.
+    """
+    return f"telegram.{channel.id}.{chat_id}.{message_id}"
 
 
 def save_telegram_message(channel, message_data: dict, user:User=None):
@@ -26,7 +34,8 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     chat_id = message_data.get('chat')['id']
     chat_is_private = message_data.get('chat')["type"] == "private"
     chat_name = sender_name if chat_is_private else message_data.get('chat')["title"]
-    message_id = message_data.get('message_id')
+    raw_message_id = str(message_data.get('message_id'))
+    message_id = _namespaced_message_id(channel, chat_id, raw_message_id)
     text = message_data.get('text') or message_data.get('caption')
     m_type = 'text'
     media_file_name = None
@@ -127,34 +136,52 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     else:
         account_chat = account_chat.get()
     if message_data.get('reply_to_message'):
-        reply_to_message_id = message_data.get(
-            'reply_to_message')['message_id']
-        try:
-            reply_to_message = Message.objects.get(
-                platform=platform, chat_id=chat_id, id=reply_to_message_id)
-        except Message.DoesNotExist:
-            reply_to_message = None
+        raw_reply_id = str(message_data.get('reply_to_message')['message_id'])
+        reply_candidates = [
+            _namespaced_message_id(channel, chat_id, raw_reply_id),
+            raw_reply_id,
+        ]
+        reply_to_message = Message.objects.filter(
+            platform=platform,
+            chat_id=chat_id,
+            id__in=reply_candidates
+        ).first()
     else:
         reply_to_message = None
     # Save the message to the database or retrieve it if this is a duplicate save
-    message, created = Message.objects.get_or_create(
+    existing = Message.objects.filter(
         platform=platform,
         chat_id=chat_id,
-        id=message_id,
-        defaults={
-            'sender': account,
-            'channel': channel,
-            'sender_name': sender_name,
-            'user': user,
-            'text': text,
-            'media_type': m_type,
-            'reply_to_message': reply_to_message,
-            'chat': chat,
-            'is_outgoing': is_outgoing,
-            'timestamp': timestamp,
-            'raw': message_data
-        }
-    )
+    ).filter(
+        models.Q(id=message_id) |
+        models.Q(id=raw_message_id) |
+        models.Q(provider_message_id=raw_message_id)
+    ).first()
+    if existing:
+        if not existing.provider_message_id:
+            existing.provider_message_id = raw_message_id
+            existing.save(update_fields=['provider_message_id'])
+        message, created = existing, False
+    else:
+        message, created = Message.objects.get_or_create(
+            platform=platform,
+            chat_id=chat_id,
+            id=message_id,
+            defaults={
+                'provider_message_id': raw_message_id,
+                'sender': account,
+                'channel': channel,
+                'sender_name': sender_name,
+                'user': user,
+                'text': text,
+                'media_type': m_type,
+                'reply_to_message': reply_to_message,
+                'chat': chat,
+                'is_outgoing': is_outgoing,
+                'timestamp': timestamp,
+                'raw': message_data
+            }
+        )
     if not created:
         print("Duplicate message discarded")
     else:
