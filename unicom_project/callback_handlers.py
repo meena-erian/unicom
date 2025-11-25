@@ -40,6 +40,9 @@ def handle_button_clicks(callback_execution, clicking_account, original_message,
     
     # Handle dict-based callback_data
     if isinstance(button_data, dict):
+        # If a tool-specific handler should manage this, skip the generic handler
+        if button_data.get("tool"):
+            return
         action = button_data.get("action")
         
         if action == "confirm":

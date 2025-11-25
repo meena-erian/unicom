@@ -38,21 +38,21 @@ services:
     restart: always
     depends_on:
       - db
-  unibot-worker-scaled:
-    build: .
-    entrypoint: ["/app/entrypoint.sh"]
-    command: ["python", "manage.py", "run_worker"]
-    env_file:
-      - db.env
-    environment:
-      - DOCKER=true
-    volumes:
-      - .:/app
-    restart: always
-    depends_on:
-      - db
-    deploy:
-      replicas: 5
+  # unibot-worker-scaled:
+  #   build: .
+  #   entrypoint: ["/app/entrypoint.sh"]
+  #   command: ["python", "manage.py", "run_worker"]
+  #   env_file:
+  #     - db.env
+  #   environment:
+  #     - DOCKER=true
+  #   volumes:
+  #     - .:/app
+  #   restart: always
+  #   depends_on:
+  #     - db
+  #   deploy:
+  #     replicas: 5
   imap-listener:
     build: .
     entrypoint: ["/app/entrypoint.sh"]
