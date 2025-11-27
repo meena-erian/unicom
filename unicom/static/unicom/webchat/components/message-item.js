@@ -153,25 +153,27 @@ export class MessageItem extends LitElement {
 
       case 'tool_call':
         // Render as status line with loading or completion state
-        console.log('Tool call message:', message); // Debug log
-        const toolName = message.raw?.tool_call?.name || message.text?.match(/Tool call: (.+)/)?.[1] || 'tool';
+        const progress = message.progress_updates_for_user;
         const status = message._toolStatus || 'pending';
-        
-        if (status === 'pending') {
-          return html`
-            <div class="tool-status pending">
-              <span class="tool-icon">⚙️</span>
-              using ${toolName}<span class="loading-dots">...</span>
-            </div>
-          `;
-        } else {
-          return html`
-            <div class="tool-status completed">
-              <span class="tool-icon">✅</span>
-              ${toolName} completed
-            </div>
-          `;
-        }
+        const resultStatus = (message.result_status || message._toolResponse?.result_status || '').toUpperCase();
+
+        const icon = status === 'pending'
+          ? '⏳'
+          : resultStatus === 'ERROR'
+            ? '❌'
+            : resultStatus === 'WARNING'
+              ? '⚠️'
+              : '✅';
+
+        const shimmerClass = status === 'pending' ? 'shimmer' : '';
+
+        return html`
+          <div class="tool-status ${status} ${shimmerClass}">
+            <span class="tool-icon">${icon}</span>
+            ${progress ? html`<span class="tool-progress">${progress}</span>` : ''}
+            ${status === 'pending' ? html`<span class="loading-dots">...</span>` : ''}
+          </div>
+        `;
 
       case 'tool_response':
         // This should not render separately anymore (handled by tool_call)
