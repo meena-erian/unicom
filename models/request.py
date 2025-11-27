@@ -517,19 +517,26 @@ class Request(models.Model):
         with transaction.atomic():
             for call_data in tool_calls_data:
                 tool_name = call_data['name']
-                arguments = call_data.get('arguments', {})
+                arguments = call_data.get('arguments', {}) or {}
                 call_id = call_data.get('id') or f"call_{uuid.uuid4().hex[:8]}"
+                auto_params = call_data.pop('auto_params', [])
+                logged_args = dict(arguments)
                 
                 # Create tool call message for LLM context
                 tool_call_msg = self.message.log_tool_interaction(
-                    tool_call={"name": tool_name, "arguments": arguments, "id": call_id}
+                    tool_call={"name": tool_name, "arguments": logged_args, "id": call_id}
                 )
                 
-                # Create ToolCall record with atomic linkage
+                # Capture progress update; strip only if auto-injected (not in original schema)
+                progress = arguments.get('progress_updates_for_user')
+                if 'progress_updates_for_user' in auto_params:
+                    arguments.pop('progress_updates_for_user', None)
+
                 tool_call = ToolCall.objects.create(
                     call_id=call_id,
                     tool_name=tool_name,
                     arguments=arguments,
+                    progress_updates_for_user=progress,
                     request=self,
                     tool_call_message=tool_call_msg,  # Link to the tool call message
                     initial_user_message=self.message,  # Link to the original user message
