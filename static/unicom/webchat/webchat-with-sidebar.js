@@ -35,6 +35,7 @@ export class UnicomChatWithSidebar extends LitElement {
     loading: { type: Boolean, state: true },
     loadingChats: { type: Boolean, state: true },
     sending: { type: Boolean, state: true },
+    sendAck: { type: Number, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     connectionStatus: { type: String, state: true },  // 'connected', 'disconnected'
@@ -163,6 +164,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.loading = false;
     this.loadingChats = false;
     this.sending = false;
+    this.sendAck = 0;
     this.error = null;
     this.hasMore = false;
     this.connectionStatus = 'disconnected';
@@ -624,6 +626,9 @@ export class UnicomChatWithSidebar extends LitElement {
           this.processedMessages = this._processMessagesWithBranching(this.messages);
         }
       }
+
+      // Signal input to clear after confirmed send
+      this.sendAck += 1;
     } catch (err) {
       this.error = err.message;
       console.error('Failed to send message:', err);
@@ -734,6 +739,8 @@ export class UnicomChatWithSidebar extends LitElement {
 
             <message-input
               .disabled=${this.sending}
+              .sending=${this.sending}
+              .sendAck=${this.sendAck}
               @send-message=${this._handleSendMessage}>
             </message-input>
           </div>

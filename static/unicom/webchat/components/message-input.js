@@ -11,6 +11,8 @@ export class MessageInput extends LitElement {
   static properties = {
     disabled: { type: Boolean },
     editingMessageId: { type: String, attribute: 'editing-message-id' },
+    sending: { type: Boolean },
+    sendAck: { type: Number },
     inputText: { type: String, state: true },
     previewFile: { type: Object, state: true },
     isRecording: { type: Boolean, state: true },
@@ -21,6 +23,8 @@ export class MessageInput extends LitElement {
   constructor() {
     super();
     this.disabled = false;
+    this.sending = false;
+    this.sendAck = 0;
     this.editingMessageId = null;
     this.inputText = '';
     this.previewFile = null;
@@ -42,7 +46,7 @@ export class MessageInput extends LitElement {
   }
 
   _handleSend() {
-    if (this.disabled) return;
+    if (this.disabled || this.sending) return;
 
     const text = this.inputText.trim();
     if (!text && !this.previewFile) return;
@@ -56,17 +60,6 @@ export class MessageInput extends LitElement {
       bubbles: true,
       composed: true,
     }));
-
-    // Clear input and edit mode
-    this.inputText = '';
-    this.previewFile = null;
-    this.editingMessageId = null;
-
-    // Reset textarea height
-    const textarea = this.shadowRoot.querySelector('textarea');
-    if (textarea) {
-      textarea.style.height = 'auto';
-    }
   }
 
   _handleFileSelect(e) {
@@ -122,7 +115,7 @@ export class MessageInput extends LitElement {
 
   _handleVoiceRecorded(e) {
     this.isRecording = false;
-    if (this.disabled) return;
+    if (this.disabled || this.sending) return;
 
     const file = e.detail?.file;
     if (!file) return;
@@ -133,6 +126,22 @@ export class MessageInput extends LitElement {
 
   _handleVoiceRecorderError() {
     this.isRecording = false;
+  }
+
+  updated(changed) {
+    if (changed.has('sendAck') && changed.get('sendAck') !== this.sendAck) {
+      this._clearInput();
+    }
+  }
+
+  _clearInput() {
+    this.inputText = '';
+    this.previewFile = null;
+    this.editingMessageId = null;
+    const textarea = this.shadowRoot.querySelector('textarea');
+    if (textarea) {
+      textarea.style.height = 'auto';
+    }
   }
 
   _handleCancelEdit() {
@@ -152,6 +161,7 @@ export class MessageInput extends LitElement {
     const hasAttachment = Boolean(this.previewFile);
     const showSend = !this.isRecording && (hasText || hasAttachment);
     const isEditing = Boolean(this.editingMessageId);
+    const isDisabled = this.disabled || this.sending;
 
     return html`
       <div class="message-input-container">
@@ -183,7 +193,7 @@ export class MessageInput extends LitElement {
               @input=${this._handleInput}
               @keydown=${this._handleKeyDown}
               placeholder=${isEditing ? "Edit your message..." : "Type a message..."}
-              ?disabled=${this.disabled}
+              ?disabled=${isDisabled}
               rows="1"></textarea>
           `}
 
@@ -192,8 +202,8 @@ export class MessageInput extends LitElement {
               <button
                 class="send-btn"
                 @click=${this._handleSend}
-                ?disabled=${this.disabled || (!hasText && !hasAttachment)}>
-                ${isEditing ? 'Update' : 'Send'}
+                ?disabled=${isDisabled || (!hasText && !hasAttachment)}>
+                ${this.sending ? 'Sending…' : (isEditing ? 'Update' : 'Send')}
               </button>
             ` : html`
               <voice-recorder
@@ -201,17 +211,20 @@ export class MessageInput extends LitElement {
                 @voice-recording-stopped=${this._handleVoiceRecordingStopped}
                 @voice-recorded=${this._handleVoiceRecorded}
                 @voice-recorder-error=${this._handleVoiceRecorderError}
-                ?disabled=${this.disabled}>
+                ?disabled=${isDisabled}>
               </voice-recorder>
               <button
                 class="icon-btn attach-btn"
                 @click=${this._openFilePicker}
-                ?disabled=${this.disabled}
+                ?disabled=${isDisabled}
                 title="Attach media">
                 📎
               </button>
             `}
           </div>
+          ${this.sending ? html`
+            <div class="sending-indicator">Sending…</div>
+          ` : ''}
         </div>
       </div>
     `;

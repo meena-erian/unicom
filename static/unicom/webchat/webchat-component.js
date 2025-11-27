@@ -21,6 +21,7 @@ export class UnicomChat extends LitElement {
     messages: { type: Array, state: true },
     loading: { type: Boolean, state: true },
     sending: { type: Boolean, state: true },
+    sendAck: { type: Number, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     deleting: { type: Boolean, state: true },
@@ -72,6 +73,7 @@ export class UnicomChat extends LitElement {
     this.messages = [];
     this.loading = false;
     this.sending = false;
+    this.sendAck = 0;
     this.error = null;
     this.hasMore = false;
     this.deleting = false;
@@ -171,6 +173,9 @@ export class UnicomChat extends LitElement {
       if (response.message) {
         this.messages = [...this.messages, response.message];
       }
+
+      // Signal input to clear after confirmed send
+      this.sendAck += 1;
 
       // Trigger a refresh to get bot response
       setTimeout(() => this._refreshMessages(), 500);
@@ -286,6 +291,8 @@ export class UnicomChat extends LitElement {
 
         <message-input
           .disabled=${this.sending}
+          .sending=${this.sending}
+          .sendAck=${this.sendAck}
           @send-message=${this._handleSendMessage}>
         </message-input>
       </div>
