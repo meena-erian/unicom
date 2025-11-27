@@ -323,7 +323,7 @@ export const messageStyles = css`
 
   .tool-status {
     font-size: 0.85em;
-    opacity: 0.7;
+    opacity: 0.9;
     display: flex;
     align-items: center;
     gap: 0.5em;
@@ -335,6 +335,16 @@ export const messageStyles = css`
     font-size: 0.9em;
   }
 
+  .tool-progress {
+    font-weight: 500;
+    font-size: 0.9em;
+  }
+
+  .shimmer {
+    animation: shimmer-text 2.5s ease-in-out infinite;
+    will-change: opacity;
+  }
+
   .loading-dots {
     animation: loading-dots 1.5s infinite;
   }
@@ -344,6 +354,12 @@ export const messageStyles = css`
     40% { content: '.'; }
     60% { content: '..'; }
     80%, 100% { content: '...'; }
+  }
+
+  @keyframes shimmer-text {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
   }
 
   @container (max-width: 768px) {

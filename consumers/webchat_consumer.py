@@ -278,6 +278,8 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             "media_url": message.media.url if message.media else None,
             "reply_to_message_id": message.reply_to_message_id if message.reply_to_message else None,
             "interactive_buttons": message.raw.get('interactive_buttons') if message.raw else None,
+            "progress_updates_for_user": (message.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if message.media_type == 'tool_call' else None,
+            "result_status": (message.raw or {}).get('tool_response', {}).get('result', {}).get('status') if message.media_type == 'tool_response' else None,
         }
 
 
