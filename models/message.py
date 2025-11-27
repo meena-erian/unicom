@@ -99,6 +99,7 @@ class Message(models.Model):
     )
     # Email tracking fields
     tracking_id = models.UUIDField(default=uuid.uuid4, null=True, blank=True, help_text="Unique ID for tracking email opens and clicks")
+    open_count = models.PositiveIntegerField(default=0, help_text="Number of times the email open pixel was fetched")
     time_opened = models.DateTimeField(null=True, blank=True, help_text="When the email was first opened")
     opened = models.BooleanField(default=False, help_text="Whether the email has been opened")
     time_link_clicked = models.DateTimeField(null=True, blank=True, help_text="When a link in the email was first clicked")

@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import models
 from unicom.models import Message, Channel
 import uuid
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -59,10 +60,17 @@ def tracking_pixel(request, tracking_id):
         message = get_object_or_404(Message, tracking_id=valid_id)
         cache.set(cache_key, message, timeout=300)  # Cache for 5 minutes
 
-    if not message.opened:
-        message.opened = True
-        message.time_opened = timezone.now()
-        message.save(update_fields=['opened', 'time_opened'])
+    now = timezone.now()
+    first_open_time = message.time_opened or now
+
+    Message.objects.filter(pk=message.pk).update(
+        opened=True,
+        time_opened=first_open_time,
+        open_count=models.F('open_count') + 1,
+    )
+    # Refresh cached instance so subsequent hits see the incremented counter.
+    message.refresh_from_db(fields=['opened', 'time_opened', 'open_count'])
+    cache.set(cache_key, message, timeout=300)
     
     # Return a 1x1 transparent GIF
     transparent_pixel = b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b'
