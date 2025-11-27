@@ -475,6 +475,7 @@ export const inputStyles = css`
     display: flex;
     align-items: flex-end;
     gap: 12px;
+    position: relative;
   }
 
   .edit-mode-indicator {
@@ -587,6 +588,28 @@ export const inputStyles = css`
   .send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .sending-indicator {
+    position: absolute;
+    right: 0;
+    bottom: -18px;
+    font-size: 0.85em;
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sending-indicator::before {
+    content: '⏳';
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.6; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-1px); }
+    100% { opacity: 0.6; transform: translateY(0); }
   }
 
   .dark textarea,

@@ -67,7 +67,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
     default in-memory Channels backend, keeping unicom's package easy to ship.
     """
 
-    poll_interval_seconds = 5
+    poll_interval_seconds = 1
     warm_cache_limit = 100
 
     def __init__(self, *args, **kwargs):
