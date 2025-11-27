@@ -14,12 +14,23 @@ class ToolCall(models.Model):
         ('INTERRUPTED', 'Interrupted'),
         ('ACTIVE', 'Active'),  # For periodic/ongoing tool calls
     ]
+    RESULT_STATUS_CHOICES = [
+        ('SUCCESS', 'Success'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     call_id = models.CharField(max_length=100, unique=True, db_index=True)
     tool_name = models.CharField(max_length=100, db_index=True)
     arguments = models.JSONField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', db_index=True)
+    result_status = models.CharField(
+        max_length=20,
+        choices=RESULT_STATUS_CHOICES,
+        default='SUCCESS',
+        help_text="Outcome reported by the tool (independent of processing status)"
+    )
     error = models.TextField(
         null=True,
         blank=True,
@@ -83,10 +94,11 @@ class ToolCall(models.Model):
     def mark_error(self, error_message=None):
         """Mark tool call as failed"""
         self.status = 'ERROR'
+        self.result_status = 'ERROR'
         self.completed_at = timezone.now()
         if error_message:
             self.error = error_message
-        self.save(update_fields=['status', 'completed_at', 'error'])
+        self.save(update_fields=['status', 'completed_at', 'error', 'result_status'])
     
     def interrupt(self):
         """Mark tool call as interrupted"""
@@ -94,12 +106,13 @@ class ToolCall(models.Model):
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'completed_at'])
     
-    def respond(self, result):
+    def respond(self, result, status: str = 'SUCCESS'):
         """
         Submit response to this tool call.
         
         Args:
             result: The result from the tool execution (any JSON-serializable object)
+            status: Optional result status to record (SUCCESS/WARNING/ERROR)
         
         Returns:
             Tuple of (tool_response_message, child_request_or_None)
@@ -113,10 +126,29 @@ class ToolCall(models.Model):
         # Validate current status
         if self.status not in ['PENDING', 'IN_PROGRESS', 'ACTIVE']:
             raise ValueError(f"Cannot respond to tool call with status: {self.status}")
+
+        # Normalize and validate result status
+        normalized_status = (status or 'SUCCESS').upper()
+        valid_statuses = {choice[0] for choice in self.RESULT_STATUS_CHOICES}
+        if normalized_status not in valid_statuses:
+            normalized_status = 'SUCCESS'
+
+        def format_payload(res, stat):
+            if isinstance(res, dict):
+                merged = dict(res)
+                merged["status"] = stat
+                return merged
+            return {"status": stat, "result": res}
+
+        payload = format_payload(result, normalized_status)
         
         # Create tool response message for LLM context - reply to the tool call message
         tool_response_msg = self.tool_call_message.log_tool_interaction(
-            tool_response={"call_id": self.call_id, "result": result}
+            tool_response={
+                "call_id": self.call_id,
+                "result": payload,
+                "status": normalized_status
+            }
         )
         
         # Handle response based on current status
@@ -125,7 +157,12 @@ class ToolCall(models.Model):
             if self.status != 'ACTIVE':
                 self.status = 'COMPLETED'
                 self.completed_at = timezone.now()
-                self.save(update_fields=['status', 'completed_at'])
+                self.result_status = normalized_status
+                self.save(update_fields=['status', 'completed_at', 'result_status'])
+            else:
+                # Keep ACTIVE but still record the latest result_status
+                self.result_status = normalized_status
+                self.save(update_fields=['result_status'])
             
             # Check if this is the final response (all PENDING tool calls now COMPLETED)
             pending_calls = self.request.tool_calls.filter(status='PENDING').count()
