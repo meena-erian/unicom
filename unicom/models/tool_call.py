@@ -24,6 +24,11 @@ class ToolCall(models.Model):
     call_id = models.CharField(max_length=100, unique=True, db_index=True)
     tool_name = models.CharField(max_length=100, db_index=True)
     arguments = models.JSONField()
+    progress_updates_for_user = models.TextField(
+        null=True,
+        blank=True,
+        help_text="LLM-provided one-line description of what/why this call is doing"
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', db_index=True)
     result_status = models.CharField(
         max_length=20,
