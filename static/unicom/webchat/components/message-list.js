@@ -3,7 +3,8 @@
  * Scrollable container for messages with pagination
  */
 import { LitElement, html, css } from 'lit';
-import { listStyles } from '../webchat-styles.js';
+import { iconStyles, listStyles } from '../webchat-styles.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 import './message-item.js';
 
 export class MessageList extends LitElement {
@@ -13,7 +14,7 @@ export class MessageList extends LitElement {
     hasMore: { type: Boolean },
   };
 
-  static styles = [listStyles];
+  static styles = [iconStyles, listStyles];
 
   constructor() {
     super();
@@ -21,6 +22,10 @@ export class MessageList extends LitElement {
     this.loading = false;
     this.hasMore = false;
     this._shouldScrollToBottom = true;
+  }
+
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
   }
 
   _processMessages(messages) {
@@ -110,7 +115,9 @@ export class MessageList extends LitElement {
       return html`
         <div class="message-list">
           <div class="empty-state">
-            <div class="empty-state-icon">💬</div>
+            <div class="empty-state-icon" aria-hidden="true">
+              <i class="fa-solid fa-message"></i>
+            </div>
             <div>No messages yet. Start the conversation!</div>
           </div>
         </div>
@@ -120,7 +127,10 @@ export class MessageList extends LitElement {
     return html`
       <div class="message-list" @scroll=${this._handleScroll}>
         ${this.loading ? html`
-          <div class="loading-spinner">Loading messages...</div>
+          <div class="loading-spinner">
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            <span>Loading messages...</span>
+          </div>
         ` : ''}
 
         ${this.hasMore && !this.loading ? html`

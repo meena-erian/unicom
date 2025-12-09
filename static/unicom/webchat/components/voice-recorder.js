@@ -3,6 +3,8 @@
  * Handles in-browser audio recording and emits audio files for sending.
  */
 import { LitElement, html, css } from 'lit';
+import { iconStyles } from '../webchat-styles.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 
 export class VoiceRecorder extends LitElement {
   static properties = {
@@ -11,7 +13,7 @@ export class VoiceRecorder extends LitElement {
     recordingTime: { type: Number, state: true },
   };
 
-  static styles = css`
+  static styles = [iconStyles, css`
     :host {
       display: inline-flex;
       align-items: center;
@@ -60,14 +62,12 @@ export class VoiceRecorder extends LitElement {
       align-items: center;
       gap: 6px;
       font-size: 0.85em;
-      font-weight: 600;
       color: var(--primary-color, #007bff);
     }
 
-    .recording-indicator::before {
-      content: '●';
+    .recording-indicator i {
       color: #ff4d4f;
-      font-size: 1em;
+      font-size: 0.8em;
     }
 
     .control-btn {
@@ -84,7 +84,7 @@ export class VoiceRecorder extends LitElement {
       color: #fff;
       font-weight: 600;
     }
-  `;
+  `];
 
   constructor() {
     super();
@@ -99,11 +99,18 @@ export class VoiceRecorder extends LitElement {
     this._discardRecording = false;
   }
 
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
+  }
+
   render() {
     if (this.recording) {
       return html`
         <div class="recording-controls" role="status" aria-live="polite">
-          <span class="recording-indicator">${this._formatTime(this.recordingTime)}</span>
+          <span class="recording-indicator">
+            <i class="fa-solid fa-circle" aria-hidden="true"></i>
+            <span>${this._formatTime(this.recordingTime)}</span>
+          </span>
           <button
             class="control-btn stop"
             @click=${this._stopRecording}
@@ -126,7 +133,7 @@ export class VoiceRecorder extends LitElement {
         @click=${this._startRecording}
         ?disabled=${this.disabled}
         title="Record voice note">
-        🎤
+        <i class="fa-solid fa-microphone" aria-hidden="true"></i>
       </button>
     `;
   }

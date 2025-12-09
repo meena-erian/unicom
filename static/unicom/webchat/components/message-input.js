@@ -3,7 +3,8 @@
  * Textarea, send button, and media upload
  */
 import { LitElement, html } from 'lit';
-import { inputStyles } from '../webchat-styles.js';
+import { iconStyles, inputStyles } from '../webchat-styles.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 import './media-preview.js';
 import './voice-recorder.js';
 
@@ -18,7 +19,7 @@ export class MessageInput extends LitElement {
     isRecording: { type: Boolean, state: true },
   };
 
-  static styles = [inputStyles];
+  static styles = [iconStyles, inputStyles];
 
   constructor() {
     super();
@@ -29,6 +30,10 @@ export class MessageInput extends LitElement {
     this.inputText = '';
     this.previewFile = null;
     this.isRecording = false;
+  }
+
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
   }
 
   _handleInput(e) {
@@ -167,7 +172,10 @@ export class MessageInput extends LitElement {
       <div class="message-input-container">
         ${isEditing ? html`
           <div class="edit-mode-indicator">
-            <span>✏️ Editing message</span>
+            <span>
+              <i class="fa-solid fa-pen" aria-hidden="true"></i>
+              <span>Editing message</span>
+            </span>
             <button class="cancel-edit-btn" @click=${this._handleCancelEdit}>Cancel</button>
           </div>
         ` : ''}
@@ -218,12 +226,15 @@ export class MessageInput extends LitElement {
                 @click=${this._openFilePicker}
                 ?disabled=${isDisabled}
                 title="Attach media">
-                📎
+                <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
               </button>
             `}
           </div>
           ${this.sending ? html`
-            <div class="sending-indicator">Sending…</div>
+            <div class="sending-indicator">
+              <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Sending…</span>
+            </div>
           ` : ''}
         </div>
       </div>

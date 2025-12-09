@@ -3,6 +3,8 @@
  */
 import { css } from 'lit';
 
+export const iconStyles = css``;
+
 export const baseStyles = css`
   :host {
     /* CSS custom properties for theming */
@@ -333,6 +335,9 @@ export const messageStyles = css`
 
   .tool-icon {
     font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .tool-progress {
@@ -509,6 +514,15 @@ export const inputStyles = css`
     background-color: rgba(255, 193, 7, 0.1);
   }
 
+  .edit-mode-indicator i {
+    margin-right: 6px;
+    color: #856404;
+  }
+
+  .dark .edit-mode-indicator i {
+    color: #fff3cd;
+  }
+
   .dark .cancel-edit-btn {
     color: #fff3cd;
     border-color: #fff3cd;
@@ -571,6 +585,10 @@ export const inputStyles = css`
     font-size: 1.2em;
   }
 
+  .icon-btn i {
+    font-size: 1.1em;
+  }
+
   .send-btn {
     background: var(--primary-color);
     border-color: var(--primary-color);
@@ -591,19 +609,18 @@ export const inputStyles = css`
   }
 
   .sending-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     position: absolute;
     right: 0;
     bottom: -18px;
     font-size: 0.85em;
     color: var(--secondary-color);
-    display: flex;
-    align-items: center;
-    gap: 6px;
   }
 
-  .sending-indicator::before {
-    content: '⏳';
-    animation: pulse 1.4s ease-in-out infinite;
+  .sending-indicator i {
+    color: var(--secondary-color);
   }
 
   @keyframes pulse {
@@ -661,13 +678,14 @@ export const listStyles = css`
     text-align: center;
     padding: 20px;
     color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
 
-  .loading-spinner::after {
-    content: '⏳';
-    animation: spin 1s linear infinite;
-    display: inline-block;
-    font-size: 1.5em;
+  .loading-spinner i {
+    font-size: 1.2em;
   }
 
   @keyframes spin {
@@ -699,12 +717,23 @@ export const listStyles = css`
     text-align: center;
     padding: 40px 20px;
     color: var(--secondary-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
 
   .empty-state-icon {
     font-size: 3em;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
     opacity: 0.5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-state-icon i {
+    line-height: 1;
   }
 `;
 
@@ -739,6 +768,11 @@ export const previewStyles = css`
     justify-content: center;
     font-size: 1.5em;
     background: var(--border-color);
+    color: var(--text-color);
+  }
+
+  .preview-thumbnail.icon i {
+    font-size: 1.2em;
   }
 
   .preview-audio-container {
@@ -777,8 +811,11 @@ export const previewStyles = css`
     border: none;
     color: var(--secondary-color);
     cursor: pointer;
-    font-size: 1.2em;
+    font-size: 1.1em;
     padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .media-preview.audio .preview-remove {

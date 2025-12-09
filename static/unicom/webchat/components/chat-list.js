@@ -4,6 +4,8 @@
  */
 import { LitElement, html, css } from 'lit';
 import { formatRelativeTime } from '../utils/datetime-formatter.js';
+import { iconStyles } from '../webchat-styles.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 
 export class ChatList extends LitElement {
   static properties = {
@@ -12,7 +14,7 @@ export class ChatList extends LitElement {
     loading: { type: Boolean },
   };
 
-  static styles = css`
+  static styles = [iconStyles, css`
     :host {
       display: block;
       height: 100%;
@@ -163,6 +165,10 @@ export class ChatList extends LitElement {
       padding: 20px;
       text-align: center;
       color: var(--secondary-color, #6c757d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
 
     .empty-state {
@@ -175,14 +181,21 @@ export class ChatList extends LitElement {
       font-size: 2em;
       margin-bottom: 12px;
       opacity: 0.5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-  `;
+  `];
 
   constructor() {
     super();
     this.chats = [];
     this.selectedChatId = null;
     this.loading = false;
+  }
+
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
   }
 
   _handleChatClick(chat) {
@@ -235,12 +248,17 @@ export class ChatList extends LitElement {
 
         <div class="chat-list-items">
           ${this.loading ? html`
-            <div class="loading-spinner">Loading chats...</div>
+            <div class="loading-spinner">
+              <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Loading chats...</span>
+            </div>
           ` : ''}
 
           ${!this.loading && this.chats.length === 0 ? html`
             <div class="empty-state">
-              <div class="empty-state-icon">💬</div>
+              <div class="empty-state-icon" aria-hidden="true">
+                <i class="fa-solid fa-message"></i>
+              </div>
               <div>No chats yet.<br>Click "New Chat" to start!</div>
             </div>
           ` : ''}

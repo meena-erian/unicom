@@ -3,19 +3,24 @@
  * Shows preview of selected file before sending
  */
 import { LitElement, html, css } from 'lit';
-import { previewStyles } from '../webchat-styles.js';
+import { iconStyles, previewStyles } from '../webchat-styles.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 
 export class MediaPreview extends LitElement {
   static properties = {
     file: { type: Object },
   };
 
-  static styles = [previewStyles];
+  static styles = [iconStyles, previewStyles];
 
   constructor() {
     super();
     this.file = null;
     this._objectUrl = null;
+  }
+
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
   }
 
   updated(changedProps) {
@@ -61,7 +66,7 @@ export class MediaPreview extends LitElement {
           </div>
         ` : html`
           <div class="preview-thumbnail icon">
-            ${isAudio ? '🎵' : '📎'}
+            <i class="fa-solid ${isAudio ? 'fa-music' : 'fa-paperclip'}" aria-hidden="true"></i>
           </div>
         `}
         <div class="preview-info">
@@ -69,7 +74,7 @@ export class MediaPreview extends LitElement {
           <div class="preview-filesize">${this._formatFileSize(this.file.size)}</div>
         </div>
         <button class="preview-remove" @click=${this._handleRemove} title="Remove file">
-          ✕
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
         </button>
       </div>
     `;

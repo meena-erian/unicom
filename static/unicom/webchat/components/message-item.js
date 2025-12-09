@@ -4,8 +4,9 @@
  */
 import { LitElement, html, css } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { messageStyles } from '../webchat-styles.js';
+import { iconStyles, messageStyles } from '../webchat-styles.js';
 import { formatTimestamp } from '../utils/datetime-formatter.js';
+import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 
 export class MessageItem extends LitElement {
   static properties = {
@@ -13,12 +14,16 @@ export class MessageItem extends LitElement {
     loadingButtons: { type: Set },
   };
 
-  static styles = [messageStyles];
+  static styles = [iconStyles, messageStyles];
 
   constructor() {
     super();
     this.message = null;
     this.loadingButtons = new Set();
+  }
+
+  async firstUpdated() {
+    await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
   }
 
   _sanitizeHTML(html) {
@@ -47,7 +52,9 @@ export class MessageItem extends LitElement {
                   class="interactive-btn ${button.style || 'primary'}"
                   @click=${() => this._handleButtonClick(button)}
                   ?disabled=${button.disabled || isLoading}>
-                  ${isLoading ? '⏳' : button.text}
+                  ${isLoading
+                    ? html`<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>`
+                    : button.text}
                 </button>
               `;
             })}
@@ -158,18 +165,18 @@ export class MessageItem extends LitElement {
         const resultStatus = (message.result_status || message._toolResponse?.result_status || '').toUpperCase();
 
         const icon = status === 'pending'
-          ? '⏳'
+          ? html`<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>`
           : resultStatus === 'ERROR'
-            ? '❌'
+            ? html`<i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>`
             : resultStatus === 'WARNING'
-              ? '⚠️'
-              : '✅';
+              ? html`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>`
+              : html`<i class="fa-solid fa-circle-check" aria-hidden="true"></i>`;
 
         const shimmerClass = status === 'pending' ? 'shimmer' : '';
 
         return html`
           <div class="tool-status ${status} ${shimmerClass}">
-            <span class="tool-icon">${icon}</span>
+            <span class="tool-icon" aria-hidden="true">${icon}</span>
             ${progress ? html`<span class="tool-progress">${progress}</span>` : ''}
             ${status === 'pending' ? html`<span class="loading-dots">...</span>` : ''}
           </div>
@@ -256,7 +263,7 @@ export class MessageItem extends LitElement {
                     class="branch-nav-btn" 
                     ?disabled=${!message.branchInfo.canGoPrev}
                     @click=${() => this._handleBranchNavigation('prev')}>
-                    ‹
+                    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                   </button>
                   <span class="branch-counter">
                     ${message.branchInfo.current} / ${message.branchInfo.total}
@@ -265,12 +272,14 @@ export class MessageItem extends LitElement {
                     class="branch-nav-btn" 
                     ?disabled=${!message.branchInfo.canGoNext}
                     @click=${() => this._handleBranchNavigation('next')}>
-                    ›
+                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
                   </button>
                 </div>
               ` : ''}
               ${isUserMessage ? html`
-                <button class="edit-btn" @click=${this._handleEditMessage} title="Edit message">✏️</button>
+                <button class="edit-btn" @click=${this._handleEditMessage} title="Edit message">
+                  <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                </button>
               ` : ''}
             </div>
           </div>
