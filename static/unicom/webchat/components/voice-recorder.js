@@ -45,6 +45,7 @@ export class VoiceRecorder extends LitElement {
       width: var(--input-height, 44px);
       height: var(--input-height, 44px);
       font-size: 1.3em;
+      color: var(--text-color, currentColor);
     }
 
     .recording-controls {

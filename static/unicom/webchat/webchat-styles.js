@@ -260,6 +260,10 @@ export const messageStyles = css`
     cursor: not-allowed;
   }
 
+  .branch-nav-btn i {
+    color: currentColor;
+  }
+
   .branch-counter {
     font-size: 0.75rem;
     opacity: 0.7;
@@ -276,6 +280,11 @@ export const messageStyles = css`
     font-size: 0.8rem;
     opacity: 0.6;
     transition: opacity 0.2s, background-color 0.2s;
+    color: var(--unicom-text-color, inherit);
+  }
+
+  .edit-btn i {
+    color: currentColor;
   }
 
   .edit-btn:hover {
@@ -338,6 +347,11 @@ export const messageStyles = css`
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: currentColor;
+  }
+
+  .tool-icon i {
+    color: currentColor;
   }
 
   .tool-progress {
@@ -583,10 +597,12 @@ export const inputStyles = css`
     width: var(--input-height);
     padding: 0;
     font-size: 1.2em;
+    color: var(--text-color);
   }
 
   .icon-btn i {
     font-size: 1.1em;
+    color: currentColor;
   }
 
   .send-btn {
@@ -620,7 +636,7 @@ export const inputStyles = css`
   }
 
   .sending-indicator i {
-    color: var(--secondary-color);
+    color: currentColor;
   }
 
   @keyframes pulse {
@@ -686,6 +702,7 @@ export const listStyles = css`
 
   .loading-spinner i {
     font-size: 1.2em;
+    color: currentColor;
   }
 
   @keyframes spin {
@@ -734,6 +751,7 @@ export const listStyles = css`
 
   .empty-state-icon i {
     line-height: 1;
+    color: currentColor;
   }
 `;
 
@@ -773,6 +791,7 @@ export const previewStyles = css`
 
   .preview-thumbnail.icon i {
     font-size: 1.2em;
+    color: currentColor;
   }
 
   .preview-audio-container {
@@ -816,6 +835,10 @@ export const previewStyles = css`
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .preview-remove i {
+    color: currentColor;
   }
 
   .media-preview.audio .preview-remove {
