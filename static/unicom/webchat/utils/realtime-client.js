@@ -13,7 +13,8 @@ export class RealTimeWebChatClient {
   constructor(baseURL = '/unicom/webchat', wsURL = null, options = {}) {
     this.baseURL = baseURL;
     this.wsBaseURL = wsURL || this._getWebSocketBaseURL();
-    this.api = new WebChatAPI(baseURL);
+    this.channelId = options.channelId ?? null;
+    this.api = new WebChatAPI(baseURL, this.channelId);
 
     const normalizedOptions = options || {};
     const explicitlyEnable =
@@ -93,7 +94,8 @@ export class RealTimeWebChatClient {
 
   _buildChatWebSocketURL(chatId) {
     const base = this.wsBaseURL.endsWith('/') ? this.wsBaseURL : `${this.wsBaseURL}/`;
-    return `${base}${encodeURIComponent(chatId)}/`;
+    const query = this.channelId ? `?channel_id=${encodeURIComponent(this.channelId)}` : '';
+    return `${base}${encodeURIComponent(chatId)}/${query}`;
   }
 
   /**
@@ -185,7 +187,7 @@ export class RealTimeWebChatClient {
    * Keeping message submission via HTTP keeps the websocket consumer simple.
    */
   async sendMessage(text, chatId = null, mediaFile = null, options = {}) {
-    return await this.api.sendMessage(text, chatId, mediaFile, options);
+    return await this.api.sendMessage(text, chatId, mediaFile, { ...options, channelId: options.channelId ?? this.channelId });
   }
 
   /**

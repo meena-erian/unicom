@@ -4,8 +4,9 @@
  */
 
 export class WebChatAPI {
-  constructor(baseURL = '/unicom/webchat') {
+  constructor(baseURL = '/unicom/webchat', channelId = null) {
     this.baseURL = baseURL;
+    this.channelId = channelId;
   }
 
   /**
@@ -36,6 +37,8 @@ export class WebChatAPI {
     formData.append('text', text);
     if (chatId) formData.append('chat_id', chatId);
     if (mediaFile) formData.append('media', mediaFile);
+    const effectiveChannelId = options.channelId ?? this.channelId;
+    if (effectiveChannelId) formData.append('channel_id', effectiveChannelId);
     
     // Handle options
     const { metadata, reply_to_message_id } = options;
@@ -74,6 +77,7 @@ export class WebChatAPI {
     if (before) params.append('before', before);
     if (after) params.append('after', after);
     params.append('branch', branch);
+    if (this.channelId) params.append('channel_id', this.channelId);
 
     const response = await fetch(`${this.baseURL}/messages/?${params}`, {
       credentials: 'same-origin',
@@ -97,9 +101,13 @@ export class WebChatAPI {
    */
   async getChats(filters = {}) {
     const params = new URLSearchParams();
+    const effectiveFilters = { ...filters };
+    if (this.channelId && effectiveFilters.channel_id === undefined) {
+      effectiveFilters.channel_id = this.channelId;
+    }
 
     // Add all filter parameters
-    for (const [key, value] of Object.entries(filters)) {
+    for (const [key, value] of Object.entries(effectiveFilters)) {
       params.append(key, value);
     }
 
@@ -121,7 +129,8 @@ export class WebChatAPI {
    * @returns {Promise<Object>} Response data
    */
   async updateChat(chatId, updates) {
-    const response = await fetch(`${this.baseURL}/chat/${chatId}/`, {
+    const channelSuffix = this.channelId ? `?channel_id=${encodeURIComponent(this.channelId)}` : '';
+    const response = await fetch(`${this.baseURL}/chat/${chatId}/${channelSuffix}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -145,8 +154,11 @@ export class WebChatAPI {
    * @returns {Promise<Object>} Response data
    */
   async deleteChat(chatId, hardDelete = false) {
-    const params = hardDelete ? '?hard_delete=true' : '';
-    const response = await fetch(`${this.baseURL}/chat/${chatId}/delete/${params}`, {
+    const params = new URLSearchParams();
+    if (hardDelete) params.append('hard_delete', 'true');
+    if (this.channelId) params.append('channel_id', this.channelId);
+    const suffix = params.toString() ? `?${params}` : '';
+    const response = await fetch(`${this.baseURL}/chat/${chatId}/delete/${suffix}`, {
       method: 'DELETE',
       headers: {
         'X-CSRFToken': await this.getCSRFToken(),

@@ -13,9 +13,14 @@ from unicom.models import CallbackExecution
 from unicom.signals import interactive_button_clicked
 
 
-def _get_webchat_channel():
-    """Get the first active WebChat channel."""
-    channel = Channel.objects.filter(platform='WebChat', active=True).first()
+def _get_webchat_channel(channel_id=None):
+    """
+    Get the requested active WebChat channel (if provided) or the first active one.
+    """
+    qs = Channel.objects.filter(platform='WebChat', active=True)
+    if channel_id:
+        qs = qs.filter(id=channel_id)
+    channel = qs.first()
     if not channel:
         raise ValueError("No active WebChat channel found")
     return channel
@@ -56,8 +61,15 @@ def send_webchat_message_api(request):
     try:
         _ensure_session(request)
 
-        # Get channel
-        channel = _get_webchat_channel()
+        # Get channel (optional override via channel_id)
+        channel_id = None
+        if request.content_type and 'application/json' in (request.content_type or ''):
+            import json
+            data = json.loads(request.body)
+            channel_id = data.get('channel_id')
+        else:
+            channel_id = request.POST.get('channel_id')
+        channel = _get_webchat_channel(channel_id)
 
         # Extract data
         if request.content_type and 'application/json' in request.content_type:
@@ -243,8 +255,9 @@ def get_webchat_messages_api(request):
     try:
         _ensure_session(request)
 
-        # Get channel
-        channel = _get_webchat_channel()
+        # Get channel (optional override via channel_id query param)
+        channel_id = request.GET.get('channel_id')
+        channel = _get_webchat_channel(channel_id)
 
         # Get account
         account = get_or_create_account(channel, request)
@@ -266,9 +279,9 @@ def get_webchat_messages_api(request):
                 'next_cursor': None
             })
 
-        # Verify access to chat
+        # Verify access to chat (scoped to channel)
         try:
-            chat = Chat.objects.get(id=chat_id, platform='WebChat')
+            chat = Chat.objects.get(id=chat_id, platform='WebChat', channel=channel)
             AccountChat.objects.get(account=account, chat=chat)
         except (Chat.DoesNotExist, AccountChat.DoesNotExist):
             return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
@@ -302,7 +315,7 @@ def get_webchat_messages_api(request):
             messages_list = _get_branch_messages(chat, branch_mode, limit)
 
         # Apply custom filters
-        reserved_params = {'chat_id', 'limit', 'before', 'after', 'branch'}
+        reserved_params = {'chat_id', 'limit', 'before', 'after', 'branch', 'channel_id'}
         filter_kwargs = {}
         for key, value in request.GET.items():
             if key in reserved_params:
@@ -391,8 +404,9 @@ def list_webchat_chats_api(request):
     try:
         _ensure_session(request)
 
-        # Get channel
-        channel = _get_webchat_channel()
+        # Get channel (optional override via channel_id query param)
+        channel_id = request.GET.get('channel_id')
+        channel = _get_webchat_channel(channel_id)
 
         # Get account
         account = get_or_create_account(channel, request)
@@ -400,13 +414,9 @@ def list_webchat_chats_api(request):
         # Build query for chats where user is a participant
         chats = Chat.objects.filter(
             platform='WebChat',
-            accountchat__account=account
+            accountchat__account=account,
+            channel=channel
         )
-
-        # Apply filters from query parameters
-        channel_id = request.GET.get('channel_id')
-        if channel_id:
-            chats = chats.filter(channel_id=channel_id)
 
         # Apply standard Chat model field filters and metadata filters
         filter_params = {}
@@ -491,8 +501,9 @@ def update_webchat_chat_api(request, chat_id):
     try:
         _ensure_session(request)
 
-        # Get channel
-        channel = _get_webchat_channel()
+        # Get channel (optional override via channel_id query param)
+        channel_id = request.GET.get('channel_id')
+        channel = _get_webchat_channel(channel_id)
 
         # Get account
         account = get_or_create_account(channel, request)
@@ -503,7 +514,7 @@ def update_webchat_chat_api(request, chat_id):
 
         # Verify access to chat
         try:
-            chat = Chat.objects.get(id=chat_id, platform='WebChat')
+            chat = Chat.objects.get(id=chat_id, platform='WebChat', channel=channel)
             AccountChat.objects.get(account=account, chat=chat)
         except (Chat.DoesNotExist, AccountChat.DoesNotExist):
             return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
@@ -559,15 +570,16 @@ def delete_webchat_chat_api(request, chat_id):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Authentication required'}, status=401)
 
-        # Get channel
-        channel = _get_webchat_channel()
+        # Get channel (optional override via channel_id query param)
+        channel_id = request.GET.get('channel_id')
+        channel = _get_webchat_channel(channel_id)
 
         # Get account
         account = get_or_create_account(channel, request)
 
         # Verify access to chat
         try:
-            chat = Chat.objects.get(id=chat_id, platform='WebChat')
+            chat = Chat.objects.get(id=chat_id, platform='WebChat', channel=channel)
             AccountChat.objects.get(account=account, chat=chat)
         except (Chat.DoesNotExist, AccountChat.DoesNotExist):
             return JsonResponse({'error': 'Chat not found or access denied'}, status=404)
@@ -615,16 +627,17 @@ def handle_webchat_button_click(request):
     try:
         _ensure_session(request)
         
-        # Get channel
-        channel = _get_webchat_channel()
-        
-        # Get account
-        account = get_or_create_account(channel, request)
-        
         # Parse request body
         import json
         data = json.loads(request.body)
         callback_execution_id = data.get('callback_execution_id')
+        channel_id = data.get('channel_id')
+
+        # Get channel
+        channel = _get_webchat_channel(channel_id)
+        
+        # Get account
+        account = get_or_create_account(channel, request)
         
         if not callback_execution_id:
             return JsonResponse({'error': 'callback_execution_id is required'}, status=400)

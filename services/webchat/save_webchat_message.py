@@ -52,7 +52,7 @@ def save_webchat_message(channel, message_data, request, user=None):
     if chat_id:
         # Use existing chat
         try:
-            chat = Chat.objects.get(id=chat_id, platform=platform)
+            chat = Chat.objects.get(id=chat_id, platform=platform, channel=channel)
             # Verify account has access to this chat
             if not AccountChat.objects.filter(account=account, chat=chat).exists():
                 # Account doesn't have access - this shouldn't happen

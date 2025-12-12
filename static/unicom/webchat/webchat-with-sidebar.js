@@ -185,6 +185,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl, {
       disableWebsocket: this.disableWebsocket,
       enableWebsocket: this.enableWebsocketOnly,
+      channelId: this.channelId,
     });
 
     // Set up event handlers

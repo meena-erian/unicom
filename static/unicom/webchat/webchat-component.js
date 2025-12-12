@@ -84,7 +84,7 @@ export class UnicomChat extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.api = new WebChatAPI(this.apiBase);
+    this.api = new WebChatAPI(this.apiBase, this.channelId);
     this.loadMessages();
 
     if (this.autoRefresh > 0) {

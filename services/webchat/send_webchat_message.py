@@ -46,7 +46,7 @@ def send_webchat_message(channel, msg, user=None):
 
     # Get chat
     try:
-        chat = Chat.objects.get(id=chat_id, platform=platform)
+        chat = Chat.objects.get(id=chat_id, platform=platform, channel=channel)
     except Chat.DoesNotExist:
         raise ValueError(f"Chat {chat_id} not found")
 

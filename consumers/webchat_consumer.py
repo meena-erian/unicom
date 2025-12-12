@@ -78,6 +78,8 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         super().__init__(*args, **kwargs)
 
         self.chat_id: Optional[str] = None
+        self.channel_id: Optional[int] = None
+        self.channel = None
         self.account = None
         self._polling_task: Optional[asyncio.Task] = None
         self._recent_ids = deque(maxlen=self.warm_cache_limit)
@@ -87,6 +89,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         """Validate access and start background polling."""
         self.chat_id = self._extract_chat_id()
+        self.channel_id = self._extract_channel_id()
         if not self.chat_id:
             await self.close(code=4400)  # bad request
             return
@@ -159,6 +162,15 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         kwargs = route.get("kwargs") or {}
         return kwargs.get("chat_id")
 
+    def _extract_channel_id(self) -> Optional[str]:
+        query_string = (self.scope.get("query_string") or b"").decode()
+        if not query_string:
+            return None
+        from urllib.parse import parse_qs
+        params = parse_qs(query_string)
+        value = params.get("channel_id", [None])[0]
+        return value
+
     async def _warm_seen_cache(self):
         """
         Record the IDs of the most recent messages so the consumer does not
@@ -199,9 +211,13 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         from unicom.services.webchat.get_or_create_account import get_or_create_account
 
         Channel = apps.get_model("unicom", "Channel")
-        channel = Channel.objects.filter(platform="WebChat", active=True).first()
+        qs = Channel.objects.filter(platform="WebChat", active=True)
+        if self.channel_id:
+            qs = qs.filter(id=self.channel_id)
+        channel = qs.first()
         if not channel:
             raise ValueError("No active WebChat channel found for WebChat platform.")
+        self.channel = channel
 
         class ScopeRequest:
             def __init__(self, scope):
@@ -219,7 +235,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         AccountChat = apps.get_model("unicom", "AccountChat")
 
         try:
-            chat = Chat.objects.get(id=chat_id, platform="WebChat")
+            chat = Chat.objects.get(id=chat_id, platform="WebChat", channel=self.channel)
         except Chat.DoesNotExist:
             return False
 
@@ -235,7 +251,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
 
         Message = apps.get_model("unicom", "Message")
         qs = (
-            Message.objects.filter(chat_id=self.chat_id, platform="WebChat")
+            Message.objects.filter(chat_id=self.chat_id, platform="WebChat", channel=self.channel)
             .order_by("-timestamp")
             .values_list("id", flat=True)[: self.warm_cache_limit]
         )
@@ -253,7 +269,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
 
         Message = apps.get_model("unicom", "Message")
         messages = list(
-            Message.objects.filter(chat_id=self.chat_id, platform="WebChat")
+            Message.objects.filter(chat_id=self.chat_id, platform="WebChat", channel=self.channel)
             .order_by("-timestamp")[: self.warm_cache_limit]
         )
         messages.reverse()
