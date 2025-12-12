@@ -29,6 +29,10 @@ function initializeTemplates() {
             "TRACKING_PARAMETER_ID": "unicom_tid",
             // MARK_SEEN_WHEN controls when emails are marked as seen in IMAP. Options: 'on_save', 'on_request_completed', 'on_request_completed' (default)
             "MARK_SEEN_WHEN": "on_request_completed"
+        },
+        'WebChat': {
+            // WebChat doesn't require any configuration; this placeholder keeps the JSON valid
+            "note": "WebChat does not need configuration"
         }
     };
 
