@@ -445,6 +445,8 @@ class Message(models.Model):
                     break
                 chain.append(cur)
                 cur = cur.reply_to_message
+            # Sort chronologically to preserve call/response order
+            chain = sorted(chain, key=lambda m: m.timestamp)
             
             # Handle user interruption for tool response messages in thread mode
             if self.media_type == "tool_response":
@@ -465,14 +467,40 @@ class Message(models.Model):
                     ).exclude(
                         media_type__in=['tool_call', 'tool_response']
                     ).order_by('-timestamp').first()
+
+                    # Fallback: any user message in that window, even without reply_to
+                    if not user_interrupt:
+                        user_interrupt = self.chat.messages.filter(
+                            is_outgoing=False,
+                            timestamp__gt=latest_tool_call_time,
+                            timestamp__lt=self.timestamp
+                        ).exclude(
+                            media_type__in=['tool_call', 'tool_response']
+                        ).order_by('-timestamp').first()
                     
                     if user_interrupt:
-                        # Found user interrupt - get conversation from that user message
-                        return user_interrupt.as_llm_chat(depth=depth, mode=mode,
-                                                        system_instruction=system_instruction,
-                                                        multimodal=multimodal)
-            
-            for m in reversed(chain):
+                        if user_interrupt not in chain:
+                            chain.append(user_interrupt)
+                        chain = sorted(chain, key=lambda m: m.timestamp)
+            # Ensure tool_call and tool_response are adjacent
+            if self.media_type == "tool_response":
+                try:
+                    call_id = self.raw.get('tool_response', {}).get('call_id')
+                    if call_id:
+                        tc_idx = next((i for i, m in enumerate(chain)
+                                       if m.media_type == "tool_call"
+                                       and m.raw.get('tool_call', {}).get('id') == call_id), None)
+                        tr_idx = next((i for i, m in enumerate(chain)
+                                       if m.media_type == "tool_response"
+                                       and m.raw.get('tool_response', {}).get('call_id') == call_id), None)
+                        if tc_idx is not None and tr_idx is not None and tr_idx != tc_idx + 1:
+                            # Move tool_response directly after tool_call
+                            tr = chain.pop(tr_idx)
+                            chain.insert(tc_idx + 1, tr)
+                except Exception:
+                    pass
+
+            for m in chain:
                 messages.append(msg_to_dict(m))
         else:
             raise ValueError(f"Unknown mode: {mode}")
