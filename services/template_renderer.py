@@ -7,6 +7,7 @@ import re
 from urllib.parse import unquote
 
 from django.utils import timezone
+from django.db import IntegrityError
 from jinja2 import StrictUndefined, TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
@@ -138,3 +139,61 @@ def build_unicom_message_context(
     if extra:
         ctx.update(extra)
     return ctx
+
+
+_VARIABLE_PLACEHOLDER_RE = re.compile(r"\{\{\s*variables\.([^\s\}]+)\s*\}\}")
+
+
+def extract_variable_keys(template_html: str | None) -> set[str]:
+    """
+    Return the set of variable keys referenced as {{ variables.* }} in the template.
+    """
+    if not template_html:
+        return set()
+    unprotected = unprotect_tinymce_markup(template_html)
+    return {m.group(1) for m in _VARIABLE_PLACEHOLDER_RE.finditer(unprotected)}
+
+
+def _load_crm_models():
+    """
+    Dynamically load CRM models if unicrm is installed; otherwise return (None, None).
+    """
+    try:
+        from django.apps import apps
+        Contact = apps.get_model('unicrm', 'Contact')
+        TemplateVariable = apps.get_model('unicrm', 'TemplateVariable')
+        if Contact is None or TemplateVariable is None:
+            return None, None
+        return Contact, TemplateVariable
+    except Exception:
+        return None, None
+
+
+def compute_crm_variables(keys: set[str], contact_email: str | None) -> Dict[str, Any]:
+    """
+    Best-effort evaluation of CRM TemplateVariables for a contact resolved by email.
+    Safe to call when unicrm is not installed (returns {}).
+    """
+    if not keys or not contact_email:
+        return {}
+    Contact, TemplateVariable = _load_crm_models()
+    if Contact is None or TemplateVariable is None:
+        return {}
+    contact = Contact.objects.filter(email__iexact=contact_email).first()
+    if not contact:
+        try:
+            contact, _ = Contact.objects.get_or_create(
+                email=contact_email,
+                defaults={'email': contact_email},
+            )
+        except IntegrityError:
+            contact = Contact.objects.filter(email__iexact=contact_email).first()
+    if not contact:
+        return {}
+    results: Dict[str, Any] = {}
+    for variable in TemplateVariable.objects.filter(is_active=True, key__in=keys):
+        try:
+            results[variable.key] = variable.get_callable()(contact)
+        except Exception as exc:  # pragma: no cover - defensive
+            results[variable.key] = f"<error: {exc}>"
+    return results

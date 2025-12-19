@@ -20,6 +20,8 @@ from unicom.services.html_inline_images import html_shortlinks_to_base64_images,
 from unicom.services.template_renderer import (
     render_template as render_unicom_template,
     build_unicom_message_context,
+    extract_variable_keys,
+    compute_crm_variables,
 )
 
 logger = logging.getLogger(__name__)
@@ -281,9 +283,19 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # Optionally render templates for non-CRM use-cases when explicitly requested.
     render_context = params.get('render_context')
-    render_variables = params.get('render_variables')
+    render_variables = params.get('render_variables') or {}
     render_requested = params.get('render_template') or render_context or render_variables
     if render_requested and html_content:
+        crm_variables: dict[str, object] = {}
+        requested_keys = extract_variable_keys(html_content)
+        if requested_keys:
+            # Use first To address (if any) to resolve contact for CRM variables.
+            primary_email = None
+            to_addrs_for_crm = params.get('to') or to_addrs
+            if to_addrs_for_crm:
+                primary_email = (to_addrs_for_crm[0] or '').strip()
+            crm_variables = compute_crm_variables(requested_keys, primary_email)
+
         base_context = render_context or build_unicom_message_context(
             params=params,
             channel={
@@ -297,10 +309,13 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
                 'email': getattr(user, 'email', None),
             } if user else {},
         )
+        merged_variables = {}
+        merged_variables.update(crm_variables)
+        merged_variables.update(render_variables)
         render_result = render_unicom_template(
             html_content,
             base_context=base_context,
-            variables=render_variables or {},
+            variables=merged_variables,
         )
         if render_result.errors:
             logger.warning("Template rendering errors: %s", "; ".join(render_result.errors))
