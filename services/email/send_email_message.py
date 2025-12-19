@@ -17,6 +17,10 @@ import requests
 from urllib.parse import urljoin
 from django.utils import timezone
 from unicom.services.html_inline_images import html_shortlinks_to_base64_images, html_base64_images_to_shortlinks
+from unicom.services.template_renderer import (
+    render_template as render_unicom_template,
+    build_unicom_message_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +278,33 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     if not html_content and text_content:
         html_content = convert_text_to_html(text_content)
         logger.debug("Converted plain text to HTML")
+
+    # Optionally render templates for non-CRM use-cases when explicitly requested.
+    render_context = params.get('render_context')
+    render_variables = params.get('render_variables')
+    render_requested = params.get('render_template') or render_context or render_variables
+    if render_requested and html_content:
+        base_context = render_context or build_unicom_message_context(
+            params=params,
+            channel={
+                'id': channel.id,
+                'name': channel.name,
+                'platform': channel.platform,
+            },
+            user={
+                'id': getattr(user, 'id', None),
+                'username': getattr(user, 'username', None),
+                'email': getattr(user, 'email', None),
+            } if user else {},
+        )
+        render_result = render_unicom_template(
+            html_content,
+            base_context=base_context,
+            variables=render_variables or {},
+        )
+        if render_result.errors:
+            logger.warning("Template rendering errors: %s", "; ".join(render_result.errors))
+        html_content = render_result.html
 
     # Add tracking
     if html_content:

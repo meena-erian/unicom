@@ -49,6 +49,8 @@ def compose_view(request):
                     'subject': request.POST.get('subject'),
                     'html': request.POST.get('html'),
                     'skip_reacher': skip_reacher,
+                    # Enable template rendering with safe Unicom context.
+                    'render_template': True,
                 }
                 
                 # Validate required fields for email

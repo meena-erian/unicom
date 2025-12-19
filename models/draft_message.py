@@ -180,6 +180,8 @@ class DraftMessage(models.Model):
                 msg_dict['chat_id'] = self.chat_id
             if self.skip_reacher_validation:
                 msg_dict['skip_reacher'] = True
+            # Enable template rendering with the built-in Unicom context.
+            msg_dict['render_template'] = True
         else:
             msg_dict['chat_id'] = self.chat_id
             msg_dict['text'] = self.text
