@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -7,6 +8,7 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import models
 from unicom.models import Message, Channel
+from unicom.services.get_public_origin import get_public_origin
 import uuid
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -34,6 +36,28 @@ def check_rate_limit(key, max_requests=60, window=60):
     cache.get_or_set(key, 0, window)
     cache.incr(key)
     return True
+
+
+def is_unsubscribe_url(original_url: str) -> bool:
+    """
+    Returns True when the URL points to the configured unsubscribe path,
+    whether the link is absolute or relative.
+    """
+    unsub_path = getattr(settings, 'UNICRM_UNSUBSCRIBE_PATH', '/unicrm/unsubscribe/') or '/unicrm/unsubscribe/'
+    # Normalize to ensure leading slash for path comparisons
+    if not unsub_path.startswith('/'):
+        unsub_path = '/' + unsub_path
+    parsed = urlparse(original_url or '')
+    path = parsed.path or ''
+    if path.startswith(unsub_path):
+        return True
+    # Also allow absolute URL comparison against the public origin
+    public_origin = (get_public_origin() or '').rstrip('/')
+    if public_origin and original_url:
+        full_prefix = f"{public_origin}{unsub_path}"
+        if original_url.startswith(full_prefix):
+            return True
+    return False
 
 @csrf_exempt
 @require_GET
@@ -115,6 +139,10 @@ def link_click(request, tracking_id, link_index):
             raise IndexError
     except (IndexError, KeyError):
         return HttpResponse('Invalid link', status=400)
+
+    # Ignore clicks on unsubscribe links; they should not count as engagement.
+    if is_unsubscribe_url(original_url):
+        return HttpResponseRedirect(original_url)
     
     # Update link click tracking
     now = timezone.now()
