@@ -108,6 +108,10 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
             'bcc'                 : getattr(message, 'bcc', []),
             'attachments'         : ([response['file_path']]
                                      if response.get('file_path') else []),
+            # Enable template rendering for replies as well
+            'render_template'     : True,
+            'render_variables'    : response.get('render_variables'),
+            'render_context'      : response.get('render_context'),
         })
     else:
         print(f"Unsupported platform: {platform}")
