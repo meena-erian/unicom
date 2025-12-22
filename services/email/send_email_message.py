@@ -10,7 +10,7 @@ from unicom.services.email.email_tracking import prepare_email_for_tracking, rem
 from unicom.services.get_public_origin import get_public_domain
 from django.apps import apps
 import logging
-from email.utils import make_msgid
+from email.utils import make_msgid, formataddr
 import uuid
 import html
 import requests
@@ -183,6 +183,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     Message = apps.get_model('unicom', 'Message')
     Chat = apps.get_model('unicom', 'Chat')
     from_addr = channel.config['EMAIL_ADDRESS']
+    from_name = (channel.config.get('EMAIL_FROM_NAME') or '').strip()
     smtp_conf = channel.config['SMTP']
     connection = get_connection(
         host=smtp_conf['host'],
@@ -339,7 +340,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     email_msg = EmailMultiAlternatives(
         subject=subject,
         body=text_content,
-        from_email=from_addr,
+        from_email=formataddr((from_name, from_addr)) if from_name else from_addr,
         to=to_addrs,
         cc=cc_addrs,
         bcc=bcc_addrs,

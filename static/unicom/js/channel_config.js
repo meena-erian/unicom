@@ -26,6 +26,7 @@ function initializeTemplates() {
         'Email': {
             "EMAIL_ADDRESS": "your-email@example.com",
             "EMAIL_PASSWORD": "your-email-password",
+            "EMAIL_FROM_NAME": "your-name",
             "TRACKING_PARAMETER_ID": "unicom_tid",
             // MARK_SEEN_WHEN controls when emails are marked as seen in IMAP. Options: 'on_save', 'on_request_completed', 'on_request_completed' (default)
             "MARK_SEEN_WHEN": "on_request_completed"
