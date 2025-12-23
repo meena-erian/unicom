@@ -10,6 +10,7 @@ from unicom.services.email.email_tracking import prepare_email_for_tracking, rem
 from unicom.services.get_public_origin import get_public_domain
 from django.apps import apps
 import logging
+import re
 from email.utils import make_msgid, formataddr
 import uuid
 import html
@@ -44,6 +45,49 @@ def convert_text_to_html(text: str) -> str:
     
     # Wrap in pre tag to preserve formatting
     return f'<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">{escaped_text}</pre>'
+
+
+def _wrap_email_html(content: str) -> str:
+    if not content:
+        return ""
+
+    meta_block = (
+        '<meta name="color-scheme" content="light dark">\n'
+        '  <meta name="supported-color-schemes" content="light dark">\n'
+        '  <style>\n'
+        '    :root { color-scheme: light dark; }\n'
+        '  </style>'
+    )
+
+    if re.search(r'<html\b', content, re.IGNORECASE):
+        if re.search(r'color-scheme', content, re.IGNORECASE):
+            return content
+        if re.search(r'<head\b', content, re.IGNORECASE):
+            return re.sub(
+                r'(<head\b[^>]*>)',
+                r'\1\n  ' + meta_block,
+                content,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        return re.sub(
+            r'(<html\b[^>]*>)',
+            r'\1\n<head>\n  ' + meta_block + '\n</head>',
+            content,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    return (
+        '<html>\n'
+        '<head>\n'
+        f'  {meta_block}\n'
+        '</head>\n'
+        '<body>\n'
+        f'  {content}\n'
+        '</body>\n'
+        '</html>'
+    )
 
 
 def _get_reacher_base_url() -> str | None:
@@ -324,6 +368,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # Add tracking
     if html_content:
+        html_content = _wrap_email_html(html_content)
         html_content = to_inline_png_img(html_content)  # Convert FontAwesome to inline images
         html_content, _ = html_base64_images_to_shortlinks(html_content)  # Convert to public links
 
