@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from django.contrib.auth.models import User
 from unicom.services.telegram.get_file_path import get_file_path
 from unicom.services.telegram.download_file import download_file
@@ -110,7 +110,7 @@ def save_telegram_message(channel, message_data: dict, user:User=None):
     elif text == None:
         text = "[[[[Unknown User Action!]]]]"
     timestamp = datetime.fromtimestamp(message_data.get('date'))
-    timestamp = timezone.make_aware(timestamp, timezone.utc)
+    timestamp = timezone.make_aware(timestamp, dt_timezone.utc)
     chat = Chat.objects.filter(platform='Telegram', id=chat_id)
     if not chat.exists():
         chat = Chat(channel=channel, platform=platform, id=chat_id, is_private=chat_is_private, name=chat_name)
