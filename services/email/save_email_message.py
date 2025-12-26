@@ -431,6 +431,12 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
     hdr_in_reply = msg.get('In-Reply-To')
     hdr_references = (msg.get('References') or '').split()
     hdr_subject = msg.get('Subject', '')
+    subject_ellipsis = '...'
+    max_subject_len = 100
+    if hdr_subject and len(hdr_subject) > max_subject_len:
+        truncated_subject = hdr_subject[: max_subject_len - len(subject_ellipsis)] + subject_ellipsis
+    else:
+        truncated_subject = hdr_subject or ''
     date_hdr = msg.get('Date')
 
     existing_msg = Message.objects.filter(id=hdr_id).first()
@@ -498,7 +504,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
         chat_obj, created = Chat.objects.get_or_create(
             platform=platform,
             id=hdr_id,
-            defaults={'channel': channel, 'is_private': True, 'name': hdr_subject},
+            defaults={'channel': channel, 'is_private': True, 'name': truncated_subject},
         )
         if created:
             logger.debug("Created new chat %s for message %s", chat_obj.id, hdr_id)
