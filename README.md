@@ -2007,17 +2007,18 @@ python manage.py run_as_llm_chat <message_id>
 
 We ❤️ contributors!
 
-### Requirements:
+### Choose your setup:
 
-* Docker & Docker Compose installed
+- **App-only (recommended for most contributors):** clone this repo and plug it into an existing Django project. You supply your own settings and database.
+- **Workspace (maintainers / full dev stack):** use the preconfigured dev project with Docker, tests, and environment wiring at `https://github.com/meena-erian/django-unicom`.
 
-### Getting Started:
+### Workspace setup (maintainers):
 
-1. Clone the repo:
+1. Clone the workspace repo (with submodules):
 
    ```bash
-   git clone https://github.com/meena-erian/django-unicom.git
-   cd unicom
+   git clone --recurse-submodules https://github.com/meena-erian/django-unicom.git
+   cd django-unicom
    ```
 
 2. Create a `db.env` file in the root:
