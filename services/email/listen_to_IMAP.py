@@ -1,4 +1,5 @@
 from unicom.services.email.save_email_message import save_email_message
+from unicom.models import Message
 from imapclient import IMAPClient, SEEN
 from imapclient.exceptions import IMAPClientError
 from django.db import connections
@@ -33,7 +34,14 @@ def listen_to_IMAP(channel):
                 mark_seen_on = channel.config.get('mark_seen_on', 'never')
                 # Immediately fetch any older unseen messages on startup
                 uids = server.search(['UNSEEN'])
+                existing_uids = set()
+                if uids:
+                    existing_uids = set(
+                        Message.objects.filter(channel=channel, imap_uid__in=uids).values_list('imap_uid', flat=True)
+                    )
                 for uid in uids:
+                    if uid in existing_uids:
+                        continue
                     try:
                         resp = server.fetch(uid, ['BODY.PEEK[]'])
                         raw = resp[uid][b'BODY[]']
@@ -75,7 +83,14 @@ def listen_to_IMAP(channel):
                         continue
 
                     uids = server.search(['UNSEEN'])
+                    existing_uids = set()
+                    if uids:
+                        existing_uids = set(
+                            Message.objects.filter(channel=channel, imap_uid__in=uids).values_list('imap_uid', flat=True)
+                        )
                     for uid in uids:
+                        if uid in existing_uids:
+                            continue
                         try:
                             resp = server.fetch(uid, ['BODY.PEEK[]'])
                             raw = resp[uid][b'BODY[]']

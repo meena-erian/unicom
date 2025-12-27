@@ -394,12 +394,18 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
 
     platform = 'Email'
     msg = message_from_bytes(raw_message_bytes, policy=policy.default)
-    bounce_info = _extract_bounce_info(msg)
-
     from_name, from_email = parseaddr(msg.get('From', ''))
     config = channel.config or {}
     bot_email = (config.get('EMAIL_ADDRESS') or '').lower()
     is_outgoing = bool(bot_email) and from_email.lower() == bot_email
+
+    hdr_id = msg.get('Message-ID')
+    if hdr_id:
+        existing_msg = Message.objects.filter(id=hdr_id).first()
+        if existing_msg:
+            return existing_msg
+
+    bounce_info = _extract_bounce_info(msg)
 
     if not is_outgoing:
         if bounce_info:
@@ -427,7 +433,6 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
     if account and account.blocked:
         return None
 
-    hdr_id = msg.get('Message-ID')
     hdr_in_reply = msg.get('In-Reply-To')
     hdr_references = (msg.get('References') or '').split()
     hdr_subject = msg.get('Subject', '')
@@ -438,10 +443,6 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
     else:
         truncated_subject = hdr_subject or ''
     date_hdr = msg.get('Date')
-
-    existing_msg = Message.objects.filter(id=hdr_id).first()
-    if existing_msg:
-        return existing_msg
 
     logger.debug(
         "Processing email - Message-ID: %s, In-Reply-To: %s, References: %s",

@@ -658,6 +658,12 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['channel', 'imap_uid'],
+                name='unicom_message_channel_imap_uid_unique',
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.platform}:{self.chat.name}->{self.sender_name}: {self.text}"
