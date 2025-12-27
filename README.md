@@ -235,6 +235,16 @@ webchat_channel = Channel.objects.create(
 channel.validate()  # Returns True if successful
 ```
 
+#### System Email Channel
+
+Built-in workflows such as signup welcomes, password resets, and device transfer notifications send their messages through an Email channel. Control which channel they use via the `SYSTEM_EMAIL_CHANNEL_ID` environment variable:
+
+| Environment Variable      | Description                                                                          | Default                                          |
+|---------------------------|--------------------------------------------------------------------------------------|--------------------------------------------------|
+| `SYSTEM_EMAIL_CHANNEL_ID` | ID of the Email channel used for system-generated emails sent via `Channel.send_message`. | First active Email channel (smallest ID value). |
+
+When the variable is unset, Unicom automatically picks the earliest active Email channel, so you only need to set it when you want to override the default mailbox.
+
 #### Creating Channels via Admin Interface
 
 1. Go to Django Admin > Unicom > Channels
