@@ -52,6 +52,10 @@ class Message(models.Model):
     chat = models.ForeignKey('unicom.Chat', on_delete=models.CASCADE, related_name='messages')
     is_outgoing = models.BooleanField(null=True, default=None, help_text="True for outgoing messages, False for incoming, None for internal")
     sender_name = models.CharField(max_length=100)
+    email_sender_authenticated = models.BooleanField(
+        default=True,
+        help_text="Email-only: True when sender identity passed SPF/DKIM/DMARC (always True for other platforms).",
+    )
     subject = models.CharField(max_length=512, blank=True, null=True, help_text="Subject of the message (only for email messages)")
     text = models.TextField()
     html = models.TextField(

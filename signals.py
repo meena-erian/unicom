@@ -60,7 +60,7 @@ def create_request_from_message(sender, instance, created, **kwargs):
     update_chat_summary(instance)
     
     # Skip request creation if it's an outgoing message
-    if instance.is_outgoing:
+    if instance.is_outgoing or (instance.platform == 'Email' and not getattr(instance, 'email_sender_authenticated', True)):
         return
     
     # Skip request creation for tool call, tool response, and callback messages

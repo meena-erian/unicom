@@ -363,26 +363,83 @@ def _is_email_authenticated(msg, from_email: str) -> bool:
         return _basic_email_check(msg, from_email)
 
 
+def _normalize_domain(value: str | None) -> str:
+    if not value:
+        return ''
+    candidate = value.strip()
+    if '@' in candidate:
+        candidate = candidate.split('@', 1)[1]
+    return candidate.strip().lower().rstrip('.')
+
+
+def _domains_align(candidate: str | None, reference: str | None) -> bool:
+    if not candidate or not reference:
+        return False
+    candidate = candidate.lower()
+    reference = reference.lower()
+    return candidate == reference or candidate.endswith('.' + reference)
+
+
+def _parse_authentication_results(headers: list[str]) -> dict[str, list[dict]]:
+    results: dict[str, list[dict]] = {'spf': [], 'dkim': [], 'dmarc': []}
+    for header in headers:
+        for segment in header.split(';'):
+            part = segment.strip()
+            if not part:
+                continue
+            if part.lower().startswith('spf='):
+                result = part.split('=', 1)[1].split()[0].lower()
+                domain_match = re.search(r'smtp\.mail=([^;\s]+)', part, flags=re.IGNORECASE)
+                domain = _normalize_domain(domain_match.group(1) if domain_match else '')
+                results['spf'].append({'result': result, 'domain': domain})
+            elif part.lower().startswith('dkim='):
+                result = part.split('=', 1)[1].split()[0].lower()
+                dmatch = re.search(r'header\.i=([^;\s]+)', part, flags=re.IGNORECASE)
+                domain = _normalize_domain(dmatch.group(1) if dmatch else '')
+                results['dkim'].append({'result': result, 'domain': domain})
+            elif part.lower().startswith('dmarc='):
+                result = part.split('=', 1)[1].split()[0].lower()
+                dmatch = re.search(r'header\.from=([^;\s]+)', part, flags=re.IGNORECASE)
+                domain = _normalize_domain(dmatch.group(1) if dmatch else '')
+                results['dmarc'].append({'result': result, 'domain': domain})
+    return results
+
+
 def _basic_email_check(msg, from_email: str) -> bool:
     """Fallback authentication check if authheaders library fails"""
-    # Check existing Authentication-Results headers if present
-    auth_results = msg.get_all('Authentication-Results', [])
-    for auth_header in auth_results:
-        auth_lower = auth_header.lower()
-        # Check for any authentication failures including soft-fail
-        failure_indicators = ['spf=fail', 'spf=soft-fail', 'spf=softfail', 'dkim=fail', 'dmarc=fail']
-        if any(fail in auth_lower for fail in failure_indicators):
-            logger.warning(f"Server reported auth failure for {from_email}: {auth_header}")
-            return False
-
-    # If no auth headers, be strict and reject for security
-    if not auth_results:
+    auth_headers = msg.get_all('Authentication-Results', [])
+    if not auth_headers:
         logger.warning(f"No authentication information available for {from_email} - rejecting for security")
         return False
 
-    # Only accept if auth headers exist and don't show failures
-    logger.info(f"Basic auth check passed for {from_email}")
-    return True
+    parsed_results = _parse_authentication_results(auth_headers)
+    from_domain = _normalize_domain(parseaddr(msg.get('From', ''))[1])
+
+    # DMARC takes precedence when present
+    for entry in parsed_results.get('dmarc', []):
+        domain = entry.get('domain')
+        result = entry.get('result')
+        if result == 'pass' and _domains_align(domain, from_domain):
+            logger.info(f"DMARC passed for {from_email} ({domain})")
+            return True
+        if result in {'fail', 'reject'} and _domains_align(domain, from_domain):
+            logger.warning(f"DMARC failed for {from_email}: {auth_headers}")
+            return False
+
+    # SPF alignment
+    for entry in parsed_results.get('spf', []):
+        if entry.get('result') == 'pass' and _domains_align(entry.get('domain'), from_domain):
+            logger.info(f"SPF aligned pass for {from_email} via {entry.get('domain')}")
+            return True
+
+    # DKIM alignment
+    for entry in parsed_results.get('dkim', []):
+        if entry.get('result') == 'pass' and _domains_align(entry.get('domain'), from_domain):
+            logger.info(f"DKIM aligned pass for {from_email} via {entry.get('domain')}")
+            return True
+
+    logger.warning(f"No aligned SPF/DKIM/DMARC pass for {from_email}: {auth_headers}")
+    return False
 
 
 def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid: int = None):
@@ -405,6 +462,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
         if existing_msg:
             return existing_msg
 
+    email_verified = True
     bounce_info = _extract_bounce_info(msg)
 
     if not is_outgoing:
@@ -426,8 +484,8 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
                 )
         else:
             if not _is_email_authenticated(msg, from_email):
-                logger.warning(f"Rejecting unauthenticated email from {from_email}")
-                return None
+                logger.warning(f"Unauthenticated email from {from_email}")
+                email_verified = False
 
     account = Account.objects.filter(platform=platform, id=from_email).first()
     if account and account.blocked:
@@ -581,6 +639,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
             'media_type': 'html',
             'channel': channel,
             'imap_uid': uid,
+            'email_sender_authenticated': email_verified,
         },
     )
 
