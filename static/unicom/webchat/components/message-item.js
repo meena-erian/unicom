@@ -119,6 +119,22 @@ export class MessageItem extends LitElement {
     return '';
   }
 
+  _handleHtmlInteractions(event) {
+    const toggleButton = event.target && event.target.closest
+      ? event.target.closest('.diff-review-toggle')
+      : null;
+    if (toggleButton) {
+      event.preventDefault();
+      const body = toggleButton.closest('.diff-review-file-body');
+      if (!body || body.getAttribute('data-has-full') === 'false') return;
+      const currentMode = body.getAttribute('data-view-mode') === 'full' ? 'full' : 'minimal';
+      const nextMode = currentMode === 'minimal' ? 'full' : 'minimal';
+      body.setAttribute('data-view-mode', nextMode);
+      toggleButton.textContent = nextMode === 'minimal' ? 'Show All Lines' : 'Show Changes Only';
+      return;
+    }
+  }
+
   _openImageModal(url) {
     // Open image in new tab for now
     // Could be enhanced with a lightbox modal in future
@@ -132,7 +148,7 @@ export class MessageItem extends LitElement {
 
       case 'html':
         // Render HTML content (sanitized)
-        return html`<div class="message-html">${unsafeHTML(message.html || message.text)}</div>`;
+        return html`<div class="message-html" @click=${this._handleHtmlInteractions}>${unsafeHTML(message.html || message.text)}</div>`;
 
       case 'image':
         return html`

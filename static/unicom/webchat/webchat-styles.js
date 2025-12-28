@@ -208,6 +208,389 @@ export const messageStyles = css`
     max-width: 100%;
   }
 
+  .message-html .diff-review-message {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .message-html .diff-review-message h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .message-html .diff-review-summary {
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .message-html .diff-review-preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .message-html .diff-review-preview {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .dark .message-html .diff-review-preview {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .message-html .diff-review-preview summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.35);
+    font-weight: 600;
+    position: relative;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .message-html .diff-review-preview summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .message-html .diff-review-preview summary::after {
+    content: '▾';
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    transition: transform 0.2s ease;
+  }
+
+  .message-html .diff-review-preview[open] summary::after {
+    transform: rotate(-180deg);
+  }
+
+  .message-html .diff-review-preview[open] summary {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .dark .message-html .diff-review-preview[open] summary {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-added {
+    border-color: rgba(46, 133, 64, 0.55);
+    background: rgba(46, 133, 64, 0.15);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-added summary {
+    background: rgba(46, 133, 64, 0.35);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-deleted {
+    border-color: rgba(198, 40, 40, 0.55);
+    background: rgba(198, 40, 40, 0.15);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-deleted summary {
+    background: rgba(198, 40, 40, 0.35);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-modified {
+    border-color: rgba(245, 124, 0, 0.6);
+    background: rgba(245, 124, 0, 0.18);
+  }
+
+  .message-html .diff-review-preview.diff-review-preview-modified summary {
+    background: rgba(245, 124, 0, 0.4);
+  }
+
+  .message-html .diff-review-file-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .message-html .diff-review-badge {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .message-html .diff-review-badge-added {
+    background: #2e8540;
+  }
+
+  .message-html .diff-review-badge-deleted {
+    background: #c62828;
+  }
+
+  .message-html .diff-review-badge-modified {
+    background: #f57c00;
+  }
+
+  .message-html .diff-review-file-name {
+    font-family: Consolas, 'SFMono-Regular', Menlo, Monaco, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .message-html .diff-review-file-action {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .message-html .diff-review-file-action.error {
+    color: #ff8a80;
+  }
+
+  .message-html .diff-review-file-body {
+    padding: 0;
+    margin: 0;
+  }
+
+  .message-html .diff-review-file-body[data-has-full="false"] .diff-review-file-toolbar {
+    display: none;
+  }
+
+  .message-html .diff-review-file-body[data-view-mode="minimal"] .diff-view-full {
+    display: none;
+  }
+
+  .message-html .diff-review-file-body[data-view-mode="full"] .diff-view-minimal {
+    display: none;
+  }
+
+  .message-html .diff-review-file-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 6px 0 4px;
+    gap: 8px;
+  }
+
+  .message-html .diff-review-toggle {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.9);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .message-html .diff-review-toggle:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .message-html .diff-review-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
+  }
+
+  .message-html .diff-review-error {
+    margin: 0;
+    padding: 12px;
+    color: #ff8a80;
+    font-size: 0.9rem;
+  }
+
+  .message-html .diff-review-note {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .message-html .unified-diff-container {
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    background: #0f111a;
+    color: #f8f8f2;
+    font-family: Consolas, 'JetBrains Mono', Menlo, Monaco, monospace;
+  }
+
+  .dark .message-html .unified-diff-container {
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .message-html .unified-diff-container .diff-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .message-html .unified-diff-container .diff-stats-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .message-html .unified-diff-container .diff-stats .additions {
+    color: #81c784;
+    font-weight: 600;
+  }
+
+  .message-html .unified-diff-container .diff-stats .deletions {
+    color: #ef9a9a;
+    font-weight: 600;
+  }
+
+  .message-html .unified-diff-container .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .message-html .unified-diff-container .diff-line {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .message-html .unified-diff-container .diff-line:last-child {
+    border-bottom: none;
+  }
+
+  .message-html .unified-diff-container .diff-line.diff-add {
+    background: rgba(46, 133, 64, 0.35);
+  }
+
+  .message-html .unified-diff-container .diff-line.diff-delete {
+    background: rgba(198, 40, 40, 0.35);
+  }
+
+  .message-html .unified-diff-container .line-num {
+    width: 52px;
+    min-width: 52px;
+    padding: 0.3rem;
+    background: rgba(255, 255, 255, 0.05);
+    text-align: right;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.75);
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .message-html .unified-diff-container .line-num.old-line-num {
+    border-right: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  .message-html .unified-diff-container .line-num.new-line-num {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .message-html .unified-diff-container .line-content {
+    padding: 0.3rem 0.6rem;
+    white-space: pre;
+  }
+
+  .message-html .unified-diff-container .diff-add .line-content {
+    color: #c8e6c9;
+  }
+
+  .message-html .unified-diff-container .diff-delete .line-content {
+    color: #ffcdd2;
+  }
+
+  .message-html .unified-diff-container .diff-content {
+    overflow-x: auto;
+  }
+
+  .message-html .diff-review-file-body .diff-toggle-btn {
+    display: none !important;
+  }
+
+  .message-html .unified-diff-container .hll { background-color: #49483e }
+  .message-html .unified-diff-container .c { color: #959077 }
+  .message-html .unified-diff-container .err { color: #ed007e; background-color: #1e0010 }
+  .message-html .unified-diff-container .k { color: #66d9ef }
+  .message-html .unified-diff-container .l { color: #ae81ff }
+  .message-html .unified-diff-container .n { color: #f8f8f2 }
+  .message-html .unified-diff-container .o { color: #ff4689 }
+  .message-html .unified-diff-container .p { color: #f8f8f2 }
+  .message-html .unified-diff-container .ch { color: #959077 }
+  .message-html .unified-diff-container .cm { color: #959077 }
+  .message-html .unified-diff-container .cp { color: #959077 }
+  .message-html .unified-diff-container .cpf { color: #959077 }
+  .message-html .unified-diff-container .c1 { color: #959077 }
+  .message-html .unified-diff-container .cs { color: #959077 }
+  .message-html .unified-diff-container .gd { color: #ff4689 }
+  .message-html .unified-diff-container .ge { font-style: italic }
+  .message-html .unified-diff-container .ges { font-weight: bold; font-style: italic }
+  .message-html .unified-diff-container .gi { color: #a6e22e }
+  .message-html .unified-diff-container .go { color: #66d9ef }
+  .message-html .unified-diff-container .gp { color: #ff4689; font-weight: bold }
+  .message-html .unified-diff-container .gs { font-weight: bold }
+  .message-html .unified-diff-container .gu { color: #959077 }
+  .message-html .unified-diff-container .gt { color: #f8f8f2 }
+  .message-html .unified-diff-container .kc { color: #66d9ef }
+  .message-html .unified-diff-container .kd { color: #66d9ef }
+  .message-html .unified-diff-container .kn { color: #ff4689 }
+  .message-html .unified-diff-container .kp { color: #66d9ef }
+  .message-html .unified-diff-container .kr { color: #66d9ef }
+  .message-html .unified-diff-container .kt { color: #66d9ef }
+  .message-html .unified-diff-container .ld { color: #e6db74 }
+  .message-html .unified-diff-container .m { color: #ae81ff }
+  .message-html .unified-diff-container .s { color: #e6db74 }
+  .message-html .unified-diff-container .na { color: #a6e22e }
+  .message-html .unified-diff-container .nb { color: #f8f8f2 }
+  .message-html .unified-diff-container .nc { color: #a6e22e }
+  .message-html .unified-diff-container .no { color: #66d9ef }
+  .message-html .unified-diff-container .nd { color: #a6e22e }
+  .message-html .unified-diff-container .ni { color: #f8f8f2 }
+  .message-html .unified-diff-container .ne { color: #a6e22e }
+  .message-html .unified-diff-container .nf { color: #a6e22e }
+  .message-html .unified-diff-container .nl { color: #f8f8f2 }
+  .message-html .unified-diff-container .nn { color: #f8f8f2 }
+  .message-html .unified-diff-container .nx { color: #a6e22e }
+  .message-html .unified-diff-container .py { color: #f8f8f2 }
+  .message-html .unified-diff-container .nt { color: #ff4689 }
+  .message-html .unified-diff-container .nv { color: #f8f8f2 }
+  .message-html .unified-diff-container .ow { color: #ff4689 }
+  .message-html .unified-diff-container .w { color: #f8f8f2 }
+  .message-html .unified-diff-container .mb { color: #ae81ff }
+  .message-html .unified-diff-container .mf { color: #ae81ff }
+  .message-html .unified-diff-container .mh { color: #ae81ff }
+  .message-html .unified-diff-container .mi { color: #ae81ff }
+  .message-html .unified-diff-container .mo { color: #ae81ff }
+  .message-html .unified-diff-container .sa { color: #e6db74 }
+  .message-html .unified-diff-container .sb { color: #e6db74 }
+  .message-html .unified-diff-container .sc { color: #e6db74 }
+  .message-html .unified-diff-container .dl { color: #e6db74 }
+  .message-html .unified-diff-container .sd { color: #e6db74 }
+  .message-html .unified-diff-container .s2 { color: #e6db74 }
+  .message-html .unified-diff-container .se { color: #ae81ff }
+  .message-html .unified-diff-container .sh { color: #e6db74 }
+  .message-html .unified-diff-container .si { color: #e6db74 }
+  .message-html .unified-diff-container .sx { color: #e6db74 }
+  .message-html .unified-diff-container .sr { color: #e6db74 }
+  .message-html .unified-diff-container .s1 { color: #e6db74 }
+  .message-html .unified-diff-container .ss { color: #e6db74 }
+  .message-html .unified-diff-container .bp { color: #f8f8f2 }
+  .message-html .unified-diff-container .fm { color: #a6e22e }
+  .message-html .unified-diff-container .vc { color: #f8f8f2 }
+  .message-html .unified-diff-container .vg { color: #f8f8f2 }
+  .message-html .unified-diff-container .vi { color: #f8f8f2 }
+  .message-html .unified-diff-container .vm { color: #f8f8f2 }
+  .message-html .unified-diff-container .il { color: #ae81ff }
+
   .message-timestamp {
     font-size: 0.7rem;
     opacity: 0.7;
