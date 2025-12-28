@@ -28,6 +28,8 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
       - If 'base64_audio' is present and type is 'audio', decodes and saves the audio to media folder, sets 'file_path'.
     """
 
+    tool_call_id = response.pop('_tool_call_id', None)
+
     # If it's an image in base64, decode it:
     if response.get("type") == "image" and "base64_image" in response:
         from unicom.services.decode_base64_image import decode_base64_media
@@ -91,6 +93,8 @@ def reply_to_message(channel:Channel , message: Message, response: dict) -> Mess
         }, source_function_call=source_function_call)
     elif platform == 'WebChat':
         payload = {**response, 'chat_id': message.chat_id}
+        if tool_call_id:
+            payload['_tool_call_id'] = tool_call_id
         media_type = payload.pop('type', None)
         if media_type and 'media_type' not in payload:
             payload['media_type'] = media_type

@@ -1,9 +1,14 @@
 """
 Send outgoing WebChat messages (from bots/system to users).
 """
+import logging
+
 from django.apps import apps
-from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.core.files import File
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 def send_webchat_message(channel, msg, user=None):
@@ -30,8 +35,12 @@ def send_webchat_message(channel, msg, user=None):
     Chat = apps.get_model('unicom', 'Chat')
     Account = apps.get_model('unicom', 'Account')
     AccountChat = apps.get_model('unicom', 'AccountChat')
+    ToolCall = apps.get_model('unicom', 'ToolCall')
 
     platform = 'WebChat'
+
+    # Extract optional metadata
+    tool_call_id = msg.pop('_tool_call_id', None)
 
     # Get required fields
     chat_id = msg.get('chat_id')
@@ -106,6 +115,24 @@ def send_webchat_message(channel, msg, user=None):
 
     message.save()
 
+    # Resolve tool call reference if provided
+    tool_call_obj = None
+    if tool_call_id:
+        try:
+            tool_call_obj = ToolCall.objects.filter(id=tool_call_id).first()
+        except (ValueError, ValidationError):
+            tool_call_obj = None
+
+        if not tool_call_obj:
+            # Some callers pass the OpenAI-style call_id (e.g., "call_abc123").
+            tool_call_obj = ToolCall.objects.filter(call_id=tool_call_id).first()
+            if tool_call_obj:
+                logger.debug(
+                    "Resolved tool_call via call_id fallback (call_id=%s, pk=%s)",
+                    tool_call_id,
+                    tool_call_obj.id
+                )
+
     # Handle interactive buttons
     buttons = msg.get('buttons')
     if buttons:
@@ -126,6 +153,7 @@ def send_webchat_message(channel, msg, user=None):
                             original_message=message,
                             callback_data=button['callback_data'],
                             intended_account=intended_account,
+                            tool_call=tool_call_obj,
                             expires_at=button.get('expires_at')
                         )
                         button = button.copy()
