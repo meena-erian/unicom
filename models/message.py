@@ -461,11 +461,13 @@ class Message(models.Model):
                     latest_tool_call_time = max(tool_call_timestamps)
                     chain_message_ids = [m.id for m in chain]
                     
-                    # Look for user messages after the latest tool call, before this tool response,
+                    # Look for user messages after (tool call time - grace period), before this tool response,
                     # that reply to any message in our chain
+                    from django.utils import timezone
+                    grace_start = latest_tool_call_time - timezone.timedelta(minutes=5)
                     user_interrupt = self.chat.messages.filter(
                         is_outgoing=False,
-                        timestamp__gt=latest_tool_call_time,
+                        timestamp__gt=grace_start,
                         timestamp__lt=self.timestamp,
                         reply_to_message_id__in=chain_message_ids
                     ).exclude(
@@ -476,7 +478,7 @@ class Message(models.Model):
                     if not user_interrupt:
                         user_interrupt = self.chat.messages.filter(
                             is_outgoing=False,
-                            timestamp__gt=latest_tool_call_time,
+                            timestamp__gt=grace_start,
                             timestamp__lt=self.timestamp
                         ).exclude(
                             media_type__in=['tool_call', 'tool_response']
