@@ -148,7 +148,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.apiBase = '/unicom/webchat';
     this.wsUrl = null;
     this.channelId = null;
-    this.maxMessages = 50;
+    this.maxMessages = 100;
     this.theme = 'light';
     this.autoRefresh = 5;
     this.filters = {};
@@ -326,11 +326,16 @@ export class UnicomChatWithSidebar extends LitElement {
     
     // Start from root messages
     const rootMessages = messages.filter(m => !m.reply_to_message_id);
+    console.log(`[DEBUG] Found ${rootMessages.length} root messages`);
     
     // Build path forward, tracking visible messages
     rootMessages.forEach(root => {
+      console.log(`[DEBUG] Building path from root: ${root.id.slice(-8)}`);
       this._buildPathForwardWithTracking(root, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
     });
+    if (messages.length && pathIds.size === 0) console.error('[DBG][process] EMPTY_PATH', { roots: rootMessages.length, branchGroups: branchGroups.size, sample: messages.slice(0,5).map(m => ({ id:m.id, reply:m.reply_to_message_id, out:m.is_outgoing, ts:m.timestamp })) });
+    console.log(`[DEBUG] PathIds final size: ${pathIds.size}`);
+    console.log(`[DEBUG] Messages in path:`, Array.from(pathIds).map(id => id.slice(-8)));
 
     // Build result with branch info
     const result = [];
@@ -364,6 +369,11 @@ export class UnicomChatWithSidebar extends LitElement {
    * Build path forward with tracking of visible message IDs
    */
   _buildPathForwardWithTracking(message, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds) {
+    if (pathIds.has(message.id)) {
+      console.log(`[DEBUG] Cycle detected at ${message.id.slice(-8)}, stopping`);
+      return; // Prevent infinite loops
+    }
+    
     pathIds.add(message.id);
     visibleMessageIds.add(message.id);
     if (message.reply_to_message_id) {
@@ -391,6 +401,7 @@ export class UnicomChatWithSidebar extends LitElement {
           ? this.branchSelections[message.id] 
           : userChildren.length - 1;
         selectedChild = userChildren[selectedIndex];
+        if (!selectedChild) console.error('[DBG][path] INVALID_SELECTION', { parent: message.id, rawSel: this.branchSelections[message.id], selectedIndex, userChildrenLen: userChildren.length, children: children.map(c => ({ id:c.id, out:c.is_outgoing, ts:c.timestamp })) });
       }
       this._buildPathForwardWithTracking(selectedChild, msgById, branchGroups, pathIds, visibleMessageIds, visibleReplyToIds);
     }
@@ -501,6 +512,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
   async loadMessages() {
     if (!this.currentChatId) {
+      console.log('[DBG][loadMessages] start', { chatId: this.currentChatId, maxMessages: this.maxMessages });
       this.messages = [];
       return;
     }
@@ -513,6 +525,7 @@ export class UnicomChatWithSidebar extends LitElement {
       this.client.subscribeToChat(this.currentChatId);
 
       const messages = await this.client.getMessages(this.currentChatId, this.maxMessages);
+      console.log('[DBG][getMessages] slice', (() => { const ids=new Set(messages.map(m=>m.id)); return { count: messages.length, roots: messages.filter(m=>!m.reply_to_message_id).length, orphans: messages.filter(m=>m.reply_to_message_id && !ids.has(m.reply_to_message_id)).length, badTs: messages.filter(m=>!m.timestamp || isNaN(Date.parse(m.timestamp))).length }; })());
       this.messages = messages || [];
       this.processedMessages = this._processMessagesWithBranching(this.messages);
       this.client.updateBaselineFromMessages(this.messages);
