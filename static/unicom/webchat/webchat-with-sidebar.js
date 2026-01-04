@@ -176,10 +176,13 @@ export class UnicomChatWithSidebar extends LitElement {
     this._showSidebar = true;
     this._deletingChatId = null;
     this._branchNavigationTimeout = null; // Add debounce timeout
+    this._initialUrlChatId = null;
+    this._lastSyncedChatId = null;
   }
 
   connectedCallback() {
     super.connectedCallback();
+    this._initialUrlChatId = this._readChatIdFromUrl();
 
     // Initialize real-time client
     this.client = new RealTimeWebChatClient(this.apiBase, this.wsUrl, {
@@ -261,7 +264,13 @@ export class UnicomChatWithSidebar extends LitElement {
 
       // If no chat selected, select the first one
       if (!this.currentChatId && this.chats.length > 0) {
-        this.currentChatId = this.chats[0].id;
+        const desiredId = this._initialUrlChatId;
+        this._initialUrlChatId = null;
+        const matchesDesired = desiredId && this.chats.some(chat => chat.id === desiredId);
+        const selectedId = matchesDesired ? desiredId : this.chats[0].id;
+        this._setCurrentChatId(selectedId);
+        this._showSidebar = false;
+        this.requestUpdate();
         await this.loadMessages();
       }
     } catch (err) {
@@ -550,7 +559,7 @@ export class UnicomChatWithSidebar extends LitElement {
       this.client.unsubscribeFromChat(this.currentChatId);
     }
 
-    this.currentChatId = chatId;
+    this._setCurrentChatId(chatId);
     this._showSidebar = false; // Hide sidebar on mobile
     await this.loadMessages();
   }
@@ -564,7 +573,7 @@ export class UnicomChatWithSidebar extends LitElement {
       this.client.unsubscribeFromChat(this.currentChatId);
     }
 
-    this.currentChatId = null;
+    this._setCurrentChatId(null);
     this.messages = [];
     this.processedMessages = [];
     this.branchSelections = {};
@@ -622,7 +631,7 @@ export class UnicomChatWithSidebar extends LitElement {
       // Update or set current chat ID
       if (response.chat_id) {
         const isNewChat = !this.currentChatId;
-        this.currentChatId = response.chat_id;
+        this._setCurrentChatId(response.chat_id);
 
         // If it's a new chat, reload chat list and subscribe to it
         if (isNewChat) {
@@ -838,7 +847,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
       if (this.currentChatId === chatId) {
         this.client.unsubscribeFromChat(chatId);
-        this.currentChatId = null;
+        this._setCurrentChatId(null);
         this.messages = [];
         this._showSidebar = true;
       }
@@ -850,6 +859,48 @@ export class UnicomChatWithSidebar extends LitElement {
     } finally {
       this._deletingChatId = null;
     }
+  }
+
+  _setCurrentChatId(chatId) {
+    const normalizedId = chatId || null;
+    this.currentChatId = normalizedId;
+    this._syncChatParamToUrl(normalizedId);
+  }
+
+  _readChatIdFromUrl() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const value = params.get('chat_id');
+      return value ? value : null;
+    } catch (err) {
+      console.warn('Unable to read chat_id from URL', err);
+      return null;
+    }
+  }
+
+  _syncChatParamToUrl(chatId) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (chatId === this._lastSyncedChatId) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (chatId) {
+      params.set('chat_id', chatId);
+    } else {
+      params.delete('chat_id');
+    }
+
+    const base = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState(null, '', base);
+    this._lastSyncedChatId = chatId || null;
   }
 }
 
