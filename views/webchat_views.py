@@ -236,7 +236,7 @@ def get_webchat_messages_api(request):
 
     Query parameters:
         - chat_id: Chat ID (optional - defaults to user's default chat)
-        - limit: Max messages to return (default: 50, max: 100)
+        - limit: Max messages to return (default: 200, max: 200)
         - before: Message ID cursor for pagination (get messages before this)
         - after: Message ID cursor for pagination (get messages after this)
         - branch: Branch mode - 'latest' (default), 'all', or message_id for specific branch
@@ -264,7 +264,7 @@ def get_webchat_messages_api(request):
 
         # Get parameters
         chat_id = request.GET.get('chat_id')
-        limit = min(int(request.GET.get('limit', 50)), 100)
+        limit = min(int(request.GET.get('limit', 200)), 200)
         before = request.GET.get('before')
         after = request.GET.get('after')
         branch_mode = request.GET.get('branch', 'latest')  # 'latest', 'all', or message_id
