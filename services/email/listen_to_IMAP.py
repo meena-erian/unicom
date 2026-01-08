@@ -1,3 +1,4 @@
+from unicom.services.email.auth_helpers import get_email_service_credentials
 from unicom.services.email.save_email_message import save_email_message
 from unicom.models import Message
 from imapclient import IMAPClient, SEEN
@@ -17,7 +18,7 @@ def listen_to_IMAP(channel):
     This runs indefinitely, with automatic reconnects on failure.
     """
     email_address = channel.config['EMAIL_ADDRESS']
-    password      = channel.config['EMAIL_PASSWORD']
+    imap_username, imap_password = get_email_service_credentials(channel.config, 'IMAP')
     imap_conf     = channel.config['IMAP']
     host          = imap_conf['host']
     port          = imap_conf['port']
@@ -28,7 +29,7 @@ def listen_to_IMAP(channel):
     while True:
         try:
             with IMAPClient(host, port=port, ssl=use_ssl) as server:
-                server.login(email_address, password)
+                server.login(imap_username, imap_password)
                 server.select_folder('INBOX')
                 # caps = server.capabilities()
                 mark_seen_on = channel.config.get('mark_seen_on', 'never')

@@ -198,6 +198,10 @@ email_channel_custom = Channel.objects.create(
     config={
         "EMAIL_ADDRESS": "marketing@example.com",
         "EMAIL_PASSWORD": "password",
+        "IMAP_USERNAME": "imap-user@example.com",    # 📧 Optional override for IMAP credentials
+        "IMAP_PASSWORD": "imap-password",
+        "SMTP_USERNAME": "smtp-user@example.com",    # 📧 Optional override for SMTP credentials
+        "SMTP_PASSWORD": "smtp-password",
         "IMAP": {
             "host": "imap.example.com",
             "port": 993,
@@ -234,6 +238,10 @@ webchat_channel = Channel.objects.create(
 # Note: WebChat doesn't require validation, automatically active
 channel.validate()  # Returns True if successful
 ```
+
+You can also supply `IMAP_USERNAME`, `IMAP_PASSWORD`, `SMTP_USERNAME`, and `SMTP_PASSWORD`
+in the configuration to override the default credentials used for each protocol. When those
+keys are absent, Unicom reuses `EMAIL_ADDRESS`/`EMAIL_PASSWORD`.
 
 #### System Email Channel
 
@@ -2061,7 +2069,7 @@ We ❤️ contributors!
    ```bash
    pytest
    ```
-   Note: To run ```test_telegram_live``` tests you need to create ```telegram_credentials.py``` in the tests folder and define in it ```TELEGRAM_API_TOKEN``` and ```TELEGRAM_SECRET_TOKEN``` and to run ```test_email_live``` you need to create ```email_credentials.py``` in the tests folder and define in it ```EMAIL_CONFIG``` dict with the properties ```EMAIL_ADDRESS```: str, ```EMAIL_PASSWORD```: str, and ```IMAP```: dict, and ```SMTP```: dict, each of ```IMAP``` and ```SMTP``` contains ```host```:str ,```port```:int, ```use_ssl```:bool, ```protocol```: (```IMAP``` | ```SMTP```)  
+   Note: To run ```test_telegram_live``` tests you need to create ```telegram_credentials.py``` in the tests folder and define in it ```TELEGRAM_API_TOKEN``` and ```TELEGRAM_SECRET_TOKEN```. To run ```test_email_live``` you also need to create ```email_credentials.py``` with an ```EMAIL_CONFIG``` dict that includes ```EMAIL_ADDRESS```, ```EMAIL_PASSWORD```, ```IMAP```, and ```SMTP``` (each ```IMAP```/```SMTP``` contains ```host```, ```port```, ```use_ssl```, and ```protocol```). Add ```IMAP_USERNAME```, ```IMAP_PASSWORD```, ```SMTP_USERNAME```, and ```SMTP_PASSWORD``` there if the protocol logins differ from the base address/password.
 
 No need to modify `settings.py` — everything is pre-wired to read from `db.env`.
 

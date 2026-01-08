@@ -5,6 +5,7 @@ from django.core.mail import get_connection
 from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
 from fa2svg.converter import to_inline_png_img, revert_to_original_fa
+from unicom.services.email.auth_helpers import get_email_service_credentials
 from unicom.services.email.save_email_message import save_email_message
 from unicom.services.email.email_tracking import prepare_email_for_tracking, remove_tracking
 from unicom.services.get_public_origin import get_public_domain
@@ -229,11 +230,12 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     from_addr = channel.config['EMAIL_ADDRESS']
     from_name = (channel.config.get('EMAIL_FROM_NAME') or '').strip()
     smtp_conf = channel.config['SMTP']
+    smtp_username, smtp_password = get_email_service_credentials(channel.config, 'SMTP')
     connection = get_connection(
         host=smtp_conf['host'],
         port=smtp_conf['port'],
-        username=from_addr,
-        password=channel.config['EMAIL_PASSWORD'],
+        username=smtp_username,
+        password=smtp_password,
         use_ssl=smtp_conf['use_ssl'],
     )
 
@@ -498,6 +500,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # 4) save a copy in the IMAP "Sent" folder
     imap_conf = channel.config['IMAP']
+    imap_username, imap_password = get_email_service_credentials(channel.config, 'IMAP')
     import imaplib, time
     try:
         if imap_conf['use_ssl']:
@@ -505,7 +508,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         else:
             imap_conn = imaplib.IMAP4(imap_conf['host'], imap_conf['port'])
         
-        imap_conn.login(from_addr, channel.config['EMAIL_PASSWORD'])
+        imap_conn.login(imap_username, imap_password)
         timestamp = imaplib.Time2Internaldate(time.time())
         
         imap_conn.append('Sent', '\\Seen', timestamp, mime_bytes)

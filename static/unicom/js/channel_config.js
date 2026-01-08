@@ -29,7 +29,12 @@ function initializeTemplates() {
             "EMAIL_FROM_NAME": "your-name",
             "TRACKING_PARAMETER_ID": "unicom_tid",
             // MARK_SEEN_WHEN controls when emails are marked as seen in IMAP. Options: 'on_save', 'on_request_completed', 'on_request_completed' (default)
-            "MARK_SEEN_WHEN": "on_request_completed"
+            "MARK_SEEN_WHEN": "on_request_completed",
+            // Optional overrides per protocol; defaults to EMAIL_ADDRESS/EMAIL_PASSWORD
+            "IMAP_USERNAME": "your-email@example.com",
+            "IMAP_PASSWORD": "your-imap-password",
+            "SMTP_USERNAME": "your-email@example.com",
+            "SMTP_PASSWORD": "your-smtp-password"
         },
         'WebChat': {
             // WebChat doesn't require any configuration; this placeholder keeps the JSON valid

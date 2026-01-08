@@ -11,6 +11,7 @@ from django.utils import timezone
 import logging
 from imapclient import IMAPClient, SEEN
 import imaplib
+from unicom.services.email.auth_helpers import get_email_service_credentials
 
 
 # Callback signals for button click handling
@@ -128,9 +129,8 @@ def mark_email_seen_on_request_completed(sender, instance, **kwargs):
     host = imap_conf.get('host')
     port = imap_conf.get('port')
     use_ssl = imap_conf.get('use_ssl')
-    email_address = channel.config.get('EMAIL_ADDRESS')
-    password = channel.config.get('EMAIL_PASSWORD')
-    if not all([host, port, email_address, password]):
+    imap_username, imap_password = get_email_service_credentials(channel.config, 'IMAP')
+    if not all([host, port, imap_username, imap_password]):
         return
     # The Message ID is the IMAP UID
     uid = getattr(msg, 'imap_uid', None)
@@ -140,7 +140,7 @@ def mark_email_seen_on_request_completed(sender, instance, **kwargs):
         return
     try:
         with IMAPClient(host, port=port, ssl=use_ssl) as server:
-            server.login(email_address, password)
+            server.login(imap_username, imap_password)
             server.select_folder('INBOX')
             # Mark as seen
             server.add_flags(uid, [SEEN])

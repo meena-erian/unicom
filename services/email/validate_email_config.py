@@ -4,6 +4,8 @@ import dns.resolver
 from django.core.exceptions import ValidationError
 import requests, xml.etree.ElementTree as ET
 
+from .auth_helpers import get_email_service_credentials
+
 
 def get_srv_candidates(service: str, domain: str):
     try:
@@ -77,7 +79,13 @@ def get_config_using_mozilla(domain: str) -> dict:
         pass
 
 
-def detect_email_servers(email_address: str, password: str) -> dict:
+def detect_email_servers(
+    email_address: str,
+    imap_username: str,
+    imap_password: str,
+    smtp_username: str,
+    smtp_password: str,
+) -> dict:
     """
     Attempt to autodetect IMAP and SMTP server settings based on email domain.
     Returns a dict: {'IMAP': {...}, 'SMTP': {...}}
@@ -88,7 +96,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
     config = get_config_using_mozilla(domain)
     if config:
         print(f"Found Mozilla ISPDB config for {domain}: {config} now validating")
-        if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
+        if validate_imap(config['IMAP'], imap_username, imap_password) and validate_smtp(config['SMTP'], smtp_username, smtp_password):
             print(f"Validated ISPDB config for {domain}")
             return config
         else:
@@ -119,7 +127,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
         config = get_config_using_mozilla(mx)  # try ISPDB for MX host
         if config:
             print(f"Found Mozilla ISPDB config for MX {mx}: {config} now validating")
-            if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
+            if validate_imap(config['IMAP'], imap_username, imap_password) and validate_smtp(config['SMTP'], smtp_username, smtp_password):
                 print(f"Validated ISPDB config for MX {mx}")
                 return config
             else:
@@ -144,7 +152,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
         config = get_config_using_mozilla(base)  # try ISPDB for base domain
         if config:
             print(f"Found Mozilla ISPDB config for base {base}: {config} now validating")
-            if validate_imap(config['IMAP'], email_address, password) and validate_smtp(config['SMTP'], email_address, password):
+            if validate_imap(config['IMAP'], imap_username, imap_password) and validate_smtp(config['SMTP'], smtp_username, smtp_password):
                 print(f"Validated ISPDB config for base {base}")
                 return config
             else:
@@ -171,7 +179,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
     for cand in [c for c in candidates if c['protocol'] == 'IMAP']:
         try:
             print(f"Testing IMAP server: {cand['host']}:{cand['port']} (SSL: {cand['use_ssl']})")
-            if validate_imap(cand):
+            if validate_imap(cand, imap_username, imap_password):
                 config['IMAP'] = cand
                 print(f"IMAP server {cand['host']}:{cand['port']} is reachable")
                 break
@@ -188,7 +196,7 @@ def detect_email_servers(email_address: str, password: str) -> dict:
     for cand in [c for c in candidates if c['protocol'] == 'SMTP']:
         print(f"Testing SMTP server: {cand['host']}:{cand['port']} (SSL: {cand['use_ssl']})")
         try:
-            if validate_smtp(cand):
+            if validate_smtp(cand, smtp_username, smtp_password):
                 config['SMTP'] = cand
                 print(f"SMTP server {cand['host']}:{cand['port']} is reachable")
                 break
@@ -226,16 +234,17 @@ def validate_email_config(config: dict) -> dict:
 
     imap_conf = config.get('IMAP')
     smtp_conf = config.get('SMTP')
+    imap_username, imap_password = get_email_service_credentials(config, 'IMAP')
+    smtp_username, smtp_password = get_email_service_credentials(config, 'SMTP')
 
     # If explicit settings provided, test them
     if imap_conf and smtp_conf:
-        # verify IMAP
         try:
             if imap_conf.get("use_ssl", True):
                 conn = imaplib.IMAP4_SSL(imap_conf['host'], imap_conf['port'])
             else:
                 conn = imaplib.IMAP4(imap_conf['host'], imap_conf['port'])
-            conn.login(address, password)
+            conn.login(imap_username, imap_password)
             conn.logout()
 
             if smtp_conf.get("use_ssl", True):
@@ -243,7 +252,7 @@ def validate_email_config(config: dict) -> dict:
             else:
                 smtp = smtplib.SMTP(smtp_conf['host'], smtp_conf['port'])
                 smtp.starttls()
-            smtp.login(address, password)
+            smtp.login(smtp_username, smtp_password)
             smtp.quit()
         except Exception as e:
             raise ValidationError(f'Provided server settings invalid: {e}')
@@ -251,7 +260,11 @@ def validate_email_config(config: dict) -> dict:
 
     # Otherwise autodetect
     print(f"Autodetecting email servers for {address}")
-    detected = detect_email_servers(address, password)
+    detected = detect_email_servers(
+        address,
+        imap_username,
+        imap_password,
+        smtp_username,
+        smtp_password,
+    )
     return {**config, **detected}
-
-
