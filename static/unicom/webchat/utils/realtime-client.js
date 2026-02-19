@@ -310,6 +310,12 @@ export class RealTimeWebChatClient {
         }
         break;
 
+      case 'message_updated':
+        if (this.onMessage && data.message) {
+          this.onMessage(data.message, data.chat_id);
+        }
+        break;
+
       case 'chat_update':
         if (this.onChatUpdate) {
           this.onChatUpdate(data.chat);

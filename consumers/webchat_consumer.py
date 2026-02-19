@@ -30,6 +30,7 @@ from typing import Iterable, Optional, Tuple
 try:
     from channels.generic.websocket import AsyncJsonWebsocketConsumer
     from channels.db import database_sync_to_async
+    from channels.layers import get_channel_layer
 
     CHANNELS_AVAILABLE = True
 except ImportError:  # pragma: no cover - channels is optional
@@ -85,6 +86,11 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         self._recent_ids = deque(maxlen=self.warm_cache_limit)
         self._recent_id_set: set[str] = set()
 
+    def _group_name(self) -> Optional[str]:
+        if not self.chat_id:
+            return None
+        return f"webchat_chat_{self.chat_id}"
+
     # ------------------------------------------------------------------ WS API
     async def connect(self):
         """Validate access and start background polling."""
@@ -106,6 +112,9 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         await self.accept()
+        group_name = self._group_name()
+        if group_name and self.channel_layer:
+            await self.channel_layer.group_add(group_name, self.channel_name)
         await self._warm_seen_cache()
         await self.send_json({"type": "ready", "chat_id": self.chat_id})
 
@@ -114,12 +123,32 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, code):
         """Stop background polling gracefully."""
+        group_name = self._group_name()
+        if group_name and self.channel_layer:
+            try:
+                await self.channel_layer.group_discard(group_name, self.channel_name)
+            except Exception:
+                pass
         if self._polling_task and not self._polling_task.done():
             self._polling_task.cancel()
             try:
                 await self._polling_task
             except asyncio.CancelledError:
                 pass
+
+    async def webchat_message_updated(self, event):
+        """Receive a message update via channel layer and forward to client."""
+        message_payload = event.get("message")
+        chat_id = event.get("chat_id") or self.chat_id
+        if not message_payload:
+            return
+        await self.send_json(
+            {
+                "type": "message_updated",
+                "chat_id": chat_id,
+                "message": message_payload,
+            }
+        )
 
     async def receive_json(self, content, **kwargs):
         """
@@ -305,11 +334,33 @@ def is_channels_available() -> bool:
 
 
 async def broadcast_message_to_chat(chat_id: str, message) -> None:
-    """
-    Legacy helper retained for backwards compatibility.
+    """Broadcast a message update to WebSocket clients subscribed to this chat."""
+    if not CHANNELS_AVAILABLE:
+        return
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
 
-    The simplified consumer no longer relies on channel layers, so this helper
-    simply exists to avoid import errors in projects that may still reference
-    it. Messages are delivered by the consumer's periodic polling loop instead.
-    """
-    return None
+    payload = {
+        "id": message.id,
+        "text": message.text,
+        "html": message.html,
+        "is_outgoing": message.is_outgoing,
+        "sender_name": message.sender_name,
+        "timestamp": message.timestamp.isoformat(),
+        "media_type": message.media_type,
+        "media_url": message.media.url if message.media else None,
+        # Never dereference related objects in async context; use *_id fields only.
+        "reply_to_message_id": message.reply_to_message_id,
+        "interactive_buttons": message.raw.get("interactive_buttons") if message.raw else None,
+        "progress_updates_for_user": (message.raw or {}).get("tool_call", {}).get("arguments", {}).get("progress_updates_for_user") if message.media_type == "tool_call" else None,
+        "result_status": (message.raw or {}).get("tool_response", {}).get("result", {}).get("status") if message.media_type == "tool_response" else None,
+    }
+    await channel_layer.group_send(
+        f"webchat_chat_{chat_id}",
+        {
+            "type": "webchat.message_updated",
+            "chat_id": chat_id,
+            "message": payload,
+        },
+    )

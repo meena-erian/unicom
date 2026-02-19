@@ -516,7 +516,7 @@ export class UnicomChatWithSidebar extends LitElement {
   _handleRefreshMessages(e) {
     e.stopPropagation();
     console.log('Refreshing messages after button click');
-    this._loadMessages();
+    this.loadMessages();
   }
 
   async loadMessages() {
