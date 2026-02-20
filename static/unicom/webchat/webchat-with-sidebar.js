@@ -193,6 +193,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
     // Set up event handlers
     this.client.onMessage = (message, chatId) => this._handleNewMessage(message, chatId);
+    this.client.onMessageUpdated = (message, chatId) => this._handleMessageUpdated(message, chatId);
     this.client.onChatsUpdate = (chats) => this._handleChatsUpdate(chats);
     this.client.onConnectionChange = (connected, type) => {
       this.connectionStatus = connected ? 'connected' : 'disconnected';
@@ -510,15 +511,6 @@ export class UnicomChatWithSidebar extends LitElement {
     }
   }
 
-  /**
-   * Handle refresh messages request (e.g., after button click)
-   */
-  _handleRefreshMessages(e) {
-    e.stopPropagation();
-    console.log('Refreshing messages after button click');
-    this.loadMessages();
-  }
-
   async loadMessages() {
     if (!this.currentChatId) {
       console.log('[DBG][loadMessages] start', { chatId: this.currentChatId, maxMessages: this.maxMessages });
@@ -709,6 +701,21 @@ export class UnicomChatWithSidebar extends LitElement {
     this.loadChats();
   }
 
+  _handleMessageUpdated(message, chatId) {
+    if (chatId !== this.currentChatId) {
+      return;
+    }
+    const existingIndex = this.messages.findIndex(m => m.id === message.id);
+    if (existingIndex >= 0) {
+      this.messages[existingIndex] = message;
+      this.messages = [...this.messages];
+    } else {
+      this.messages = [...this.messages, message];
+    }
+    this.processedMessages = this._processMessagesWithBranching(this.messages);
+    this.requestUpdate();
+  }
+
   /**
    * Handle chats update from real-time updates
    */
@@ -756,8 +763,7 @@ export class UnicomChatWithSidebar extends LitElement {
               .hasMore=${this.hasMore}
               @load-more=${this._handleLoadMore}
               @edit-message=${this._handleEditMessage}
-              @branch-navigation=${this._handleBranchNavigation}
-              @refresh-messages=${this._handleRefreshMessages}>
+              @branch-navigation=${this._handleBranchNavigation}>
             </message-list>
 
             <message-input

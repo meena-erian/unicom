@@ -53,6 +53,7 @@ export class RealTimeWebChatClient {
 
     // Event handlers
     this.onMessage = null;
+    this.onMessageUpdated = null;
     this.onChatUpdate = null;
     this.onChatsUpdate = null;
     this.onConnectionChange = null;
@@ -311,7 +312,9 @@ export class RealTimeWebChatClient {
         break;
 
       case 'message_updated':
-        if (this.onMessage && data.message) {
+        if (this.onMessageUpdated && data.message) {
+          this.onMessageUpdated(data.message, data.chat_id);
+        } else if (this.onMessage && data.message) {
           this.onMessage(data.message, data.chat_id);
         }
         break;

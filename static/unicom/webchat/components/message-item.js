@@ -3,10 +3,10 @@
  * Renders individual message with media support
  */
 import { LitElement, html, css } from 'lit';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { iconStyles, messageStyles } from '../webchat-styles.js';
 import { formatTimestamp } from '../utils/datetime-formatter.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
+import { morphdom } from '../utils/morphdom.js';
 
 export class MessageItem extends LitElement {
   static properties = {
@@ -20,10 +20,27 @@ export class MessageItem extends LitElement {
     super();
     this.message = null;
     this.loadingButtons = new Set();
+    this._elapsedTimer = null;
+    this._lastRenderedHtml = null;
   }
 
   async firstUpdated() {
     await fontAwesomeLoader.applyToShadowRoot(this.shadowRoot);
+    this._morphMessageHtml();
+    this._syncElapsedTimerState();
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    if (changedProperties.has('message')) {
+      this._morphMessageHtml();
+      this._syncElapsedTimerState();
+    }
+  }
+
+  disconnectedCallback() {
+    this._stopElapsedTimer();
+    super.disconnectedCallback();
   }
 
   _sanitizeHTML(html) {
@@ -36,6 +53,70 @@ export class MessageItem extends LitElement {
 
   _formatTimestamp(timestamp) {
     return formatTimestamp(timestamp);
+  }
+
+  _getMessageHtmlPayload() {
+    if (!this.message) return '';
+    if (this.message.media_type !== 'html') return '';
+    const rawHtml = this.message.html || '';
+    if (rawHtml) return rawHtml;
+    return this._sanitizeHTML(this.message.text || '');
+  }
+
+  _morphMessageHtml() {
+    const container = this.shadowRoot?.querySelector('.message-html');
+    if (!container) return;
+
+    const nextHtml = this._getMessageHtmlPayload();
+    if (nextHtml === this._lastRenderedHtml) return;
+
+    const temp = document.createElement('div');
+    temp.innerHTML = nextHtml;
+    morphdom(container, temp, { childrenOnly: true });
+    this._lastRenderedHtml = nextHtml;
+  }
+
+  _syncElapsedTimerState() {
+    const html = this._getMessageHtmlPayload();
+    const hasRunningElapsed = html.includes('data-terminal-elapsed=');
+    if (hasRunningElapsed) {
+      this._startElapsedTimer();
+      this._updateElapsedTimerDisplay();
+      return;
+    }
+    this._stopElapsedTimer();
+  }
+
+  _startElapsedTimer() {
+    if (this._elapsedTimer) return;
+    this._elapsedTimer = setInterval(() => {
+      this._updateElapsedTimerDisplay();
+    }, 250);
+  }
+
+  _stopElapsedTimer() {
+    if (!this._elapsedTimer) return;
+    clearInterval(this._elapsedTimer);
+    this._elapsedTimer = null;
+  }
+
+  _updateElapsedTimerDisplay() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const nodes = root.querySelectorAll('[data-terminal-elapsed]');
+    if (!nodes.length) return;
+
+    const now = Date.now();
+    nodes.forEach((node) => {
+      const baseSeconds = Number(node.getAttribute('data-elapsed-seconds') || 0);
+      const serverNowMs = Number(node.getAttribute('data-server-now-ms') || now);
+      const extraSeconds = Math.max(0, Math.floor((now - serverNowMs) / 1000));
+      const elapsedSeconds = Math.max(0, baseSeconds + extraSeconds);
+      const nextText = `Elapsed: ${elapsedSeconds}s`;
+      if (node.textContent !== nextText) {
+        node.textContent = nextText;
+      }
+    });
   }
 
   _renderInteractiveButtons(buttons) {
@@ -89,13 +170,7 @@ export class MessageItem extends LitElement {
           callback_execution_id: button.callback_execution_id
         })
       }).then(response => {
-        if (response.ok) {
-          // Refresh messages to show any updates
-          this.dispatchEvent(new CustomEvent('refresh-messages', {
-            bubbles: true,
-            composed: true
-          }));
-        } else {
+        if (!response.ok) {
           console.error('Button click failed:', response.statusText);
         }
       }).catch(error => {
@@ -147,8 +222,7 @@ export class MessageItem extends LitElement {
         return html`<div class="message-text">${message.text}</div>`;
 
       case 'html':
-        // Render HTML content (sanitized)
-        return html`<div class="message-html" @click=${this._handleHtmlInteractions}>${unsafeHTML(message.html || message.text)}</div>`;
+        return html`<div class="message-html" @click=${this._handleHtmlInteractions}></div>`;
 
       case 'image':
         return html`
