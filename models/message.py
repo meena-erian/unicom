@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from unicom.models.constants import channels
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import validate_email
-from fa2svg.converter import revert_to_original_fa
 import uuid
 import re
 import os

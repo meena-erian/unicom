@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.mail import get_connection
 from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
-from fa2svg.converter import to_inline_png_img, revert_to_original_fa
 from unicom.services.email.auth_helpers import get_email_service_credentials
 from unicom.services.email.save_email_message import save_email_message
 from unicom.services.email.email_tracking import prepare_email_for_tracking, remove_tracking
@@ -370,6 +369,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # Add tracking
     if html_content:
+        from fa2svg.converter import to_inline_png_img
         html_content = _wrap_email_html(html_content)
         html_content = to_inline_png_img(html_content)  # Convert FontAwesome to inline images
         html_content, _ = html_base64_images_to_shortlinks(html_content)  # Convert to public links
@@ -452,6 +452,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
         raw_payload['reacher_validation'] = reacher_results
         saved_msg.raw = raw_payload
         if html_content:
+            from fa2svg.converter import revert_to_original_fa
             html_for_db = remove_tracking(revert_to_original_fa(html_content), original_urls)
             saved_msg.html = html_for_db
 
@@ -526,6 +527,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
     saved_msg.raw['original_urls'] = original_urls  # Store original URLs in raw field
     # Use the HTML with shortlinks and without tracking for DB
     if html_content:
+        from fa2svg.converter import revert_to_original_fa
         html_for_db = remove_tracking(revert_to_original_fa(html_content), original_urls)
         saved_msg.html = html_for_db
     saved_msg.sent = True  # Mark as sent since we successfully sent it
