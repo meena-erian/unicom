@@ -13,6 +13,7 @@ import base64
 from .fields import DedupFileField, only_delete_file_if_unused
 from unicom.services.get_public_origin import get_public_origin
 from openai import OpenAI
+from openai import OpenAIError
 from django.conf import settings
 from pydub import AudioSegment
 import io
@@ -20,7 +21,13 @@ import io
 if TYPE_CHECKING:
     from unicom.models import Channel
 
-openai_client = OpenAI(api_key=getattr(settings, 'OPENAI_API_KEY', None))
+def get_openai_client():
+    api_key = getattr(settings, 'OPENAI_API_KEY', None)
+    if not api_key:
+        raise OpenAIError(
+            "OPENAI_API_KEY is required only for LLM features such as Message.reply_using_llm()."
+        )
+    return OpenAI(api_key=api_key)
 
 
 class Message(models.Model):
@@ -598,7 +605,7 @@ class Message(models.Model):
             openai_kwargs["modalities"] = ["text", "audio"]
             openai_kwargs["audio"] = {"voice": voice, "format": "opus"}
         # Call OpenAI ChatCompletion API
-        response = openai_client.chat.completions.create(
+        response = get_openai_client().chat.completions.create(
             model=model,
             messages=messages,
             **openai_kwargs
