@@ -54,6 +54,7 @@ export class RealTimeWebChatClient {
     // Event handlers
     this.onMessage = null;
     this.onMessageUpdated = null;
+    this.onStream = null;
     this.onChatUpdate = null;
     this.onChatsUpdate = null;
     this.onConnectionChange = null;
@@ -316,6 +317,12 @@ export class RealTimeWebChatClient {
           this.onMessageUpdated(data.message, data.chat_id);
         } else if (this.onMessage && data.message) {
           this.onMessage(data.message, data.chat_id);
+        }
+        break;
+
+      case 'llm_stream':
+        if (this.onStream && data.event) {
+          this.onStream(data.event, data.chat_id, data.request_id);
         }
         break;
 

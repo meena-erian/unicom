@@ -150,6 +150,20 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             }
         )
 
+    async def unicom_stream(self, event):
+        """Forward an ephemeral LLM stream event published by a worker."""
+        payload = event.get("event")
+        if not isinstance(payload, dict):
+            return
+        await self.send_json(
+            {
+                "type": "llm_stream",
+                "chat_id": event.get("chat_id") or self.chat_id,
+                "request_id": event.get("request_id") or "",
+                "event": payload,
+            }
+        )
+
     async def receive_json(self, content, **kwargs):
         """
         No client commands are required for this consumer. Respond to optional
@@ -362,5 +376,28 @@ async def broadcast_message_to_chat(chat_id: str, message) -> None:
             "type": "webchat.message_updated",
             "chat_id": chat_id,
             "message": payload,
+        },
+    )
+
+
+async def broadcast_stream_event_to_chat(
+    chat_id: str,
+    event: dict,
+    *,
+    request_id: str = "",
+) -> None:
+    """Broadcast an ephemeral event; no token delta is written to the database."""
+    if not CHANNELS_AVAILABLE:
+        return
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    await channel_layer.group_send(
+        f"webchat_chat_{chat_id}",
+        {
+            "type": "unicom.stream",
+            "chat_id": str(chat_id),
+            "request_id": str(request_id),
+            "event": event,
         },
     )

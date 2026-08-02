@@ -194,6 +194,7 @@ export class UnicomChatWithSidebar extends LitElement {
     // Set up event handlers
     this.client.onMessage = (message, chatId) => this._handleNewMessage(message, chatId);
     this.client.onMessageUpdated = (message, chatId) => this._handleMessageUpdated(message, chatId);
+    this.client.onStream = (event, chatId, requestId) => this._handleStreamEvent(event, chatId, requestId);
     this.client.onChatsUpdate = (chats) => this._handleChatsUpdate(chats);
     this.client.onConnectionChange = (connected, type) => {
       this.connectionStatus = connected ? 'connected' : 'disconnected';
@@ -661,6 +662,9 @@ export class UnicomChatWithSidebar extends LitElement {
     
     // Only add message if it's for the current chat
     if (chatId === this.currentChatId) {
+      if (message.is_outgoing === true) {
+        this.messages = this.messages.filter(m => !m._unicomStream);
+      }
       // Check if message already exists
       const existingIndex = this.messages.findIndex(m => m.id === message.id);
       if (existingIndex >= 0) {
@@ -705,12 +709,51 @@ export class UnicomChatWithSidebar extends LitElement {
     if (chatId !== this.currentChatId) {
       return;
     }
+    if (message.is_outgoing === true) {
+      this.messages = this.messages.filter(m => !m._unicomStream);
+    }
     const existingIndex = this.messages.findIndex(m => m.id === message.id);
     if (existingIndex >= 0) {
       this.messages[existingIndex] = message;
       this.messages = [...this.messages];
     } else {
       this.messages = [...this.messages, message];
+    }
+    this.processedMessages = this._processMessagesWithBranching(this.messages);
+    this.requestUpdate();
+  }
+
+  _handleStreamEvent(event, chatId, requestId) {
+    if (chatId !== this.currentChatId || !event?.stream_id) {
+      return;
+    }
+    const id = `unicom-stream-${event.stream_id}`;
+    const index = this.messages.findIndex(message => message.id === id);
+    if (event.type === 'response.started' && index < 0) {
+      const parent = [...this.messages].reverse().find(message => message.is_outgoing === false);
+      this.messages = [...this.messages, {
+        id,
+        text: '',
+        html: null,
+        is_outgoing: true,
+        sender_name: 'Assistant',
+        timestamp: new Date().toISOString(),
+        media_type: 'text',
+        media_url: null,
+        reply_to_message_id: parent?.id || null,
+        _unicomStream: true,
+        _requestId: requestId,
+      }];
+    } else if (index >= 0 && event.type === 'response.text.delta') {
+      const updated = { ...this.messages[index] };
+      updated.text = `${updated.text || ''}${event.delta || ''}`;
+      this.messages = this.messages.map((message, i) => i === index ? updated : message);
+    } else if (index >= 0 && event.type === 'response.finished') {
+      const updated = { ...this.messages[index], text: event.text || this.messages[index].text };
+      this.messages = this.messages.map((message, i) => i === index ? updated : message);
+    } else if (index >= 0 && event.type === 'response.failed') {
+      this.messages = this.messages.filter((_, i) => i !== index);
+      this.error = event.error || 'The response stream failed.';
     }
     this.processedMessages = this._processMessagesWithBranching(this.messages);
     this.requestUpdate();

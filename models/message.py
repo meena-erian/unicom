@@ -587,7 +587,21 @@ class Message(models.Model):
         
         return tuple(messages) if len(messages) > 1 else messages[0]
 
-    def reply_using_llm(self, model: str, depth=129, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
+    def reply_using_llm(
+        self,
+        model: str,
+        depth=129,
+        mode="chat",
+        system_instruction=None,
+        multimodal=True,
+        user=None,
+        voice="alloy",
+        api_mode="chat_completions",
+        openai_client=None,
+        stream=False,
+        stream_event_sink=None,
+        **kwargs,
+    ):
         """
         Wrapper: Calls as_llm_chat, OpenAI ChatCompletion API, and reply_with.
         - model: OpenAI model string
@@ -597,15 +611,42 @@ class Message(models.Model):
         - kwargs: extra params for OpenAI API
         Returns: The Message object created by reply_with
         """
+        if api_mode not in {"chat_completions", "responses"}:
+            raise ValueError("api_mode must be 'chat_completions' or 'responses'")
+
         # Prepare messages for LLM
         messages = self.as_llm_chat(depth=depth, mode=mode, system_instruction=system_instruction, multimodal=multimodal)
+        client = openai_client or get_openai_client()
+
+        if api_mode == "responses":
+            from unicom.services.llm.responses import create_response
+
+            result = create_response(
+                client=client,
+                model=model,
+                messages=messages,
+                stream=stream,
+                event_sink=stream_event_sink,
+                **kwargs,
+            )
+            if result.tool_calls:
+                raise ValueError(
+                    "Message.reply_using_llm() does not execute tools; use "
+                    "Bot.reply_using_llm() for Responses function calls."
+                )
+            reply_dict = {'html': result.text} if self.platform == 'Email' else {
+                'type': 'text',
+                'text': result.text,
+            }
+            return self.reply_with(reply_dict)
+
         # Determine if we need to request audio response
         openai_kwargs = dict(kwargs)
         if multimodal and self.media_type == "audio":
             openai_kwargs["modalities"] = ["text", "audio"]
             openai_kwargs["audio"] = {"voice": voice, "format": "opus"}
         # Call OpenAI ChatCompletion API
-        response = get_openai_client().chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
             messages=messages,
             **openai_kwargs

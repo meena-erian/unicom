@@ -59,6 +59,12 @@ def create_request_from_message(sender, instance, created, **kwargs):
 
     # Update chat summary fields
     update_chat_summary(instance)
+
+    # Some trusted integrations create a fully categorized Request atomically
+    # after persisting the message. Let them opt out of the generic
+    # identify/categorize path without changing legacy channel behavior.
+    if (instance.raw or {}).get("skip_request_creation") is True:
+        return
     
     # Skip request creation if it's an outgoing message
     if instance.is_outgoing or (instance.platform == 'Email' and not getattr(instance, 'email_sender_authenticated', True)):

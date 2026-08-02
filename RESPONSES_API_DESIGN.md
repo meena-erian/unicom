@@ -38,7 +38,40 @@ preserving each `call_id`.
 ## Compatibility
 
 Text and function calling are supported by the adapter. Streaming is optional
-and should not be required for the initial implementation.
+and remains an ephemeral projection of the durable reply operation. Callers opt
+in with `stream=True` and inject a synchronous `stream_event_sink` callback.
+Unicom emits normalized `response.started`, `response.text.delta`,
+`response.finished`, and `response.failed` events while accumulating the full
+result. Only the completed `Message` is persisted; token deltas never touch
+Unicom's database or signals.
+
+The sink is application-owned. A standalone deployment may publish through
+Channels, Redis, SSE, an internal relay, or nowhere without changing Unicom.
+Sink failures are logged but do not abort the durable reply.
+
+## Application integration
+
+Host applications inject both dependencies instead of placing provider
+authentication, billing, or transport policy in Unicom:
+
+```python
+client = application_client_for_request(request)
+stream_sink = application_stream_sink(request)
+return bot.reply_using_llm(
+    message,
+    tools_list,
+    request=request,
+    api_mode="responses",
+    openai_client=client,
+    stream=True,
+    stream_event_sink=stream_sink,
+)
+```
+
+The client may target OpenAI directly or an application-owned compatible
+gateway. The sink may relay through Channels, SSE, Redis, an authenticated HTTP
+endpoint, or any other callable transport. Credentials and tenancy decisions
+remain entirely outside Unicom and Unibot.
 
 Responses mode must validate requested modalities against the selected model:
 
