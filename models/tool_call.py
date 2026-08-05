@@ -4,6 +4,14 @@ from django.core.exceptions import ValidationError
 import uuid
 
 
+def _request_was_superseded(request):
+    initial_request = request.initial_request or request
+    return initial_request.message.chat.messages.filter(
+        is_outgoing=False,
+        timestamp__gt=initial_request.message.timestamp,
+    ).exclude(media_type__in=['tool_call', 'tool_response']).exists()
+
+
 class ToolCall(models.Model):
     """Task queue model for tracking tool calls awaiting responses"""
     STATUS_CHOICES = [
@@ -110,7 +118,7 @@ class ToolCall(models.Model):
         self.status = 'INTERRUPTED'
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'completed_at'])
-    
+
     def respond(self, result, status: str = 'SUCCESS'):
         """
         Submit response to this tool call.
@@ -125,13 +133,10 @@ class ToolCall(models.Model):
         Behavior:
         - For PENDING status: Marks as COMPLETED, creates child request if final
         - For IN_PROGRESS status: Marks as COMPLETED, creates child request if final
-        - For ACTIVE status: Logs response but keeps ACTIVE, no child request
+        - For ACTIVE status: Keeps the call active; its first response joins the
+          batch barrier and later responses may create recurring continuations
         - For other statuses: Raises ValueError
         """
-        # Validate current status
-        if self.status not in ['PENDING', 'IN_PROGRESS', 'ACTIVE']:
-            raise ValueError(f"Cannot respond to tool call with status: {self.status}")
-
         # Normalize and validate result status
         normalized_status = (status or 'SUCCESS').upper()
         valid_statuses = {choice[0] for choice in self.RESULT_STATUS_CHOICES}
@@ -146,36 +151,55 @@ class ToolCall(models.Model):
             return {"status": stat, "result": res}
 
         payload = format_payload(result, normalized_status)
-        
-        # Create tool response message for LLM context - reply to the tool call message
-        tool_response_msg = self.tool_call_message.log_tool_interaction(
-            tool_response={
-                "call_id": self.call_id,
-                "result": payload,
-                "status": normalized_status
-            }
-        )
-        
-        # Handle response based on current status
+
         with transaction.atomic():
+            # Serialize every response in a batch through its parent request. This
+            # makes the "all siblings resolved" check and continuation claim atomic.
+            request = self.request.__class__.objects.select_for_update().get(pk=self.request_id)
+            tool_call = type(self).objects.select_for_update().get(pk=self.pk)
+            if tool_call.status == 'INTERRUPTED':
+                return None, None
+            if _request_was_superseded(request):
+                request.tool_calls.filter(
+                    status__in=['PENDING', 'IN_PROGRESS', 'ACTIVE'],
+                ).update(status='INTERRUPTED', completed_at=timezone.now())
+                return None, None
+            if tool_call.status not in ['PENDING', 'IN_PROGRESS', 'ACTIVE']:
+                raise ValueError(f"Cannot respond to tool call with status: {tool_call.status}")
+
+            had_previous_response = tool_call.response_messages.exists()
+            tool_response_msg = tool_call.tool_call_message.log_tool_interaction(
+                tool_response={
+                    "call_id": tool_call.call_id,
+                    "result": payload,
+                    "status": normalized_status
+                }
+            )
+            tool_response_msg.response_to_tool_call = tool_call
+            tool_response_msg.save(update_fields=['response_to_tool_call'])
+
             # Only mark as completed if not ACTIVE (ACTIVE stays active for reusable buttons)
-            if self.status != 'ACTIVE':
-                self.status = 'COMPLETED'
-                self.completed_at = timezone.now()
-                self.result_status = normalized_status
-                self.save(update_fields=['status', 'completed_at', 'result_status'])
+            if tool_call.status != 'ACTIVE':
+                tool_call.status = 'COMPLETED'
+                tool_call.completed_at = timezone.now()
+                tool_call.result_status = normalized_status
+                tool_call.save(update_fields=['status', 'completed_at', 'result_status'])
             else:
                 # Keep ACTIVE but still record the latest result_status
-                self.result_status = normalized_status
-                self.save(update_fields=['result_status'])
-            
-            # Check if this is the final response (all PENDING tool calls now COMPLETED)
-            pending_calls = self.request.tool_calls.filter(status='PENDING').count()
-            
-            if pending_calls == 0:
+                tool_call.result_status = normalized_status
+                tool_call.save(update_fields=['result_status'])
+
+            siblings = request.tool_calls.all()
+            all_siblings_responded = not siblings.filter(response_messages__isnull=True).exists()
+            initial_continuation_exists = request.child_requests.filter(
+                metadata__created_from='tool_response',
+            ).exists()
+            recurring_followup = tool_call.status == 'ACTIVE' and had_previous_response
+
+            if all_siblings_responded and (recurring_followup or not initial_continuation_exists):
                 # This is the final response - create child request
                 # Use initial_request to get the root request for field propagation
-                initial_req = self.request.initial_request or self.request
+                initial_req = request.initial_request or request
                 
                 child_request = self.request.__class__.objects.create(
                     message=tool_response_msg,
@@ -187,16 +211,17 @@ class ToolCall(models.Model):
                     phone=initial_req.phone,
                     category=initial_req.category,  # Propagate category from initial request
                     # Set hierarchy fields
-                    parent_request=self.request,
+                    parent_request=request,
                     initial_request=initial_req,
                     display_text=f"Tool response: {str(result)[:100]}...",
                     status='PENDING',
                     metadata={
                         'created_from': 'tool_response',
-                        'parent_request_id': str(self.request.id),
+                        'batch_continuation': not recurring_followup,
+                        'parent_request_id': str(request.id),
                         'initial_request_id': str(initial_req.id),
-                        'final_tool_call_id': self.call_id,
-                        'tool_name': self.tool_name,
+                        'final_tool_call_id': tool_call.call_id,
+                        'tool_name': tool_call.tool_name,
                     }
                 )
                 
