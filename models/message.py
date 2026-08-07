@@ -457,7 +457,7 @@ class Message(models.Model):
                 cur = cur.reply_to_message
             # Sort chronologically to preserve call/response order
             chain = sorted(chain, key=lambda m: m.timestamp)
-            
+
             # Handle user interruption for tool response messages in thread mode
             if self.media_type == "tool_response":
                 # Find any user message that came chronologically after any tool call in our chain
@@ -494,6 +494,42 @@ class Message(models.Model):
                         if user_interrupt not in chain:
                             chain.append(user_interrupt)
                         chain = sorted(chain, key=lambda m: m.timestamp)
+
+            # Parallel tool calls are stored as sibling reply branches. A batch
+            # continuation is attached to the final response, so its ordinary
+            # ancestry contains only that one sibling. Project every resolved
+            # sibling into the continuation as adjacent call/response pairs.
+            if self.media_type == "tool_response":
+                continuation_request = self.request_set.filter(
+                    parent_request__isnull=False,
+                    metadata__created_from="tool_response",
+                    metadata__batch_continuation=True,
+                ).select_related("parent_request").first()
+                if continuation_request:
+                    batch_calls = list(
+                        continuation_request.parent_request.tool_calls
+                        .select_related("tool_call_message")
+                        .prefetch_related("response_messages")
+                        .order_by("created_at")
+                    )
+                    if len(batch_calls) > 1:
+                        batch_messages = []
+                        complete_batch = True
+                        for batch_call in batch_calls:
+                            response = next((
+                                item for item in batch_call.response_messages.all()
+                                if item.media_type == "tool_response"
+                                and item.timestamp <= self.timestamp
+                            ), None)
+                            if response is None:
+                                complete_batch = False
+                                break
+                            batch_messages.extend([batch_call.tool_call_message, response])
+                        if complete_batch:
+                            batch_ids = {item.pk for item in batch_messages}
+                            chain = [item for item in chain if item.pk not in batch_ids]
+                            chain.extend(batch_messages)
+
             # Ensure tool_call and tool_response are adjacent
             if self.media_type == "tool_response":
                 try:

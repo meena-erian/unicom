@@ -70,6 +70,21 @@ class ToolCallBatchTests(TestCase):
         _message, continuation = second.respond({"result": "second"})
         self.assertIsNotNone(continuation)
         self.assertEqual(self.request.child_requests.count(), 1)
+        context = continuation.message.as_llm_chat(mode="thread", multimodal=False)
+        self.assertEqual(
+            [item["role"] for item in context],
+            ["user", "assistant", "tool", "assistant", "tool"],
+        )
+        self.assertEqual(
+            [
+                item["tool_calls"][0]["id"]
+                for item in context if item.get("tool_calls")
+            ],
+            [first.call_id, second.call_id],
+        )
+        tool_contents = [item["content"] for item in context if item["role"] == "tool"]
+        self.assertIn("first", tool_contents[0])
+        self.assertIn("second", tool_contents[1])
 
     def test_newer_user_message_suppresses_late_tool_response(self):
         tool_call = self._tool_call("late")
