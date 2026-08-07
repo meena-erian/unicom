@@ -9,6 +9,7 @@ import or execute this module unless they opt into ``api_mode="responses"``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import ast
 import json
 import logging
 import uuid
@@ -30,6 +31,7 @@ class ResponsesToolCall:
 @dataclass(frozen=True)
 class ResponsesResult:
     text: str
+    content: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[ResponsesToolCall] = field(default_factory=list)
     response_id: Optional[str] = None
     usage: Optional[dict[str, Any]] = None
@@ -58,6 +60,34 @@ def _parse_arguments(value: Any) -> dict[str, Any]:
     except (TypeError, ValueError, json.JSONDecodeError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _responses_tool_output(content: Any) -> Any:
+    """Recover structured multimodal output from Unicom's persisted wrapper."""
+    output: Any = content if isinstance(content, str) else json.dumps(content)
+    decoded: Any = None
+    if isinstance(output, str):
+        try:
+            decoded = json.loads(output)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            # Tool responses are persisted as a Python-repr wrapper such as
+            # {'result': '<JSON string>', 'status': 'SUCCESS'}.
+            try:
+                decoded = ast.literal_eval(output)
+            except (TypeError, ValueError, SyntaxError):
+                decoded = None
+    if isinstance(decoded, Mapping) and "result" in decoded:
+        result = decoded.get("result")
+        if isinstance(result, str):
+            try:
+                decoded = json.loads(result)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return output
+        elif isinstance(result, Mapping):
+            decoded = result
+    if isinstance(decoded, Mapping) and isinstance(decoded.get("_responses_content"), list):
+        return decoded["_responses_content"]
+    return output
 
 
 def chat_tools_to_responses(tools: Optional[Iterable[Mapping[str, Any]]]) -> list[dict[str, Any]]:
@@ -115,7 +145,7 @@ def chat_history_to_responses(messages: Iterable[Mapping[str, Any]]) -> tuple[st
                 {
                     "type": "function_call_output",
                     "call_id": message.get("tool_call_id"),
-                    "output": content if isinstance(content, str) else json.dumps(content),
+                    "output": _responses_tool_output(content),
                 }
             )
             continue
@@ -184,8 +214,19 @@ def _result_from_response(response: Any) -> ResponsesResult:
     ]
     usage_obj = getattr(response, "usage", None) or data.get("usage")
     usage = _as_dict(usage_obj) if usage_obj is not None else None
+    content: list[dict[str, Any]] = []
+    if text:
+        content.append({"type": "text", "text": text})
+    for item in (getattr(response, "output", None) or data.get("output") or ()):
+        item_data = _as_dict(item)
+        if item_data.get("type") == "image_generation_call" and item_data.get("result"):
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{item_data['result']}"},
+            })
     return ResponsesResult(
         text=text,
+        content=content,
         tool_calls=tool_calls,
         response_id=getattr(response, "id", None) or data.get("id"),
         usage=usage,
@@ -202,6 +243,7 @@ def create_response(
     stream: bool = False,
     event_sink: Optional[StreamEventSink] = None,
     stream_id: Optional[str] = None,
+    native_tools: Optional[Iterable[Mapping[str, Any]]] = None,
     **kwargs: Any,
 ) -> ResponsesResult:
     """Execute one Responses call and return a provider-neutral result."""
@@ -214,6 +256,7 @@ def create_response(
     if instructions:
         request["instructions"] = instructions
     response_tools = chat_tools_to_responses(tools)
+    response_tools.extend(dict(tool) for tool in (native_tools or ()))
     if response_tools:
         request["tools"] = response_tools
 
@@ -255,6 +298,7 @@ def create_response(
         base = _result_from_response(completed_response) if completed_response is not None else ResponsesResult(text="")
         result = ResponsesResult(
             text=base.text or "".join(text_parts),
+            content=base.content,
             tool_calls=base.tool_calls or list(tool_calls.values()),
             response_id=base.response_id,
             usage=base.usage,

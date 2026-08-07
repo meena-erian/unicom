@@ -104,6 +104,30 @@ class ResponsesAdapterTests(SimpleTestCase):
             "data:image/png;base64,AAAA",
         )
 
+    def test_converts_structured_tool_image_output(self):
+        _instructions, items = chat_history_to_responses([
+            {
+                "role": "tool",
+                "tool_call_id": "call_image",
+                "content": '{"_responses_content":[{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]}',
+            }
+        ])
+        self.assertEqual(items[0]["type"], "function_call_output")
+        self.assertEqual(items[0]["output"][0]["type"], "input_image")
+
+    def test_converts_unicom_wrapped_structured_tool_image_output(self):
+        wrapped = str({
+            "result": '{"path":"/photo.png","_responses_content":[{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]}',
+            "status": "SUCCESS",
+        })
+        _instructions, items = chat_history_to_responses([
+            {"role": "tool", "tool_call_id": "call_image", "content": wrapped}
+        ])
+        self.assertEqual(items[0]["output"], [{
+            "type": "input_image",
+            "image_url": "data:image/png;base64,AAAA",
+        }])
+
     def test_converts_chat_function_schema_without_mutating_source(self):
         source = [
             {
@@ -145,6 +169,24 @@ class ResponsesAdapterTests(SimpleTestCase):
         self.assertEqual(result.tool_calls[0].arguments, {"id": 7})
         self.assertEqual(client.responses.calls[0]["input"][0]["role"], "user")
         self.assertNotIn("stream", client.responses.calls[0])
+
+    def test_native_tools_and_generated_images_are_preserved(self):
+        response = SimpleNamespace(
+            id="resp_image",
+            output_text="",
+            output=[{"type": "image_generation_call", "result": "AAAA"}],
+            usage=None,
+        )
+        client = _Client(response)
+        result = create_response(
+            client=client,
+            model="test-model",
+            messages=[{"role": "user", "content": "Draw a cat"}],
+            native_tools=[{"type": "image_generation"}],
+        )
+        self.assertEqual(client.responses.calls[0]["tools"], [{"type": "image_generation"}])
+        self.assertEqual(result.content[0]["type"], "image_url")
+        self.assertEqual(result.content[0]["image_url"]["url"], "data:image/png;base64,AAAA")
 
     def test_streaming_emits_ordered_deltas_and_final_result(self):
         events = [
