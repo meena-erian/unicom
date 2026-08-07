@@ -11,6 +11,17 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def _message_body(msg):
+    text = msg.get('text', '').strip()
+    html = msg.get('html', '').strip()
+    if not text and not html and msg.get('file_path'):
+        text = {
+            'image': 'Generated image',
+            'audio': 'Audio attachment',
+        }.get(msg.get('media_type'), 'File attachment')
+    return text, html
+
+
 def send_webchat_message(channel, msg, user=None):
     """
     Send a WebChat message (save to database).
@@ -47,8 +58,10 @@ def send_webchat_message(channel, msg, user=None):
     if not chat_id:
         raise ValueError("chat_id is required")
 
-    text = msg.get('text', '').strip()
-    html = msg.get('html', '').strip()
+    # WebChat messages may consist only of generated/attached media. The
+    # Message model still needs a textual representation for history and
+    # accessibility, so provide one when callers omit a caption.
+    text, html = _message_body(msg)
 
     if not text and not html:
         raise ValueError("Either text or html is required")
