@@ -11,6 +11,7 @@ from unicom.services.webchat.save_webchat_message import save_webchat_message
 from unicom.services.webchat.get_or_create_account import get_or_create_account
 from unicom.models import CallbackExecution
 from unicom.signals import interactive_button_clicked
+from unicom.services.message_serialization import serialize_message
 
 
 def _get_webchat_channel(channel_id=None):
@@ -347,20 +348,7 @@ def get_webchat_messages_api(request):
         messages_list.reverse()
 
         # Serialize messages
-        messages_data = [{
-            'id': msg.id,
-            'text': msg.text,
-            'html': msg.html,
-            'is_outgoing': msg.is_outgoing,
-            'sender_name': msg.sender_name,
-            'timestamp': msg.timestamp.isoformat(),
-            'media_type': msg.media_type,
-            'media_url': msg.media.url if msg.media else None,
-            'reply_to_message_id': msg.reply_to_message_id if msg.reply_to_message else None,
-            'interactive_buttons': msg.raw.get('interactive_buttons') if msg.raw else None,
-            'progress_updates_for_user': (msg.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if msg.media_type == 'tool_call' else None,
-            'result_status': (msg.raw or {}).get('tool_response', {}).get('result', {}).get('status') if msg.media_type == 'tool_response' else None,
-        } for msg in messages_list]
+        messages_data = [serialize_message(msg) for msg in messages_list]
 
         return JsonResponse({
             'success': True,

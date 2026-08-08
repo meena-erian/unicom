@@ -1927,6 +1927,44 @@ child = Request.objects.filter(parent_request=request).first()
 print(f"Child inherits: {child.account}, {child.category}, {child.member}")
 ```
 
+Parallel calls form one batch: Unicom creates at most one continuation, and
+only after every unresolved call in that request has reached a terminal state.
+`Request.submit_tool_calls()` can return an empty list when a newer ordinary
+user message has superseded the request while the LLM response was in flight;
+orchestrators must treat that as discarded stale output rather than executing
+or indexing the returned calls.
+
+When accepting a newer user turn, an orchestrator should terminalize unfinished
+batch work with `ToolCall.interrupt_unresolved(queryset)`. This operation is
+idempotent, persists an `ERROR` tool response for every unresolved call, and
+does not create an LLM continuation. A later `ToolCall.respond()` for an
+interrupted call is ignored. Edited user messages remain genuine reply-tree
+branches; parallel tool calls are reconstructed from the selected request tree
+and do not create user-visible conversation branches.
+
+`ACTIVE` is suitable only when the host application intentionally wants a
+long-lived call. Whether a newer user message should cancel such calls is an
+orchestrator policy; filter them out before calling `interrupt_unresolved()` if
+they must survive unrelated user turns.
+
+#### Canonical Message Serialization
+
+Use Unicom's public serializer instead of reproducing tool-message fields in a
+host application:
+
+```python
+from unicom.services.message_serialization import serialize_message
+
+payload = serialize_message(message)
+```
+
+The payload includes the common message fields plus `tool_name`, `call_id`,
+`tool_status`, `result_status`, progress text, interactive buttons, and tool
+presentation data. In particular, `tool_status` lets clients render historical
+terminal calls such as `INTERRUPTED` as finished even if old data has no linked
+response message. Applications may extend this dictionary with their own UI or
+authorization metadata.
+
 #### 🤖 Request Tracking Fields
 
 New fields added to Request model for LLM and tool call tracking:

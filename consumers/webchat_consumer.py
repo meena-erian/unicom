@@ -326,22 +326,8 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
     # ------------------------------------------------------------- Serialization
     def _serialize_message(self, message) -> dict:
         """Convert a Message model instance into the JSON payload expected by JS."""
-        from unicom.services.tool_presentations import extract_tool_presentation
-        return {
-            "id": message.id,
-            "text": message.text,
-            "html": message.html,
-            "is_outgoing": message.is_outgoing,
-            "sender_name": message.sender_name,
-            "timestamp": message.timestamp.isoformat(),
-            "media_type": message.media_type,
-            "media_url": message.media.url if message.media else None,
-            "reply_to_message_id": message.reply_to_message_id if message.reply_to_message else None,
-            "interactive_buttons": message.raw.get('interactive_buttons') if message.raw else None,
-            "progress_updates_for_user": (message.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if message.media_type == 'tool_call' else None,
-            "result_status": (message.raw or {}).get('tool_response', {}).get('result', {}).get('status') if message.media_type == 'tool_response' else None,
-            "tool_presentation": extract_tool_presentation(message.raw) if message.media_type == "tool_response" else None,
-        }
+        from unicom.services.message_serialization import serialize_message
+        return serialize_message(message)
 
 
 def is_channels_available() -> bool:
@@ -357,23 +343,8 @@ async def broadcast_message_to_chat(chat_id: str, message) -> None:
     if channel_layer is None:
         return
 
-    from unicom.services.tool_presentations import extract_tool_presentation
-    payload = {
-        "id": message.id,
-        "text": message.text,
-        "html": message.html,
-        "is_outgoing": message.is_outgoing,
-        "sender_name": message.sender_name,
-        "timestamp": message.timestamp.isoformat(),
-        "media_type": message.media_type,
-        "media_url": message.media.url if message.media else None,
-        # Never dereference related objects in async context; use *_id fields only.
-        "reply_to_message_id": message.reply_to_message_id,
-        "interactive_buttons": message.raw.get("interactive_buttons") if message.raw else None,
-        "progress_updates_for_user": (message.raw or {}).get("tool_call", {}).get("arguments", {}).get("progress_updates_for_user") if message.media_type == "tool_call" else None,
-        "result_status": (message.raw or {}).get("tool_response", {}).get("result", {}).get("status") if message.media_type == "tool_response" else None,
-        "tool_presentation": extract_tool_presentation(message.raw) if message.media_type == "tool_response" else None,
-    }
+    from unicom.services.message_serialization import serialize_message
+    payload = await database_sync_to_async(serialize_message)(message)
     await channel_layer.group_send(
         f"webchat_chat_{chat_id}",
         {
