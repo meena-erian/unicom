@@ -50,6 +50,18 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _user_facing_error(exc: Exception) -> str:
+    """Extract an API message without leaking its JSON/error wrapper into chat UI."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, Mapping):
+        error = body.get("error")
+        if isinstance(error, Mapping) and error.get("message"):
+            return str(error["message"])
+        if body.get("message"):
+            return str(body["message"])
+    return str(exc)
+
+
 def _parse_arguments(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -317,6 +329,6 @@ def create_response(
     except Exception as exc:
         _emit(
             event_sink,
-            {"type": "response.failed", "stream_id": sid, "error": str(exc)},
+            {"type": "response.failed", "stream_id": sid, "error": _user_facing_error(exc)},
         )
         raise

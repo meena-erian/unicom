@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from django.test import SimpleTestCase
 
 from unicom.services.llm.responses import (
+    _user_facing_error,
     chat_history_to_responses,
     chat_tools_to_responses,
     create_response,
@@ -26,6 +27,14 @@ class _Client:
 
 
 class ResponsesAdapterTests(SimpleTestCase):
+    def test_api_error_uses_human_message_instead_of_json_wrapper(self):
+        error = RuntimeError("wrapped error")
+        error.body = {"error": {"message": "No AI balance is available. Top up on Account Overview."}}
+        self.assertEqual(
+            _user_facing_error(error),
+            "No AI balance is available. Top up on Account Overview.",
+        )
+
     def test_message_default_still_uses_chat_completions_unchanged(self):
         calls = []
 
