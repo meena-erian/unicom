@@ -515,6 +515,13 @@ class Request(models.Model):
         tool_calls = []
         
         with transaction.atomic():
+            locked_request = type(self).objects.select_for_update().get(pk=self.pk)
+            initial_request = locked_request.initial_request or locked_request
+            if initial_request.message.chat.messages.filter(
+                is_outgoing=False,
+                timestamp__gt=initial_request.message.timestamp,
+            ).exclude(media_type__in=['tool_call', 'tool_response']).exists():
+                return []
             for call_data in tool_calls_data:
                 tool_name = call_data['name']
                 arguments = call_data.get('arguments', {}) or {}
@@ -537,7 +544,7 @@ class Request(models.Model):
                     tool_name=tool_name,
                     arguments=arguments,
                     progress_updates_for_user=progress,
-                    request=self,
+                    request=locked_request,
                     tool_call_message=tool_call_msg,  # Link to the tool call message
                     initial_user_message=self.message,  # Link to the original user message
                     status='PENDING'
@@ -546,8 +553,10 @@ class Request(models.Model):
                 tool_calls.append(tool_call)
             
             # Update request status and count
-            self.tool_call_count += len(tool_calls_data)
-            self.status = 'PROCESSING'  # Reuse existing status
-            self.save(update_fields=['tool_call_count', 'status'])
+            locked_request.tool_call_count += len(tool_calls_data)
+            locked_request.status = 'PROCESSING'  # Reuse existing status
+            locked_request.save(update_fields=['tool_call_count', 'status'])
+            self.tool_call_count = locked_request.tool_call_count
+            self.status = locked_request.status
         
         return tool_calls

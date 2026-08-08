@@ -425,7 +425,7 @@ class Message(models.Model):
             selected = list(qs[start:idx+1])
             
             # Handle user interruption for tool response messages in chat mode
-            if self.media_type == "tool_response":
+            if self.media_type == "tool_response" and not selected_roots:
                 # Find any user message that came chronologically after any tool call in our range
                 tool_call_timestamps = [m.timestamp for m in selected if m.media_type == "tool_call"]
                 if tool_call_timestamps:
@@ -458,8 +458,102 @@ class Message(models.Model):
             # Sort chronologically to preserve call/response order
             chain = sorted(chain, key=lambda m: m.timestamp)
 
+            # A reply chain selects genuine conversation branches, but tool calls
+            # from one LLM response are stored as sibling branches. Rebuild the
+            # execution belonging to each selected top-level request from the
+            # Request/ToolCall graph so later user turns retain every sibling.
+            selected_roots = {}
+            for chain_message in chain:
+                if chain_message.is_outgoing is False and chain_message.media_type not in {
+                    'tool_call', 'tool_response',
+                }:
+                    root_request = chain_message.request_set.filter(
+                        parent_request__isnull=True,
+                    ).order_by('created_at').first()
+                    if root_request:
+                        selected_roots[chain_message.pk] = root_request
+
+            active_root_message_id = None
+            if self.response_to_tool_call_id:
+                active_request = (
+                    self.response_to_tool_call.request.initial_request
+                    or self.response_to_tool_call.request
+                )
+                active_root_message_id = active_request.message_id
+            else:
+                endpoint_request = self.request_set.filter(
+                    parent_request__isnull=True,
+                ).order_by('created_at').first()
+                if endpoint_request:
+                    active_root_message_id = endpoint_request.message_id
+
+            def request_execution(request, include_late_interrupted=False):
+                projected = []
+                children = list(type(request).objects.filter(
+                    parent_request_id=request.pk,
+                ).select_related('message').order_by('created_at'))
+                children_by_message = {child.message_id: child for child in children}
+                followed_children = set()
+                calls = list(
+                    request.tool_calls.model.objects.filter(request_id=request.pk)
+                    .select_related('tool_call_message')
+                    .prefetch_related('response_messages').order_by('created_at')
+                )
+                for call in calls:
+                    responses = [
+                        response for response in call.response_messages.all()
+                        if response.timestamp <= self.timestamp
+                    ]
+                    if responses:
+                        # The first response participates in the original batch.
+                        projected.extend([call.tool_call_message, responses[0]])
+                    elif call.status == 'INTERRUPTED' and (
+                        call.created_at <= self.timestamp or include_late_interrupted
+                    ):
+                        projected.append(call.tool_call_message)
+                        projected.append({
+                            'role': 'tool',
+                            'tool_call_id': call.call_id,
+                            'content': '{"status": "ERROR", "error": "Interrupted by a newer user message."}',
+                        })
+                    else:
+                        continue
+
+                    for response_index, response in enumerate(responses):
+                        if response_index:
+                            # ACTIVE tools may answer repeatedly. Repeat the call
+                            # declaration so each recurring event remains a valid pair.
+                            projected.extend([call.tool_call_message, response])
+                        child = children_by_message.get(response.pk)
+                        if child:
+                            followed_children.add(child.pk)
+                            projected.extend(request_execution(child, include_late_interrupted))
+
+                # A batch continuation is attached to its final sibling response;
+                # recurse after the complete batch if it was not visited above.
+                for child in children:
+                    if child.pk not in followed_children and child.message.timestamp <= self.timestamp:
+                        projected.extend(request_execution(child, include_late_interrupted))
+                return projected
+
+            if selected_roots:
+                rebuilt_chain = []
+                for chain_message in chain:
+                    if chain_message.media_type in {'tool_call', 'tool_response'}:
+                        continue
+                    rebuilt_chain.append(chain_message)
+                    root_request = selected_roots.get(chain_message.pk)
+                    if root_request:
+                        rebuilt_chain.extend(request_execution(
+                            root_request,
+                            include_late_interrupted=(
+                                chain_message.pk != active_root_message_id
+                            ),
+                        ))
+                chain = rebuilt_chain
+
             # Handle user interruption for tool response messages in thread mode
-            if self.media_type == "tool_response":
+            if self.media_type == "tool_response" and not selected_roots:
                 # Find any user message that came chronologically after any tool call in our chain
                 # AND that replies to one of the messages in our chain
                 tool_call_timestamps = [m.timestamp for m in chain if m.media_type == "tool_call"]
@@ -499,7 +593,7 @@ class Message(models.Model):
             # continuation is attached to the final response, so its ordinary
             # ancestry contains only that one sibling. Project every resolved
             # sibling into the continuation as adjacent call/response pairs.
-            if self.media_type == "tool_response":
+            if self.media_type == "tool_response" and not selected_roots:
                 continuation_request = self.request_set.filter(
                     parent_request__isnull=False,
                     metadata__created_from="tool_response",
@@ -549,7 +643,7 @@ class Message(models.Model):
                     pass
 
             for m in chain:
-                messages.append(msg_to_dict(m))
+                messages.append(m if isinstance(m, dict) else msg_to_dict(m))
         else:
             raise ValueError(f"Unknown mode: {mode}")
         if system_instruction:

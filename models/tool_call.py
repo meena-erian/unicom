@@ -114,10 +114,47 @@ class ToolCall(models.Model):
         self.save(update_fields=['status', 'completed_at', 'error', 'result_status'])
     
     def interrupt(self):
-        """Mark tool call as interrupted"""
-        self.status = 'INTERRUPTED'
-        self.completed_at = timezone.now()
-        self.save(update_fields=['status', 'completed_at'])
+        """Terminalize this call without creating an LLM continuation."""
+        with transaction.atomic():
+            tool_call = type(self).objects.select_for_update().get(pk=self.pk)
+            if tool_call.status in {'COMPLETED', 'ERROR', 'INTERRUPTED'}:
+                return tool_call.response_messages.order_by('timestamp').first()
+            response = tool_call.tool_call_message.log_tool_interaction(
+                tool_response={
+                    "call_id": tool_call.call_id,
+                    "result": {
+                        "status": "ERROR",
+                        "error": "Interrupted by a newer user message.",
+                    },
+                    "status": "ERROR",
+                }
+            )
+            response.response_to_tool_call = tool_call
+            response.save(update_fields=['response_to_tool_call'])
+            tool_call.status = 'INTERRUPTED'
+            tool_call.result_status = 'ERROR'
+            tool_call.error = 'Interrupted by a newer user message.'
+            tool_call.completed_at = timezone.now()
+            tool_call.save(update_fields=[
+                'status', 'result_status', 'error', 'completed_at',
+            ])
+            self.status = tool_call.status
+            self.result_status = tool_call.result_status
+            self.error = tool_call.error
+            self.completed_at = tool_call.completed_at
+            return response
+
+    @classmethod
+    def interrupt_unresolved(cls, queryset):
+        """Interrupt each unresolved call, returning the terminal responses."""
+        responses = []
+        for call in queryset.filter(
+            status__in=['PENDING', 'IN_PROGRESS', 'ACTIVE'],
+        ).order_by('created_at'):
+            response = call.interrupt()
+            if response is not None:
+                responses.append(response)
+        return responses
 
     def respond(self, result, status: str = 'SUCCESS'):
         """
@@ -160,9 +197,7 @@ class ToolCall(models.Model):
             if tool_call.status == 'INTERRUPTED':
                 return None, None
             if _request_was_superseded(request):
-                request.tool_calls.filter(
-                    status__in=['PENDING', 'IN_PROGRESS', 'ACTIVE'],
-                ).update(status='INTERRUPTED', completed_at=timezone.now())
+                type(self).interrupt_unresolved(request.tool_calls.all())
                 return None, None
             if tool_call.status not in ['PENDING', 'IN_PROGRESS', 'ACTIVE']:
                 raise ValueError(f"Cannot respond to tool call with status: {tool_call.status}")
