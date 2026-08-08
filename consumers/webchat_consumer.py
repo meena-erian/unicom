@@ -326,6 +326,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
     # ------------------------------------------------------------- Serialization
     def _serialize_message(self, message) -> dict:
         """Convert a Message model instance into the JSON payload expected by JS."""
+        from unicom.services.tool_presentations import extract_tool_presentation
         return {
             "id": message.id,
             "text": message.text,
@@ -339,6 +340,7 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             "interactive_buttons": message.raw.get('interactive_buttons') if message.raw else None,
             "progress_updates_for_user": (message.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if message.media_type == 'tool_call' else None,
             "result_status": (message.raw or {}).get('tool_response', {}).get('result', {}).get('status') if message.media_type == 'tool_response' else None,
+            "tool_presentation": extract_tool_presentation(message.raw) if message.media_type == "tool_response" else None,
         }
 
 
@@ -355,6 +357,7 @@ async def broadcast_message_to_chat(chat_id: str, message) -> None:
     if channel_layer is None:
         return
 
+    from unicom.services.tool_presentations import extract_tool_presentation
     payload = {
         "id": message.id,
         "text": message.text,
@@ -369,6 +372,7 @@ async def broadcast_message_to_chat(chat_id: str, message) -> None:
         "interactive_buttons": message.raw.get("interactive_buttons") if message.raw else None,
         "progress_updates_for_user": (message.raw or {}).get("tool_call", {}).get("arguments", {}).get("progress_updates_for_user") if message.media_type == "tool_call" else None,
         "result_status": (message.raw or {}).get("tool_response", {}).get("result", {}).get("status") if message.media_type == "tool_response" else None,
+        "tool_presentation": extract_tool_presentation(message.raw) if message.media_type == "tool_response" else None,
     }
     await channel_layer.group_send(
         f"webchat_chat_{chat_id}",

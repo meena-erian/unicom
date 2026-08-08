@@ -22,6 +22,9 @@ export class MessageItem extends LitElement {
     this.loadingButtons = new Set();
     this._elapsedTimer = null;
     this._lastRenderedHtml = null;
+    this._viewerImage = null;
+    this._viewerZoom = 1;
+    this._handleViewerKeydown = this._handleViewerKeydown.bind(this);
   }
 
   async firstUpdated() {
@@ -40,6 +43,7 @@ export class MessageItem extends LitElement {
 
   disconnectedCallback() {
     this._stopElapsedTimer();
+    window.removeEventListener('keydown', this._handleViewerKeydown);
     super.disconnectedCallback();
   }
 
@@ -210,10 +214,45 @@ export class MessageItem extends LitElement {
     }
   }
 
-  _openImageModal(url) {
-    // Open image in new tab for now
-    // Could be enhanced with a lightbox modal in future
-    window.open(url, '_blank');
+  _openImageModal(url, details = {}) {
+    this._viewerImage = { url, ...details };
+    this._viewerZoom = 1;
+    window.addEventListener('keydown', this._handleViewerKeydown);
+    this.requestUpdate();
+    this.updateComplete.then(() => this.shadowRoot?.querySelector('.image-viewer')?.focus());
+  }
+
+  _closeImageModal() {
+    this._viewerImage = null;
+    window.removeEventListener('keydown', this._handleViewerKeydown);
+    this.requestUpdate();
+  }
+
+  _handleViewerKeydown(event) {
+    if (!this._viewerImage) return;
+    if (event.key === 'Escape') this._closeImageModal();
+    else if (event.key === '+' || event.key === '=') this._viewerZoom = Math.min(4, this._viewerZoom + .25);
+    else if (event.key === '-') this._viewerZoom = Math.max(.5, this._viewerZoom - .25);
+    else if (event.key === '0') this._viewerZoom = 1;
+    else return;
+    event.preventDefault();
+    this.requestUpdate();
+  }
+
+  _renderImageViewer() {
+    const image = this._viewerImage;
+    if (!image) return html``;
+    const source = String(image.filename || image.caption || '').split(/[?#]/)[0];
+    const candidate = source.split('/').pop();
+    const subtype = String(image.url || '').match(/^data:image\/(png|jpe?g|gif|webp|bmp|avif);/i)?.[1];
+    const filename = candidate && /\.[a-z0-9]{2,5}$/i.test(candidate)
+      ? candidate
+      : `image.${subtype === 'jpeg' ? 'jpg' : subtype || 'png'}`;
+    return html`<div class="image-viewer" role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1" @click=${(event) => { if (event.target === event.currentTarget) this._closeImageModal(); }}>
+      <header><div><strong>${filename}</strong>${image.caption ? html`<small>${image.caption}</small>` : ''}</div><div class="image-viewer-actions"><button @click=${() => { this._viewerZoom = Math.max(.5, this._viewerZoom - .25); this.requestUpdate(); }} ?disabled=${this._viewerZoom <= .5} aria-label="Zoom out"><i class="fa-solid fa-minus"></i></button><span>${Math.round(this._viewerZoom * 100)}%</span><button @click=${() => { this._viewerZoom = Math.min(4, this._viewerZoom + .25); this.requestUpdate(); }} ?disabled=${this._viewerZoom >= 4} aria-label="Zoom in"><i class="fa-solid fa-plus"></i></button><button @click=${() => { this._viewerZoom = 1; this.requestUpdate(); }}><i class="fa-solid fa-expand"></i> Fit</button><a href=${image.url} download=${filename}><i class="fa-solid fa-download"></i> Download</a><button @click=${() => this._closeImageModal()} aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div></header>
+      <div class="image-viewer-canvas"><img src=${image.url} alt=${image.alt || 'Image'} style=${`transform:scale(${this._viewerZoom})`}></div>
+      ${image.alt ? html`<footer>${image.alt}</footer>` : ''}
+    </div>`;
   }
 
   _renderMessageContent(message) {
@@ -230,7 +269,7 @@ export class MessageItem extends LitElement {
             ${message.text && message.text !== '**Image**' ?
               html`<div class="message-caption">${message.text}</div>` : ''}
             ${message.media_url ?
-              html`<img src="${message.media_url}" alt="Image" @click=${() => this._openImageModal(message.media_url)}>` :
+              html`<img src="${message.media_url}" alt="Image" @click=${() => this._openImageModal(message.media_url, { alt: message.text || 'Image', caption: message.text || '', filename: message.media_url })}>` :
               html`<div style="color: red;">Image file is missing.</div>`
             }
           </div>
@@ -263,12 +302,19 @@ export class MessageItem extends LitElement {
               : html`<i class="fa-solid fa-circle-check" aria-hidden="true"></i>`;
 
         const shimmerClass = status === 'pending' ? 'shimmer' : '';
+        const presentation = message._toolResponse?.tool_presentation;
 
         return html`
           <div class="tool-status ${status} ${shimmerClass}">
             <span class="tool-icon" aria-hidden="true">${icon}</span>
             ${progress ? html`<span class="tool-progress">${progress}</span>` : ''}
             ${status === 'pending' ? html`<span class="loading-dots">...</span>` : ''}
+            ${presentation?.type === 'image' ? html`
+              <figure class="tool-presentation-image">
+                <img src=${presentation.url} alt=${presentation.alt || 'Tool image'} @click=${() => this._openImageModal(presentation.url, presentation)}>
+                ${presentation.caption ? html`<figcaption>${presentation.caption}</figcaption>` : ''}
+              </figure>
+            ` : ''}
           </div>
         `;
 
@@ -319,6 +365,7 @@ export class MessageItem extends LitElement {
         <div class="message-item system">
           ${this._renderMessageContent(message)}
         </div>
+        ${this._renderImageViewer()}
       `;
     }
 
@@ -376,6 +423,7 @@ export class MessageItem extends LitElement {
         </div>
         ${this._renderInteractiveButtons(message.interactive_buttons)}
       </div>
+      ${this._renderImageViewer()}
     `;
   }
 }

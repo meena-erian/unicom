@@ -1798,6 +1798,32 @@ chat.log_tool_interaction(
 )
 ```
 
+#### Tool response presentations
+
+WebChat clients can render safe visual output inside the existing tool activity.
+Return a reserved `_unicom_presentation` object in the tool result:
+
+```python
+return {
+    "result": "Image inspected",
+    "_unicom_presentation": {
+        "type": "image",
+        "url": "data:image/png;base64,...",  # or an HTTP(S)/root-relative URL
+        "alt": "Inspection result",
+        "caption": "/photos/result.png",
+    },
+}
+```
+
+Unicom serializes this as `tool_presentation` on the persisted `tool_response`
+message. A client should merge that response into its corresponding `tool_call`
+using `reply_to_message_id` and render the descriptor there. Presentations do not
+create assistant messages or alter LLM conversation semantics. Image URLs are
+validated; arbitrary HTML and executable URL schemes are not supported.
+
+For compatibility, persisted Responses API tool results containing an
+`_responses_content` `input_image` data URL are exposed using the same descriptor.
+
 ### Delayed Tool Calls
 
 #### 🤖 Request-Based Tool Call Management

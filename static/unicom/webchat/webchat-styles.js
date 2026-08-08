@@ -723,6 +723,7 @@ export const messageStyles = css`
     gap: 0.5em;
     padding: 0.25em 0;
     color: var(--message-text-incoming, #212529);
+    flex-wrap: wrap;
   }
 
   .tool-icon {
@@ -741,6 +742,57 @@ export const messageStyles = css`
     font-weight: 500;
     font-size: 0.9em;
   }
+
+  .tool-presentation-image {
+    flex-basis: 100%;
+    margin: 0.5rem 0 0;
+    max-width: 32rem;
+  }
+
+  .tool-presentation-image img {
+    display: block;
+    max-width: 100%;
+    max-height: 24rem;
+    border-radius: 0.65rem;
+    cursor: pointer;
+    object-fit: contain;
+  }
+
+  .tool-presentation-image figcaption {
+    margin-top: 0.3rem;
+    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+    opacity: 0.75;
+  }
+
+  .image-viewer {
+    position: fixed;
+    z-index: 10000;
+    inset: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    color: var(--message-text-incoming, #212529);
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .image-viewer header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--chat-bg, #fff);
+  }
+
+  .image-viewer header > div:first-child { display: grid; min-width: 0; }
+  .image-viewer header small { overflow: hidden; opacity: 0.7; text-overflow: ellipsis; white-space: nowrap; }
+  .image-viewer-actions { display: flex; align-items: center; gap: 0.35rem; }
+  .image-viewer-actions button, .image-viewer-actions a { padding: 0.45rem 0.65rem; border: 1px solid currentColor; border-radius: 0.4rem; background: transparent; color: inherit; font: inherit; text-decoration: none; cursor: pointer; }
+  .image-viewer-actions span { min-width: 3rem; text-align: center; }
+  .image-viewer-canvas { display: grid; overflow: auto; padding: 2rem; place-items: center; }
+  .image-viewer-canvas img { max-width: 100%; max-height: calc(100vh - 10rem); transform-origin: center; transition: transform 120ms ease; }
+  .image-viewer footer { padding: 0.55rem 1rem; background: var(--chat-bg, #fff); font-size: 0.8rem; opacity: 0.8; }
 
   .shimmer {
     animation: shimmer-text 2.5s ease-in-out infinite;
