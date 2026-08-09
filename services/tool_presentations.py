@@ -54,6 +54,29 @@ def extract_tool_presentation(raw):
                 "alt": str(presentation.get("alt") or "Tool image")[:500],
                 "caption": str(presentation.get("caption") or "")[:1000],
             }
+    if isinstance(presentation, Mapping) and presentation.get("type") == "gallery":
+        images = []
+        for item in presentation.get("images") or []:
+            if not isinstance(item, Mapping):
+                continue
+            url = item.get("url")
+            if isinstance(url, str) and (_SAFE_IMAGE_DATA_URL.match(url) or url.startswith(("https://", "http://", "/"))):
+                images.append({
+                    "url": url, "alt": str(item.get("alt") or "Browser screenshot")[:500],
+                    "caption": str(item.get("caption") or "")[:1000],
+                })
+        if images:
+            return {"type": "gallery", "images": images[:5]}
+    if isinstance(presentation, Mapping) and presentation.get("type") == "video":
+        source_path = presentation.get("source_path")
+        device_id = presentation.get("device_id")
+        poster = presentation.get("poster") or ""
+        if (isinstance(device_id, int) and isinstance(source_path, str) and source_path.startswith("/")
+                and "\x00" not in source_path and (not poster or _SAFE_IMAGE_DATA_URL.match(poster))):
+            return {
+                "type": "video", "device_id": device_id, "source_path": source_path,
+                "poster": poster, "caption": str(presentation.get("caption") or "Browser recording")[:1000],
+            }
     blocks = payload.get("_responses_content")
     if isinstance(blocks, list):
         for block in blocks:

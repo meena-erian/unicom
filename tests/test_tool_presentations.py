@@ -25,3 +25,32 @@ class ToolPresentationTests(SimpleTestCase):
     def test_inline_svg_is_rejected(self):
         raw = {"tool_response": {"result": {"_unicom_presentation": {"type": "image", "url": "data:image/svg+xml,<svg onload=alert(1)>"}}}}
         self.assertIsNone(extract_tool_presentation(raw))
+
+    def test_browser_gallery_is_bounded_and_validated(self):
+        raw = {"tool_response": {"result": {"_unicom_presentation": {
+            "type": "gallery", "images": [
+                {"url": "data:image/jpeg;base64,ONE", "caption": "Step 1"},
+                {"url": "javascript:alert(1)"},
+            ],
+        }}}}
+        self.assertEqual(extract_tool_presentation(raw), {
+            "type": "gallery", "images": [{
+                "url": "data:image/jpeg;base64,ONE", "alt": "Browser screenshot", "caption": "Step 1",
+            }],
+        })
+
+    def test_device_video_descriptor_has_no_direct_untrusted_url(self):
+        raw = {"tool_response": {"result": {"_unicom_presentation": {
+            "type": "video", "device_id": 12, "source_path": "/home/me/run.webm",
+            "poster": "data:image/jpeg;base64,POSTER", "caption": "Run",
+        }}}}
+        self.assertEqual(extract_tool_presentation(raw), {
+            "type": "video", "device_id": 12, "source_path": "/home/me/run.webm",
+            "poster": "data:image/jpeg;base64,POSTER", "caption": "Run",
+        })
+
+    def test_video_rejects_relative_device_path(self):
+        raw = {"tool_response": {"result": {"_unicom_presentation": {
+            "type": "video", "device_id": 12, "source_path": "run.webm",
+        }}}}
+        self.assertIsNone(extract_tool_presentation(raw))
