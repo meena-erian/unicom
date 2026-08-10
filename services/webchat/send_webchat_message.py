@@ -52,6 +52,9 @@ def send_webchat_message(channel, msg, user=None):
 
     # Extract optional metadata
     tool_call_id = msg.pop('_tool_call_id', None)
+    message_raw = msg.pop('_message_raw', None)
+    if message_raw is not None and not isinstance(message_raw, dict):
+        raise ValueError("_message_raw must be a dictionary")
 
     # Get required fields
     chat_id = msg.get('chat_id')
@@ -111,6 +114,7 @@ def send_webchat_message(channel, msg, user=None):
             'source': 'webchat_outgoing',
             'channel_id': channel.id,
             'user_id': user.id if user else None,
+            **(message_raw or {}),
         }
     )
 
