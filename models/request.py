@@ -76,6 +76,24 @@ class Request(models.Model):
         blank=True,
         help_text="Detailed error message when request fails"
     )
+    retry_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of automatic retries already claimed for this request",
+    )
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    last_retried_at = models.DateTimeField(null=True, blank=True)
+    next_retry_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Earliest time a worker may atomically retry a transient failure",
+    )
+    failure_kind = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Machine-readable classification of the most recent failure",
+    )
+    retry_exhausted_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict)
     
     # Hierarchy and LLM tracking fields

@@ -71,10 +71,14 @@ class RequestCategoryAdmin(admin.ModelAdmin):
         js = ('admin/js/core.js',)
 
 class RequestAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'status', 'member_link', 'category', 'channel', 'created_at')
+    list_display = (
+        '__str__', 'status', 'retry_count', 'failure_kind',
+        'member_link', 'category', 'channel', 'created_at',
+    )
     list_display_links = ('__str__',)
     list_filter = (
         'status',
+        'failure_kind',
         'channel',
         'category',
         ('member', admin.RelatedOnlyFieldListFilter),
@@ -100,6 +104,12 @@ class RequestAdmin(admin.ModelAdmin):
         'processing_at',
         'completed_at',
         'failed_at',
+        'last_attempt_at',
+        'last_retried_at',
+        'next_retry_at',
+        'retry_exhausted_at',
+        'retry_count',
+        'failure_kind',
         'error',
     )
     raw_id_fields = ('message', 'account', 'member', 'category')
@@ -118,6 +128,12 @@ class RequestAdmin(admin.ModelAdmin):
         }),
         ('Basic Information', {
             'fields': ('status', 'error', 'account', 'channel', 'member')
+        }),
+        ('Automatic retries', {
+            'fields': (
+                'retry_count', 'failure_kind', 'last_attempt_at',
+                'last_retried_at', 'next_retry_at', 'retry_exhausted_at',
+            ),
         }),
         ('Contact Information', {
             'fields': ('email', 'phone')
@@ -143,4 +159,4 @@ class RequestAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',)
         }),
-    ) 
+    )
