@@ -92,6 +92,16 @@ def extract_tool_presentation(raw):
             })
         if links:
             return {"type": "public_links", "links": links[:3]}
+    if isinstance(presentation, Mapping) and presentation.get("type") == "terminal":
+        return {
+            "type": "terminal",
+            "command": str(presentation.get("command") or "")[:4000],
+            "exit_code": presentation.get("exit_code"),
+            "stdout": str(presentation.get("stdout") or "")[-6000:],
+            "stderr": str(presentation.get("stderr") or "")[-3000:],
+            "timed_out": bool(presentation.get("timed_out")),
+            "duration_seconds": presentation.get("duration_seconds"),
+        }
     blocks = payload.get("_responses_content")
     if isinstance(blocks, list):
         for block in blocks:

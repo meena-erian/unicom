@@ -68,3 +68,14 @@ class ToolPresentationTests(SimpleTestCase):
                 "url": "https://app.example.test", "label": "Open port 80", "port": 80,
             }],
         })
+
+    def test_terminal_presentation_is_bounded(self):
+        raw = {"tool_response": {"result": {"_unicom_presentation": {
+            "type": "terminal", "command": "npm test", "exit_code": 0,
+            "stdout": "passed", "stderr": "", "duration_seconds": 2.5,
+        }}}}
+        self.assertEqual(extract_tool_presentation(raw), {
+            "type": "terminal", "command": "npm test", "exit_code": 0,
+            "stdout": "passed", "stderr": "", "timed_out": False,
+            "duration_seconds": 2.5,
+        })
