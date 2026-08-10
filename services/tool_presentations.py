@@ -77,6 +77,21 @@ def extract_tool_presentation(raw):
                 "type": "video", "device_id": device_id, "source_path": source_path,
                 "poster": poster, "caption": str(presentation.get("caption") or "Browser recording")[:1000],
             }
+    if isinstance(presentation, Mapping) and presentation.get("type") == "public_links":
+        links = []
+        for item in presentation.get("links") or []:
+            if not isinstance(item, Mapping):
+                continue
+            url = item.get("url")
+            if not isinstance(url, str) or not url.startswith("https://"):
+                continue
+            links.append({
+                "url": url,
+                "label": str(item.get("label") or "Open application")[:200],
+                "port": item.get("port"),
+            })
+        if links:
+            return {"type": "public_links", "links": links[:3]}
     blocks = payload.get("_responses_content")
     if isinstance(blocks, list):
         for block in blocks:

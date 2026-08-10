@@ -54,3 +54,17 @@ class ToolPresentationTests(SimpleTestCase):
             "type": "video", "device_id": 12, "source_path": "run.webm",
         }}}}
         self.assertIsNone(extract_tool_presentation(raw))
+
+    def test_public_links_are_bounded_and_require_https(self):
+        raw = {"tool_response": {"result": {"_unicom_presentation": {
+            "type": "public_links", "links": [
+                {"url": "https://app.example.test", "label": "Open port 80", "port": 80},
+                {"url": "javascript:alert(1)", "label": "Unsafe"},
+            ],
+        }}}}
+        self.assertEqual(extract_tool_presentation(raw), {
+            "type": "public_links",
+            "links": [{
+                "url": "https://app.example.test", "label": "Open port 80", "port": 80,
+            }],
+        })
