@@ -6,6 +6,7 @@ from unicom.models.constants import channels
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import validate_email
 import uuid
+import json
 import re
 import os
 from bs4 import BeautifulSoup
@@ -20,6 +21,36 @@ import io
 
 if TYPE_CHECKING:
     from unicom.models import Channel
+
+
+MAX_LLM_TOOL_RESPONSE_CHARS = 32_000
+MAX_LLM_GITHUB_TOOL_RESPONSE_CHARS = 16_000
+
+
+def _bounded_tool_response_content(tool_response_data):
+    """Prevent one persisted tool result from multiplying context on every turn."""
+    content = str(tool_response_data.get('result', '') or '')
+    tool_name = str(tool_response_data.get('tool_name') or '')
+    limit = (
+        MAX_LLM_GITHUB_TOOL_RESPONSE_CHARS
+        if tool_name in {'dashboard_read_github_file', 'dashboard_list_github_directory'}
+        else MAX_LLM_TOOL_RESPONSE_CHARS
+    )
+    if len(content) <= limit:
+        return content
+    guidance = (
+        "Use dashboard_list_github_directory and dashboard_read_github_file with "
+        "offset/max_chars to retrieve only the needed range."
+        if tool_name.startswith('dashboard_') and 'github' in tool_name
+        else "Call the source tool again with narrower pagination or filters."
+    )
+    return json.dumps({
+        "status": "OMITTED_FROM_HISTORY",
+        "tool_name": tool_name,
+        "original_chars": len(content),
+        "message": "This oversized historical tool result was omitted from model context.",
+        "navigation": guidance,
+    })
 
 def get_openai_client():
     api_key = getattr(settings, 'OPENAI_API_KEY', None)
@@ -409,7 +440,7 @@ class Message(models.Model):
                 d = {
                     "role": "tool",
                     "tool_call_id": tool_response_data.get('call_id', ''),
-                    "content": str(tool_response_data.get('result', msg.text or ''))
+                    "content": _bounded_tool_response_content(tool_response_data)
                 }
                 return d
             else:
