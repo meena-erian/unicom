@@ -222,6 +222,30 @@ class ResponsesAdapterTests(SimpleTestCase):
         self.assertEqual(published[0]["type"], "response.started")
         self.assertEqual(published[-1]["type"], "response.finished")
 
+    def test_streaming_preserves_generated_image_from_completed_output_item(self):
+        events = [
+            {
+                "type": "response.output_item.done",
+                "item": {"type": "image_generation_call", "result": "AAAA"},
+            },
+            {
+                "type": "response.completed",
+                # The streaming completion summary does not repeat the image bytes.
+                "response": {"id": "resp_image", "output_text": "", "output": []},
+            },
+        ]
+        result = create_response(
+            client=_Client(events),
+            model="test-model",
+            messages=[{"role": "user", "content": "Edit this image"}],
+            stream=True,
+            native_tools=[{"type": "image_generation"}],
+        )
+        self.assertEqual(result.content, [{
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,AAAA"},
+        }])
+
     def test_stream_sink_failure_does_not_abort_durable_response(self):
         events = [
             {"type": "response.output_text.delta", "delta": "ok"},

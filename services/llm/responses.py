@@ -216,6 +216,17 @@ def _tool_call_from_item(item: Any) -> Optional[ResponsesToolCall]:
     return ResponsesToolCall(call_id=call_id, name=name, arguments=_parse_arguments(data.get("arguments")))
 
 
+def _content_from_item(item: Any) -> Optional[dict[str, Any]]:
+    """Normalize durable non-text output carried by one Responses item."""
+    data = _as_dict(item)
+    if data.get("type") == "image_generation_call" and data.get("result"):
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{data['result']}"},
+        }
+    return None
+
+
 def _result_from_response(response: Any) -> ResponsesResult:
     data = _as_dict(response)
     text = str(getattr(response, "output_text", None) or data.get("output_text") or "")
@@ -230,12 +241,9 @@ def _result_from_response(response: Any) -> ResponsesResult:
     if text:
         content.append({"type": "text", "text": text})
     for item in (getattr(response, "output", None) or data.get("output") or ()):
-        item_data = _as_dict(item)
-        if item_data.get("type") == "image_generation_call" and item_data.get("result"):
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{item_data['result']}"},
-            })
+        item_content = _content_from_item(item)
+        if item_content is not None:
+            content.append(item_content)
     return ResponsesResult(
         text=text,
         content=content,
@@ -279,6 +287,7 @@ def create_response(
     _emit(event_sink, {"type": "response.started", "stream_id": sid})
     text_parts: list[str] = []
     tool_calls: dict[str, ResponsesToolCall] = {}
+    streamed_content: list[dict[str, Any]] = []
     completed_response: Any = None
     sequence = 0
     try:
@@ -304,13 +313,16 @@ def create_response(
                 call = _tool_call_from_item(item)
                 if call is not None:
                     tool_calls[call.call_id] = call
+                item_content = _content_from_item(item)
+                if item_content is not None:
+                    streamed_content.append(item_content)
             elif event_type == "response.completed":
                 completed_response = getattr(event, "response", None) or data.get("response")
 
         base = _result_from_response(completed_response) if completed_response is not None else ResponsesResult(text="")
         result = ResponsesResult(
             text=base.text or "".join(text_parts),
-            content=base.content,
+            content=base.content or streamed_content,
             tool_calls=base.tool_calls or list(tool_calls.values()),
             response_id=base.response_id,
             usage=base.usage,
