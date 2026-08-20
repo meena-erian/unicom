@@ -442,7 +442,7 @@ def _basic_email_check(msg, from_email: str) -> bool:
     return False
 
 
-def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid: int = None):
+def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid: int = None, historical=False):
     """
     Save an email into Message, creating Account, Chat, AccountChat as needed.
     `raw_message_bytes` should be the full RFC-5322 bytes you get from IMAPClient.fetch(uid, ['BODY.PEEK[]'])
@@ -618,6 +618,13 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
     if body_html:
         body_html, inline_image_pks = html_base64_images_to_shortlinks(body_html)
 
+    raw_headers = dict(msg.items())
+    if historical:
+        # Historical imports provide reply context, but must not enter the
+        # new-message request/automation pipeline.
+        raw_headers['skip_request_creation'] = True
+        raw_headers['historical_import'] = True
+
     msg_obj, created = Message.objects.get_or_create(
         platform=platform,
         chat=chat_obj,
@@ -632,7 +639,7 @@ def save_email_message(channel, raw_message_bytes: bytes, user: User = None, uid
             'subject': hdr_subject,
             'timestamp': timestamp,
             'reply_to_message': parent_msg,
-            'raw': dict(msg.items()),
+            'raw': raw_headers,
             'to': to_list,
             'cc': cc_list,
             'bcc': bcc_list,

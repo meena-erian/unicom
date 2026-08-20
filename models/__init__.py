@@ -12,6 +12,7 @@ from .tool_call import ToolCall
 from .message_template import MessageTemplate
 from .draft_message import DraftMessage
 from .callback_execution import CallbackExecution
+from .email_backfill_job import EmailBackfillJob
 
 __all__ = [
     'AccountChat',
@@ -28,5 +29,6 @@ __all__ = [
     'MemberGroup',
     'MessageTemplate',
     'DraftMessage',
-    'CallbackExecution'
+    'CallbackExecution',
+    'EmailBackfillJob'
 ]

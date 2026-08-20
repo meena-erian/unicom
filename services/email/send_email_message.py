@@ -31,6 +31,11 @@ if TYPE_CHECKING:
     from unicom.models import Channel
 
 
+def email_tracking_enabled(config: dict) -> bool:
+    """Tracking remains on for existing channels and can be disabled explicitly."""
+    return config.get('EMAIL_TRACKING_ENABLED', True) is not False
+
+
 def convert_text_to_html(text: str) -> str:
     """
     Convert plain text to HTML while preserving formatting.
@@ -315,7 +320,8 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # Generate a message ID and tracking ID before constructing the message
     message_id = make_msgid(domain=get_public_domain())
-    tracking_id = uuid.uuid4()
+    tracking_enabled = email_tracking_enabled(channel.config)
+    tracking_id = uuid.uuid4() if tracking_enabled else None
     logger.info(f"Generated Message-ID: {message_id}, Tracking-ID: {tracking_id}")
 
     # Handle HTML content
@@ -376,7 +382,7 @@ def send_email_message(channel: Channel, params: dict, user: User=None):
 
     # Prepare HTML content with tracking
     original_urls = []
-    if html_content:
+    if html_content and tracking_enabled:
         html_content, original_urls = prepare_email_for_tracking(html_content, tracking_id)
         logger.debug("Added tracking elements to HTML content")
 
