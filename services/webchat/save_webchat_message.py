@@ -5,6 +5,7 @@ from django.apps import apps
 from django.utils import timezone
 from django.core.files.base import ContentFile
 from unicom.services.webchat.get_or_create_account import get_or_create_account
+from unicom.services.chat_handoff import chat_allows_automation
 
 
 def save_webchat_message(channel, message_data, request, user=None):
@@ -110,6 +111,8 @@ def save_webchat_message(channel, message_data, request, user=None):
             'user_id': user.id if user else None,
         }
     )
+    if not chat_allows_automation(chat):
+        message.raw['skip_request_creation'] = True
 
     # Set reply_to_message for context chain and branching
     if reply_to_message_id:
@@ -160,21 +163,24 @@ def save_webchat_message(channel, message_data, request, user=None):
 
     # Create Request object for incoming messages
     # Check if request already exists for this message (avoid duplicates)
-    request_obj, request_created = Request.objects.get_or_create(
-        message=message,
-        defaults={
-            'account': account,
-            'channel': channel,
-            'email': account.member.email if account.member else None,
-            'phone': account.member.phone if account.member else None,
-            'member': account.member,
-            'display_text': text,
-            'metadata': {
-                'source': 'webchat',
-                'chat_id': chat_id
+    request_obj = None
+    request_created = False
+    if chat_allows_automation(chat):
+        request_obj, request_created = Request.objects.get_or_create(
+            message=message,
+            defaults={
+                'account': account,
+                'channel': channel,
+                'email': account.member.email if account.member else None,
+                'phone': account.member.phone if account.member else None,
+                'member': account.member,
+                'display_text': text,
+                'metadata': {
+                    'source': 'webchat',
+                    'chat_id': chat_id
+                }
             }
-        }
-    )
+        )
 
     # Trigger request processing asynchronously (only if newly created)
     if request_created:

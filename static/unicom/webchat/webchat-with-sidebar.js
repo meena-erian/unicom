@@ -10,7 +10,7 @@ import './components/chat-list.js';
 import './components/message-list.js';
 import './components/message-input.js';
 
-const WEBCHAT_UI_VERSION = '2025.02.15-rc4';
+const WEBCHAT_UI_VERSION = '2026.08.25-support1';
 console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
@@ -25,6 +25,7 @@ export class UnicomChatWithSidebar extends LitElement {
     metadataDefaults: { type: Object, attribute: 'metadata-defaults' }, // Default metadata to send with every message
     disableWebsocket: { type: Boolean, attribute: 'disable-websocket' },
     enableWebsocketOnly: { type: Boolean, attribute: 'enable-websocket-only' },
+    startWithChat: { type: Boolean, attribute: 'start-with-chat' },
 
     // Internal state
     chats: { type: Array, state: true },
@@ -155,6 +156,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.metadataDefaults = {};
     this.disableWebsocket = false;
     this.enableWebsocketOnly = false;
+    this.startWithChat = false;
 
     this.chats = [];
     this.currentChatId = null;
@@ -173,7 +175,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.retryDelay = 0;
 
     this.client = null;
-    this._showSidebar = true;
+    this._showSidebar = !this.startWithChat;
     this._deletingChatId = null;
     this._branchNavigationTimeout = null; // Add debounce timeout
     this._initialUrlChatId = null;
@@ -182,6 +184,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (this.startWithChat) this._showSidebar = false;
     this._initialUrlChatId = this._readChatIdFromUrl();
 
     // Initialize real-time client

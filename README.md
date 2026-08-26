@@ -1217,6 +1217,7 @@ The `<unicom-chat-with-sidebar>` component accepts these attributes:
 - **`auto-refresh`**: Polling interval in seconds (default: 5, set to 0 to disable)
 - **`disable-websocket`**: Force HTTP polling only (default: false)
 - **`enable-websocket-only`**: Force WebSocket only with retry on failure (default: false)
+- **`start-with-chat`**: Open the composer instead of the chat list initially (default: false, preserving existing behavior)
 
 **WebSocket Connection Modes:**
 
@@ -1720,6 +1721,34 @@ pytest tests/test_webchat.py -v
 ```
 
 #### 🌐 WebChat Optional Enhancements
+
+#### 🤝 Chat handoff (optional)
+
+Unicom supports an opt-in automation handoff for chats that need a human. The
+default for every existing chat remains automated processing. Handoff state is
+stored in the chat's JSON metadata, so projects that do not use this feature
+require no migration or configuration change.
+
+```python
+from unicom.services.chat_handoff import handoff_chat, resume_chat_automation
+
+# Stop creating/processing automated requests for this chat.
+handoff_chat(chat, metadata={"handoff_reason": "visitor_requested_agent"})
+
+# Allow automated processing again later.
+resume_chat_automation(chat)
+```
+
+When a chat is handed off, incoming WebChat messages are still persisted and
+remain visible to the human agent, but they do not create new bot `Request`
+objects. The bot worker also checks the state immediately before processing, so
+requests queued before handoff are safely ignored. Outgoing agent/system
+messages are unaffected and do not create incoming requests.
+
+Projects should expose handoff and resume operations through their own
+authorization boundary (for example, a staff action or a narrowly scoped
+Unibot tool). Do not rely on frontend state or LLM instructions to enforce the
+handoff.
 
 **Future Enhancements (Optional - Not Required):**
 
