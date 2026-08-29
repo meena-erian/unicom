@@ -901,8 +901,8 @@ export const inputStyles = css`
   }
 
   .composer-toolbar {
-    min-height: 48px;
-    padding: 4px 8px 8px;
+    min-height: 44px;
+    padding: 2px 8px 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -914,6 +914,26 @@ export const inputStyles = css`
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .composer-icon-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted-text-color, #929bb4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+
+  .composer-icon-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--text-color);
   }
 
   .edit-mode-indicator {
@@ -990,8 +1010,8 @@ export const inputStyles = css`
   .composer-icon-btn,
   .send-btn {
     flex-shrink: 0;
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border-radius: 999px;
     border: 0;
     background: transparent;
