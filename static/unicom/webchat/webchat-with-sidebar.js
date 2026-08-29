@@ -619,6 +619,7 @@ export class UnicomChatWithSidebar extends LitElement {
       }
 
       const response = await this.client.sendMessage(text, this.currentChatId, file, options);
+      this.client.beginFastPolling();
 
       // Update or set current chat ID
       if (response.chat_id) {
@@ -713,6 +714,9 @@ export class UnicomChatWithSidebar extends LitElement {
       this.messages = [...this.messages, message];
     }
     this.processedMessages = this._processMessagesWithBranching(this.messages);
+    if (message.stream_status === 'finished' || message.stream_status === 'failed') {
+      this.client.endFastPolling();
+    }
     this.requestUpdate();
   }
 

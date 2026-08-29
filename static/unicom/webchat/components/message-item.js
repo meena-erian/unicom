@@ -219,7 +219,15 @@ export class MessageItem extends LitElement {
   _renderMessageContent(message) {
     switch (message.media_type) {
       case 'text':
-        return html`<div class="message-text">${message.text}</div>`;
+        return html`
+          <div class="message-text">${message.text}</div>
+          ${message.stream_status === 'started' || message.stream_status === 'streaming'
+            ? html`<span class="streaming-indicator" aria-label="Response is streaming">▍</span>`
+            : ''}
+          ${message.stream_status === 'failed'
+            ? html`<div class="message-error">Response interrupted. You can retry.</div>`
+            : ''}
+        `;
 
       case 'html':
         return html`<div class="message-html" @click=${this._handleHtmlInteractions}></div>`;

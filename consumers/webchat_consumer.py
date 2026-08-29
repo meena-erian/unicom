@@ -325,6 +325,8 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
             "interactive_buttons": message.raw.get('interactive_buttons') if message.raw else None,
             "progress_updates_for_user": (message.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if message.media_type == 'tool_call' else None,
             "result_status": (message.raw or {}).get('tool_response', {}).get('result', {}).get('status') if message.media_type == 'tool_response' else None,
+            "stream_status": (message.raw or {}).get("stream", {}).get("status"),
+            "stream_error": (message.raw or {}).get("stream", {}).get("error"),
         }
 
 
@@ -355,6 +357,8 @@ async def broadcast_message_to_chat(chat_id: str, message) -> None:
         "interactive_buttons": message.raw.get("interactive_buttons") if message.raw else None,
         "progress_updates_for_user": (message.raw or {}).get("tool_call", {}).get("arguments", {}).get("progress_updates_for_user") if message.media_type == "tool_call" else None,
         "result_status": (message.raw or {}).get("tool_response", {}).get("result", {}).get("status") if message.media_type == "tool_response" else None,
+        "stream_status": (message.raw or {}).get("stream", {}).get("status"),
+        "stream_error": (message.raw or {}).get("stream", {}).get("error"),
     }
     await channel_layer.group_send(
         f"webchat_chat_{chat_id}",

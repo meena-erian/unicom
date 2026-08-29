@@ -40,6 +40,9 @@ export class RealTimeWebChatClient {
     }
     this.pollingInterval = null;
     this.pollingRate = 5000; // 5 seconds default
+    this.normalPollingRate = 5000;
+    this.fastPollingRate = 250;
+    this.fastPolling = false;
 
     // Retry logic for WebSocket-only mode
     this.retryAttempt = 0;
@@ -62,6 +65,7 @@ export class RealTimeWebChatClient {
 
     // Message cache for polling
     this.lastMessageId = null;
+    this.messageFingerprints = new Map();
   }
 
   /**
@@ -212,6 +216,10 @@ export class RealTimeWebChatClient {
    * Call this after loading messages via HTTP so polling starts from the end.
    */
   updateBaselineFromMessages(messages = []) {
+    this.messageFingerprints.clear();
+    messages.forEach((message) => {
+      this.messageFingerprints.set(message.id, this._messageFingerprint(message));
+    });
     if (Array.isArray(messages) && messages.length > 0) {
       this.lastMessageId = messages[messages.length - 1].id;
     } else {
@@ -403,18 +411,18 @@ export class RealTimeWebChatClient {
           return;
         }
 
-        const response = await this.api.getMessages(
-          this.currentChatId,
-          50,
-          null,
-          this.lastMessageId
-        );
+        const response = await this.api.getMessages(this.currentChatId, 200);
 
         if (response.messages && response.messages.length > 0) {
           this.lastMessageId = response.messages[response.messages.length - 1].id;
           response.messages.forEach((msg) => {
-            if (this.onMessage) {
+            const fingerprint = this._messageFingerprint(msg);
+            const previous = this.messageFingerprints.get(msg.id);
+            this.messageFingerprints.set(msg.id, fingerprint);
+            if (previous === undefined && this.onMessage) {
               this.onMessage(msg, this.currentChatId);
+            } else if (previous !== fingerprint && this.onMessageUpdated) {
+              this.onMessageUpdated(msg, this.currentChatId);
             }
           });
         }
@@ -445,11 +453,34 @@ export class RealTimeWebChatClient {
   }
 
   setPollingRate(ms) {
-    this.pollingRate = ms;
+    this.normalPollingRate = ms;
+    if (!this.fastPolling) this.pollingRate = ms;
     if (this.pollingInterval && !this.useWebSocket) {
       clearInterval(this.pollingInterval);
       this._startPolling();
     }
+  }
+
+  beginFastPolling() {
+    this.fastPolling = true;
+    this.pollingRate = this.fastPollingRate;
+    if (this.pollingInterval && !this.useWebSocket) this._startPolling();
+  }
+
+  endFastPolling() {
+    this.fastPolling = false;
+    this.pollingRate = this.normalPollingRate;
+    if (this.pollingInterval && !this.useWebSocket) this._startPolling();
+  }
+
+  _messageFingerprint(message) {
+    return JSON.stringify([
+      message.text,
+      message.html,
+      message.stream_status,
+      message.stream_error,
+      message.result_status,
+    ]);
   }
 
   isUsingWebSocket() {

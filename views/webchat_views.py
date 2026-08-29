@@ -360,6 +360,8 @@ def get_webchat_messages_api(request):
             'interactive_buttons': msg.raw.get('interactive_buttons') if msg.raw else None,
             'progress_updates_for_user': (msg.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if msg.media_type == 'tool_call' else None,
             'result_status': (msg.raw or {}).get('tool_response', {}).get('result', {}).get('status') if msg.media_type == 'tool_response' else None,
+            'stream_status': (msg.raw or {}).get('stream', {}).get('status'),
+            'stream_error': (msg.raw or {}).get('stream', {}).get('error'),
         } for msg in messages_list]
 
         return JsonResponse({
