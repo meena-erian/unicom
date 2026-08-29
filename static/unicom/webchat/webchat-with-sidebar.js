@@ -54,12 +54,16 @@ export class UnicomChatWithSidebar extends LitElement {
         max-width: 100%;
         width: 100%;
         overflow: hidden;
+        height: 100%;
+        max-height: 100%;
       }
 
       .sidebar {
         width: 300px;
         min-width: 300px;
         height: 100%;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .chat-main {
@@ -69,6 +73,7 @@ export class UnicomChatWithSidebar extends LitElement {
         height: 100%;
         width: 100%;
         min-height: 0;
+        overflow: hidden;
       }
 
       @container (max-width: 768px) {

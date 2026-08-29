@@ -36,6 +36,7 @@ export const baseStyles = css`
     --sidebar-item-selected-subtext: var(--unicom-sidebar-item-selected-subtext, rgba(255, 255, 255, 0.8));
     --font-family: var(--unicom-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
     --input-height: var(--unicom-input-height, 44px);
+    --content-max-width: var(--unicom-content-max-width, 920px);
 
     display: block;
     width: 100%;
@@ -111,7 +112,7 @@ export const baseStyles = css`
 
 export const messageStyles = css`
   .message-item {
-    padding: 8px 8px;
+    padding: 4px clamp(12px, 3vw, 28px);
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -147,13 +148,15 @@ export const messageStyles = css`
 
   .message-bubble {
     display: inline-block;
-    max-width: calc(100% - 32px);
+    max-width: min(82%, var(--content-max-width));
     padding: 12px 16px;
     border-radius: var(--bubble-radius);
     word-wrap: break-word;
     word-break: break-word;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     box-sizing: border-box;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   .message-item.outgoing .message-bubble {
@@ -198,6 +201,7 @@ export const messageStyles = css`
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
   }
 
   .message-html {
@@ -869,7 +873,7 @@ export const inputStyles = css`
   .message-input-container {
     border-top: 1px solid var(--border-color);
     background: var(--background-color);
-    padding: 12px;
+    padding: 14px clamp(14px, 3vw, 28px);
     box-sizing: border-box;
   }
 
@@ -878,6 +882,8 @@ export const inputStyles = css`
     align-items: flex-end;
     gap: 12px;
     position: relative;
+    width: min(100%, var(--content-max-width));
+    margin: 0 auto;
   }
 
   .edit-mode-indicator {
@@ -934,7 +940,7 @@ export const inputStyles = css`
     padding: 10px 12px;
     min-height: var(--input-height);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: var(--control-radius);
     font-family: inherit;
     font-size: 0.95em;
     resize: none;
@@ -1058,6 +1064,9 @@ export const listStyles = css`
     box-sizing: border-box;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    padding: 20px 0 12px;
+    overscroll-behavior: contain;
+    scroll-padding-block: 20px;
   }
 
   .message-list::-webkit-scrollbar {

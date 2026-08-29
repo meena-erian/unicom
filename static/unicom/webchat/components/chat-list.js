@@ -21,16 +21,21 @@ export class ChatList extends LitElement {
       background: var(--sidebar-bg, var(--background-color, #ffffff));
       border-right: 1px solid var(--sidebar-border-color, var(--border-color, #dee2e6));
       color: var(--sidebar-text-color, var(--text-color, #212529));
+      min-height: 0;
+      overflow: hidden;
+      box-sizing: border-box;
     }
 
     .chat-list-container {
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .chat-list-header {
-      padding: 16px;
+      padding: 20px 18px 16px;
       border-bottom: 1px solid var(--sidebar-border-color, var(--border-color, #dee2e6));
       background: var(--sidebar-header-bg, var(--primary-color, #007bff));
       color: var(--sidebar-header-text, #ffffff);
@@ -49,7 +54,7 @@ export class ChatList extends LitElement {
       background: white;
       color: var(--primary-color, #007bff);
       border: none;
-      border-radius: 6px;
+      border-radius: var(--control-radius, 10px);
       cursor: pointer;
       font-weight: 500;
       transition: opacity 0.2s;
@@ -61,6 +66,7 @@ export class ChatList extends LitElement {
 
     .chat-list-items {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: var(--scrollbar-thumb, rgba(0, 0, 0, 0.18)) var(--scrollbar-track, rgba(0, 0, 0, 0.04));
