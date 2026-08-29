@@ -607,7 +607,7 @@ class Message(models.Model):
                 input=messages,
                 **kwargs,
             )
-            return self.reply_with({'type': 'text', 'text': response.output_text}, user=user)
+            return self.reply_with({'type': 'text', 'text': response.output_text})
         # Determine if we need to request audio response
         openai_kwargs = dict(kwargs)
         if multimodal and self.media_type == "audio":
