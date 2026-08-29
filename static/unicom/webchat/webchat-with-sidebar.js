@@ -716,6 +716,9 @@ export class UnicomChatWithSidebar extends LitElement {
     this.processedMessages = this._processMessagesWithBranching(this.messages);
     if (message.stream_status === 'finished' || message.stream_status === 'failed') {
       this.client.endFastPolling();
+      // The chat list caches the last message preview. Reconcile it after the
+      // durable streaming message reaches a terminal state.
+      this.loadChats();
     }
     this.requestUpdate();
   }
