@@ -587,7 +587,7 @@ class Message(models.Model):
         
         return tuple(messages) if len(messages) > 1 else messages[0]
 
-    def reply_using_llm(self, model: str, depth=129, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", **kwargs):
+    def reply_using_llm(self, model: str, depth=129, mode="chat", system_instruction=None, multimodal=True, user=None, voice="alloy", api_mode="chat_completions", **kwargs):
         """
         Wrapper: Calls as_llm_chat, OpenAI ChatCompletion API, and reply_with.
         - model: OpenAI model string
@@ -597,8 +597,17 @@ class Message(models.Model):
         - kwargs: extra params for OpenAI API
         Returns: The Message object created by reply_with
         """
+        if api_mode not in ("chat_completions", "responses"):
+            raise ValueError("api_mode must be 'chat_completions' or 'responses'")
         # Prepare messages for LLM
         messages = self.as_llm_chat(depth=depth, mode=mode, system_instruction=system_instruction, multimodal=multimodal)
+        if api_mode == "responses":
+            response = get_openai_client().responses.create(
+                model=model,
+                input=messages,
+                **kwargs,
+            )
+            return self.reply_with({'type': 'text', 'text': response.output_text}, user=user)
         # Determine if we need to request audio response
         openai_kwargs = dict(kwargs)
         if multimodal and self.media_type == "audio":
