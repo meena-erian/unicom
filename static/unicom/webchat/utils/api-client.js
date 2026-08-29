@@ -41,9 +41,13 @@ export class WebChatAPI {
     if (effectiveChannelId) formData.append('channel_id', effectiveChannelId);
     
     // Handle options
-    const { metadata, reply_to_message_id } = options;
+    const { metadata, reply_to_message_id, onUploadProgress } = options;
     if (metadata) formData.append('metadata', JSON.stringify(metadata));
     if (reply_to_message_id) formData.append('reply_to_message_id', reply_to_message_id);
+
+    if (mediaFile && typeof onUploadProgress === 'function') {
+      return await this._sendWithUploadProgress(formData, onUploadProgress);
+    }
 
     const response = await fetch(`${this.baseURL}/send/`, {
       method: 'POST',
@@ -59,6 +63,34 @@ export class WebChatAPI {
       throw new Error(errorData.error || 'Failed to send message');
     }
     return await response.json();
+  }
+
+  async _sendWithUploadProgress(formData, onUploadProgress) {
+    const csrfToken = await this.getCSRFToken();
+    return await new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', `${this.baseURL}/send/`);
+      request.withCredentials = true;
+      if (csrfToken) request.setRequestHeader('X-CSRFToken', csrfToken);
+      request.upload.addEventListener('progress', event => {
+        if (event.lengthComputable) {
+          onUploadProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        }
+      });
+      request.addEventListener('load', () => {
+        let data = {};
+        try { data = JSON.parse(request.responseText || '{}'); } catch (_) {}
+        if (request.status >= 200 && request.status < 300) {
+          onUploadProgress(100);
+          resolve(data);
+        } else {
+          reject(new Error(data.error || 'Failed to send message'));
+        }
+      });
+      request.addEventListener('error', () => reject(new Error('Upload failed')));
+      request.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+      request.send(formData);
+    });
   }
 
   /**

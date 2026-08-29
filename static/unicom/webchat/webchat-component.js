@@ -22,6 +22,7 @@ export class UnicomChat extends LitElement {
     loading: { type: Boolean, state: true },
     sending: { type: Boolean, state: true },
     sendAck: { type: Number, state: true },
+    uploadProgress: { type: Number, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     deleting: { type: Boolean, state: true },
@@ -74,6 +75,7 @@ export class UnicomChat extends LitElement {
     this.loading = false;
     this.sending = false;
     this.sendAck = 0;
+    this.uploadProgress = null;
     this.error = null;
     this.hasMore = false;
     this.deleting = false;
@@ -162,7 +164,14 @@ export class UnicomChat extends LitElement {
     this.error = null;
 
     try {
-      const response = await this.api.sendMessage(text, this.chatId, file);
+      const options = {};
+      if (file) {
+        this.uploadProgress = 0;
+        options.onUploadProgress = progress => {
+          this.uploadProgress = progress;
+        };
+      }
+      const response = await this.api.sendMessage(text, this.chatId, file, options);
 
       // Update chat_id if this was the first message
       if (response.chat_id && !this.chatId) {
@@ -184,6 +193,7 @@ export class UnicomChat extends LitElement {
       console.error('Failed to send message:', err);
     } finally {
       this.sending = false;
+      this.uploadProgress = null;
     }
   }
 
@@ -293,6 +303,7 @@ export class UnicomChat extends LitElement {
           .disabled=${this.sending}
           .sending=${this.sending}
           .sendAck=${this.sendAck}
+          .uploadProgress=${this.uploadProgress}
           @send-message=${this._handleSendMessage}>
         </message-input>
       </div>

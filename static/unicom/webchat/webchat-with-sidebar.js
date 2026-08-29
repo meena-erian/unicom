@@ -36,6 +36,7 @@ export class UnicomChatWithSidebar extends LitElement {
     loadingChats: { type: Boolean, state: true },
     sending: { type: Boolean, state: true },
     sendAck: { type: Number, state: true },
+    uploadProgress: { type: Number, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     connectionStatus: { type: String, state: true },  // 'connected', 'disconnected'
@@ -170,6 +171,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.loadingChats = false;
     this.sending = false;
     this.sendAck = 0;
+    this.uploadProgress = null;
     this.error = null;
     this.hasMore = false;
     this.connectionStatus = 'disconnected';
@@ -601,6 +603,12 @@ export class UnicomChatWithSidebar extends LitElement {
     try {
       // Build options object
       const options = {};
+      if (file) {
+        this.uploadProgress = 0;
+        options.onUploadProgress = progress => {
+          this.uploadProgress = progress;
+        };
+      }
       
       // Include filter metadata when creating a new chat
       if (!this.currentChatId) {
@@ -655,6 +663,7 @@ export class UnicomChatWithSidebar extends LitElement {
       console.error('Failed to send message:', err);
     } finally {
       this.sending = false;
+      this.uploadProgress = null;
     }
   }
 
@@ -783,6 +792,7 @@ export class UnicomChatWithSidebar extends LitElement {
               .disabled=${this.sending}
               .sending=${this.sending}
               .sendAck=${this.sendAck}
+              .uploadProgress=${this.uploadProgress}
               @send-message=${this._handleSendMessage}>
             </message-input>
           </div>

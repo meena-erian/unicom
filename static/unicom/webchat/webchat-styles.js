@@ -871,19 +871,49 @@ export const inputStyles = css`
   }
 
   .message-input-container {
-    border-top: 1px solid var(--border-color);
-    background: var(--background-color);
-    padding: 14px clamp(14px, 3vw, 28px);
+    border: 0;
+    background: transparent;
+    padding: 10px clamp(12px, 3vw, 28px) 16px;
     box-sizing: border-box;
   }
 
-  .input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-    position: relative;
+  .composer-shell {
     width: min(100%, var(--content-max-width));
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: calc(var(--control-radius) + 6px);
+    background: color-mix(in srgb, var(--background-color) 94%, transparent);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.16);
+    overflow: hidden;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .composer-shell:focus-within {
+    border-color: color-mix(in srgb, var(--primary-color) 72%, var(--border-color));
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.2), 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+  }
+
+  .composer-content {
+    display: flex;
+    min-width: 0;
+  }
+
+  .composer-toolbar {
+    min-height: 48px;
+    padding: 4px 8px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .edit-mode-indicator {
@@ -892,7 +922,7 @@ export const inputStyles = css`
     align-items: center;
     padding: 8px 12px;
     background: rgba(255, 193, 7, 0.1);
-    border-left: 3px solid #ffc107;
+    border-bottom: 1px solid var(--border-color);
     font-size: 0.9em;
     color: #856404;
   }
@@ -935,46 +965,40 @@ export const inputStyles = css`
     background-color: rgba(255, 193, 7, 0.2);
   }
 
-  .input-row textarea {
+  .composer-content textarea {
     flex: 1;
-    padding: 10px 12px;
-    min-height: var(--input-height);
-    border: 1px solid var(--border-color);
-    border-radius: var(--control-radius);
+    width: 100%;
+    padding: 16px 16px 6px;
+    min-height: 54px;
+    border: 0;
+    border-radius: 0;
     font-family: inherit;
     font-size: 0.95em;
     resize: none;
-    max-height: 160px;
-    background: var(--background-color);
+    max-height: 42dvh;
+    background: transparent;
     color: var(--text-color);
     overflow-y: auto;
-    line-height: 1.35;
+    line-height: 1.5;
     box-sizing: border-box;
   }
 
-  .input-row textarea:focus {
+  .composer-content textarea:focus {
     outline: none;
-    border-color: var(--primary-color);
   }
 
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-  }
-
-  .icon-btn,
+  .composer-icon-btn,
   .send-btn {
     flex-shrink: 0;
-    height: var(--input-height);
-    border-radius: var(--control-radius);
-    border: 1px solid var(--border-color);
-    background: var(--background-color);
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
     color: var(--text-color);
     font-size: 0.95em;
     font-weight: 500;
-    padding: 0 16px;
+    padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -982,50 +1006,37 @@ export const inputStyles = css`
     transition: all 0.2s ease;
   }
 
-  .icon-btn {
-    width: var(--input-height);
-    padding: 0;
+  .composer-icon-btn {
     font-size: 1.2em;
     color: var(--text-color);
   }
 
-  .icon-btn i {
+  .composer-icon-btn i {
     font-size: 1.1em;
     color: currentColor;
   }
 
   .send-btn {
     background: var(--primary-color);
-    border-color: var(--primary-color);
     color: #fff;
-    font-weight: 600;
-    padding: 0 20px;
+    font-size: 1rem;
+    box-shadow: 0 5px 16px color-mix(in srgb, var(--primary-color) 35%, transparent);
   }
 
-  .icon-btn:hover:not(:disabled),
+  .composer-icon-btn:hover:not(:disabled),
   .send-btn:hover:not(:disabled) {
     transform: translateY(-1px);
+    background-color: color-mix(in srgb, var(--text-color) 8%, transparent);
   }
 
-  .icon-btn:disabled,
+  .send-btn:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--primary-color) 88%, white);
+  }
+
+  .composer-icon-btn:disabled,
   .send-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  .sending-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    position: absolute;
-    right: 0;
-    bottom: -18px;
-    font-size: 0.85em;
-    color: var(--secondary-color);
-  }
-
-  .sending-indicator i {
-    color: currentColor;
   }
 
   @keyframes pulse {
@@ -1034,12 +1045,14 @@ export const inputStyles = css`
     100% { opacity: 0.6; transform: translateY(0); }
   }
 
-  .dark textarea,
-  .dark .icon-btn,
-  .dark .send-btn {
-    background: #2d2d2d;
-    border-color: #444;
-    color: #fff;
+  @container (max-width: 520px) {
+    .message-input-container {
+      padding: 8px 10px 10px;
+    }
+
+    .composer-content textarea {
+      max-height: 38dvh;
+    }
   }
 `;
 
@@ -1149,25 +1162,20 @@ export const listStyles = css`
 
 export const previewStyles = css`
   .media-preview {
-    background: var(--message-bg-incoming);
-    border: 1px solid var(--border-color);
-    border-radius: var(--control-radius);
-    padding: 8px;
-    margin-bottom: 8px;
+    background: color-mix(in srgb, var(--message-bg-incoming) 78%, transparent);
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    padding: 10px 12px;
+    margin: 0;
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .media-preview.audio {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
   .preview-thumbnail {
-    width: 60px;
-    height: 60px;
+    width: 44px;
+    height: 44px;
     object-fit: cover;
     border-radius: var(--media-radius);
   }
@@ -1176,9 +1184,9 @@ export const previewStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5em;
-    background: var(--border-color);
-    color: var(--text-color);
+    font-size: 1.1em;
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+    color: var(--primary-color);
   }
 
   .preview-thumbnail.icon i {
@@ -1186,35 +1194,43 @@ export const previewStyles = css`
     color: currentColor;
   }
 
-  .preview-audio-container {
-    width: 100%;
-  }
-
-  .preview-audio {
-    width: 100%;
-    display: block;
-    border-radius: var(--control-radius);
-    background: rgba(0, 0, 0, 0.05);
-  }
-
-  .dark .preview-audio {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
   .preview-info {
     flex: 1;
     font-size: 0.9em;
+    min-width: 0;
   }
 
   .preview-filename {
     font-weight: 500;
     margin-bottom: 4px;
     color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .preview-filesize {
+  .preview-meta {
     color: var(--secondary-color);
     font-size: 0.85em;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .preview-progress {
+    height: 3px;
+    margin-top: 7px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--border-color) 70%, transparent);
+  }
+
+  .preview-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary-color);
+    transition: width 0.18s ease;
   }
 
   .preview-remove {
@@ -1223,7 +1239,10 @@ export const previewStyles = css`
     color: var(--secondary-color);
     cursor: pointer;
     font-size: 1.1em;
-    padding: 4px 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 999px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1233,11 +1252,13 @@ export const previewStyles = css`
     color: currentColor;
   }
 
-  .media-preview.audio .preview-remove {
-    align-self: flex-end;
-  }
-
   .preview-remove:hover {
     color: #dc3545;
+    background: color-mix(in srgb, #dc3545 10%, transparent);
+  }
+
+  .preview-remove:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
   }
 `;

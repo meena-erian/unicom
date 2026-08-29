@@ -20,8 +20,8 @@ export class VoiceRecorder extends LitElement {
     }
 
     button {
-      border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-      background: var(--background-color, #fff);
+      border: 0;
+      background: transparent;
       color: var(--text-color, #212529);
       border-radius: 12px;
       cursor: pointer;
@@ -42,10 +42,15 @@ export class VoiceRecorder extends LitElement {
     }
 
     .record-btn {
-      width: var(--input-height, 44px);
-      height: var(--input-height, 44px);
-      font-size: 1.3em;
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      font-size: 1.1em;
       color: var(--text-color, currentColor);
+    }
+
+    .record-btn:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--text-color, #212529) 8%, transparent);
     }
 
     .recording-controls {
