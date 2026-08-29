@@ -13,7 +13,7 @@ class WebChatMessageStreamSink:
     durable chat record; intermediate saves are only a live projection.
     """
 
-    def __init__(self, source_message, flush_interval=0.1):
+    def __init__(self, source_message, flush_interval=0.075):
         if source_message.platform != "WebChat":
             raise ValueError("WebChatMessageStreamSink requires a WebChat message")
         self.source_message = source_message

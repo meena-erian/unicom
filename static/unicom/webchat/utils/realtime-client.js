@@ -41,8 +41,9 @@ export class RealTimeWebChatClient {
     this.pollingInterval = null;
     this.pollingRate = 5000; // 5 seconds default
     this.normalPollingRate = 5000;
-    this.fastPollingRate = 250;
+    this.fastPollingRate = 100;
     this.fastPolling = false;
+    this.pollInFlight = false;
 
     // Retry logic for WebSocket-only mode
     this.retryAttempt = 0;
@@ -406,11 +407,13 @@ export class RealTimeWebChatClient {
     this._notifyConnectionChange(true, 'polling');
 
     this.pollingInterval = setInterval(async () => {
+      if (this.pollInFlight) return;
       try {
         if (!this.currentChatId) {
           return;
         }
 
+        this.pollInFlight = true;
         const response = await this.api.getMessages(this.currentChatId, 200);
 
         if (response.messages && response.messages.length > 0) {
@@ -429,6 +432,8 @@ export class RealTimeWebChatClient {
       } catch (err) {
         console.error('Polling error:', err);
         this._notifyError(err);
+      } finally {
+        this.pollInFlight = false;
       }
     }, this.pollingRate);
   }

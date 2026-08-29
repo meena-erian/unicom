@@ -698,7 +698,8 @@ export class UnicomChatWithSidebar extends LitElement {
       }
     }
 
-    // Update chat list to reflect new message
+    // Refresh the sidebar for durable new messages. Streaming updates use
+    // _handleMessageUpdated and reconcile once at terminal completion.
     this.loadChats();
   }
 
