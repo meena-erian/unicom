@@ -135,6 +135,10 @@ export const messageStyles = css`
     align-items: flex-end;
   }
 
+  .message-item.outgoing .sender-name {
+    text-align: right;
+  }
+
   .message-item.incoming {
     align-items: flex-start;
   }
@@ -176,8 +180,8 @@ export const messageStyles = css`
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: min(100%, 460px);
-    max-width: 100%;
+    width: fit-content;
+    max-width: min(78%, 460px);
   }
 
   .message-bubble.audio {
@@ -192,11 +196,6 @@ export const messageStyles = css`
     align-self: flex-end;
   }
 
-  .message-item.outgoing .message-bubble.media,
-  .message-item.incoming .message-bubble.media {
-    max-width: 100%;
-  }
-
   .message-text {
     margin: 0;
     white-space: pre-wrap;
@@ -207,6 +206,19 @@ export const messageStyles = css`
   .message-html {
     margin: 0;
   }
+
+  .message-markdown > :first-child { margin-top: 0; }
+  .message-markdown > :last-child { margin-bottom: 0; }
+  .message-markdown p { margin: 0 0 0.75em; }
+  .message-markdown h1, .message-markdown h2, .message-markdown h3,
+  .message-markdown h4, .message-markdown h5, .message-markdown h6 { margin: 0.9em 0 0.4em; line-height: 1.25; }
+  .message-markdown ul, .message-markdown ol { margin: 0.5em 0; padding-left: 1.5em; }
+  .message-markdown blockquote { margin: 0.65em 0; padding-left: 0.9em; border-left: 3px solid var(--primary-color); opacity: 0.9; }
+  .message-markdown pre { max-width: 100%; overflow: auto; padding: 0.85em; border-radius: 10px; background: rgba(0,0,0,0.25); }
+  .message-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  .message-markdown :not(pre) > code { padding: 0.15em 0.35em; border-radius: 5px; background: rgba(0,0,0,0.18); }
+  .message-markdown img { max-width: 100%; height: auto; }
+  .message-markdown a { color: inherit; text-decoration: underline; }
 
   .message-html * {
     max-width: 100%;

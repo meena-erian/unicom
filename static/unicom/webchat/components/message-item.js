@@ -7,6 +7,7 @@ import { iconStyles, messageStyles } from '../webchat-styles.js';
 import { formatTimestamp } from '../utils/datetime-formatter.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 import { morphdom } from '../utils/morphdom.js';
+import { renderMarkdown } from '../utils/markdown-renderer.js';
 
 export class MessageItem extends LitElement {
   static properties = {
@@ -57,6 +58,9 @@ export class MessageItem extends LitElement {
 
   _getMessageHtmlPayload() {
     if (!this.message) return '';
+    if (this.message.media_type === 'text' && this.message.is_outgoing === true) {
+      return renderMarkdown(this.message.text || '');
+    }
     if (this.message.media_type !== 'html') return '';
     const rawHtml = this.message.html || '';
     if (rawHtml) return rawHtml;
@@ -64,7 +68,7 @@ export class MessageItem extends LitElement {
   }
 
   _morphMessageHtml() {
-    const container = this.shadowRoot?.querySelector('.message-html');
+    const container = this.shadowRoot?.querySelector('.message-html, .message-markdown');
     if (!container) return;
 
     const nextHtml = this._getMessageHtmlPayload();
@@ -220,7 +224,9 @@ export class MessageItem extends LitElement {
     switch (message.media_type) {
       case 'text':
         return html`
-          <div class="message-text">${message.text}</div>
+          ${message.is_outgoing === true
+            ? html`<div class="message-markdown"></div>`
+            : html`<div class="message-text">${message.text}</div>`}
           ${message.stream_status === 'started' || message.stream_status === 'streaming'
             ? html`<span class="streaming-indicator" aria-label="Response is streaming">▍</span>`
             : ''}
@@ -347,8 +353,8 @@ export class MessageItem extends LitElement {
 
     return html`
       <div class="${classes.join(' ')}">
-        ${!isUserMessage && message.sender_name ? html`
-          <div class="sender-name">${message.sender_name}</div>
+        ${(isUserMessage || message.sender_name) ? html`
+          <div class="sender-name">${isUserMessage ? 'You' : message.sender_name}</div>
         ` : ''}
         <div class="${bubbleClasses.join(' ')}">
           ${this._renderMessageContent(message)}
