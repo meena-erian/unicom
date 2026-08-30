@@ -925,6 +925,27 @@ export const inputStyles = css`
     justify-content: center;
   }
 
+  .composer-row.expanded {
+    grid-template-rows: auto 36px;
+    row-gap: 2px;
+  }
+
+  .composer-row.expanded textarea {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 7px 8px;
+  }
+
+  .composer-row.expanded .attach-btn {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .composer-row.expanded .composer-primary-action {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
   .composer-icon-btn {
     width: 34px;
     height: 34px;

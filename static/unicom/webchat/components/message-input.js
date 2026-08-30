@@ -17,6 +17,7 @@ export class MessageInput extends LitElement {
     inputText: { type: String, state: true },
     previewFile: { type: Object, state: true },
     isRecording: { type: Boolean, state: true },
+    expanded: { type: Boolean, state: true },
     uploadProgress: { type: Number, attribute: false },
   };
 
@@ -31,6 +32,7 @@ export class MessageInput extends LitElement {
     this.inputText = '';
     this.previewFile = null;
     this.isRecording = false;
+    this.expanded = false;
     this.uploadProgress = null;
   }
 
@@ -45,7 +47,22 @@ export class MessageInput extends LitElement {
 
   _resizeTextarea(textarea) {
     if (!textarea) return;
+    const rowWidth = this.shadowRoot.querySelector('.composer-row')?.clientWidth || textarea.clientWidth + 88;
+    const compactTextWidth = Math.max(40, rowWidth - 100);
+    const context = document.createElement('canvas').getContext('2d');
+    context.font = getComputedStyle(textarea).font;
+    const needsFullWidth = textarea.value.includes('\n') || textarea.value.split('\n')
+      .some(line => context.measureText(line).width > compactTextWidth);
+    if (this.expanded !== needsFullWidth) {
+      this.expanded = needsFullWidth;
+      return;
+    }
     textarea.style.height = 'auto';
+    if (!this.expanded) {
+      textarea.style.height = '36px';
+      textarea.style.overflowY = 'hidden';
+      return;
+    }
     const maxHeight = Math.max(120, Math.floor(window.innerHeight * 0.42));
     const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
     textarea.style.height = `${nextHeight}px`;
@@ -147,12 +164,16 @@ export class MessageInput extends LitElement {
     if (changed.has('sendAck') && changed.get('sendAck') !== this.sendAck) {
       this._clearInput();
     }
+    if (changed.has('expanded')) {
+      this._resizeTextarea(this.shadowRoot.querySelector('textarea'));
+    }
   }
 
   _clearInput() {
     this.inputText = '';
     this.previewFile = null;
     this.editingMessageId = null;
+    this.expanded = false;
     const textarea = this.shadowRoot.querySelector('textarea');
     if (textarea) {
       textarea.style.height = 'auto';
@@ -164,6 +185,7 @@ export class MessageInput extends LitElement {
     this.editingMessageId = null;
     this.inputText = '';
     this.previewFile = null;
+    this.expanded = false;
     
     // Reset textarea height
     const textarea = this.shadowRoot.querySelector('textarea');
@@ -209,7 +231,7 @@ export class MessageInput extends LitElement {
           </media-preview>
         ` : ''}
 
-          <div class="composer-row">
+          <div class="composer-row ${this.expanded ? 'expanded' : ''}">
             <button
               class="composer-icon-btn attach-btn"
               @click=${this._openFilePicker}
