@@ -8,6 +8,7 @@ import { formatTimestamp } from '../utils/datetime-formatter.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 import { morphdom } from '../utils/morphdom.js';
 import { renderMarkdown } from '../utils/markdown-renderer.js';
+import { StreamingTextController } from '../utils/streaming-text-controller.mjs';
 
 export class MessageItem extends LitElement {
   static properties = {
@@ -23,6 +24,13 @@ export class MessageItem extends LitElement {
     this.loadingButtons = new Set();
     this._elapsedTimer = null;
     this._lastRenderedHtml = null;
+    this._displayedText = '';
+    this._streamingText = new StreamingTextController({
+      onUpdate: (text) => {
+        this._displayedText = text;
+        this.requestUpdate();
+      },
+    });
   }
 
   async firstUpdated() {
@@ -41,6 +49,7 @@ export class MessageItem extends LitElement {
 
   disconnectedCallback() {
     this._stopElapsedTimer();
+    this._streamingText.dispose();
     super.disconnectedCallback();
   }
 
@@ -59,12 +68,22 @@ export class MessageItem extends LitElement {
   _getMessageHtmlPayload() {
     if (!this.message) return '';
     if (this.message.media_type === 'text' && this.message.is_outgoing === true) {
-      return renderMarkdown(this.message.text || '');
+      return renderMarkdown(this._displayedText);
     }
     if (this.message.media_type !== 'html') return '';
     const rawHtml = this.message.html || '';
     if (rawHtml) return rawHtml;
     return this._sanitizeHTML(this.message.text || '');
+  }
+
+  willUpdate(changedProperties) {
+    if (changedProperties.has('message') && this.message) {
+      const animatesText = this.message.media_type === 'text' && this.message.is_outgoing === true;
+      if (animatesText) {
+        const terminal = this.message.stream_status === 'finished' || this.message.stream_status === 'failed';
+        this._streamingText.setTarget(this.message.text || '', { finished: terminal });
+      }
+    }
   }
 
   _morphMessageHtml() {
@@ -228,7 +247,11 @@ export class MessageItem extends LitElement {
             ? html`<div class="message-markdown"></div>`
             : html`<div class="message-text">${message.text}</div>`}
           ${message.stream_status === 'started' || message.stream_status === 'streaming'
-            ? html`<span class="streaming-indicator" aria-label="Response is streaming">▍</span>`
+            ? (!this._displayedText
+              ? html`<span class="response-thinking" role="status" aria-label="AI is preparing a response">
+                  <span></span><span></span><span></span>
+                </span>`
+              : html`<span class="streaming-pulse" role="status" aria-label="Response is streaming"></span>`)
             : ''}
           ${message.stream_status === 'failed'
             ? html`<div class="message-error">Response interrupted. You can retry.</div>`

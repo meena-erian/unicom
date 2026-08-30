@@ -220,6 +220,57 @@ export const messageStyles = css`
   .message-markdown img { max-width: 100%; height: auto; }
   .message-markdown a { color: inherit; text-decoration: underline; }
 
+  .response-thinking {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 38px;
+    height: 22px;
+    padding-inline: 2px;
+  }
+
+  .response-thinking span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.35;
+    animation: response-thinking-wave 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .response-thinking span:nth-child(2) { animation-delay: 120ms; }
+  .response-thinking span:nth-child(3) { animation-delay: 240ms; }
+
+  .streaming-pulse {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.45;
+    animation: response-stream-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes response-thinking-wave {
+    0%, 60%, 100% { transform: translateY(0) scale(0.85); opacity: 0.3; }
+    30% { transform: translateY(-5px) scale(1); opacity: 0.9; }
+  }
+
+  @keyframes response-stream-pulse {
+    0%, 100% { transform: scale(0.75); opacity: 0.3; }
+    50% { transform: scale(1.2); opacity: 0.75; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .response-thinking span,
+    .streaming-pulse {
+      animation: none;
+      transform: none;
+    }
+    .response-thinking span { opacity: 0.55; }
+  }
+
   .message-html * {
     max-width: 100%;
   }
