@@ -13,7 +13,7 @@ import './components/message-input.js';
 // Bump when any imported webchat module changes. The entry module is served
 // with an immutable content hash, so this ensures existing browser tabs load
 // a new dependency graph after a deployment.
-const WEBCHAT_UI_VERSION = '2026.08.30-mobile-chat.1';
+const WEBCHAT_UI_VERSION = '2026.08.30-staged-upload.1';
 console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
@@ -41,12 +41,15 @@ export class UnicomChatWithSidebar extends LitElement {
     sending: { type: Boolean, state: true },
     sendAck: { type: Number, state: true },
     uploadProgress: { type: Number, state: true },
+    attachmentUploading: { type: Boolean, state: true },
+    stagedUploadToken: { type: String, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     connectionStatus: { type: String, state: true },  // 'connected', 'disconnected'
     connectionType: { type: String, state: true },     // 'websocket', 'polling'
     isRetrying: { type: Boolean, state: true },        // WebSocket retry status
     retryDelay: { type: Number, state: true },         // Next retry delay in ms
+    chatDragActive: { type: Boolean, state: true },
   };
 
   static styles = [
@@ -85,6 +88,24 @@ export class UnicomChatWithSidebar extends LitElement {
       .mobile-menu-btn,
       .sidebar-dismiss {
         display: none;
+      }
+
+      .chat-drop-overlay {
+        position: absolute;
+        z-index: 30;
+        inset: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px dashed var(--primary-color);
+        border-radius: calc(var(--control-radius) + 8px);
+        background: color-mix(in srgb, var(--background-color) 82%, transparent);
+        color: var(--text-color);
+        font-size: clamp(1rem, 3vw, 1.25rem);
+        font-weight: 600;
+        text-align: center;
+        pointer-events: none;
+        backdrop-filter: blur(6px);
       }
 
       @container (max-width: 768px) {
@@ -209,12 +230,17 @@ export class UnicomChatWithSidebar extends LitElement {
     this.sending = false;
     this.sendAck = 0;
     this.uploadProgress = null;
+    this.attachmentUploading = false;
+    this.stagedUploadToken = null;
+    this._attachmentUploadId = 0;
     this.error = null;
     this.hasMore = false;
     this.connectionStatus = 'disconnected';
     this.connectionType = 'polling';
     this.isRetrying = false;
     this.retryDelay = 0;
+    this.chatDragActive = false;
+    this._chatDragDepth = 0;
 
     this.client = null;
     this._showSidebar = false;
@@ -629,10 +655,10 @@ export class UnicomChatWithSidebar extends LitElement {
    * Send a message
    */
   async _handleSendMessage(e) {
-    const { text, file, replyToMessageId } = e.detail;
+    const { text, file, replyToMessageId, stagedUploadToken } = e.detail;
 
     if (this.sending) return;
-    if (!text && !file) return;
+    if (!text && !file && !stagedUploadToken) return;
 
     this.sending = true;
     this.error = null;
@@ -640,6 +666,7 @@ export class UnicomChatWithSidebar extends LitElement {
     try {
       // Build options object
       const options = {};
+      if (stagedUploadToken) options.stagedUploadToken = stagedUploadToken;
       if (file) {
         this.uploadProgress = 0;
         options.onUploadProgress = progress => {
@@ -695,6 +722,7 @@ export class UnicomChatWithSidebar extends LitElement {
 
       // Signal input to clear after confirmed send
       this.sendAck += 1;
+      this.stagedUploadToken = null;
     } catch (err) {
       this.error = err.message;
       console.error('Failed to send message:', err);
@@ -795,6 +823,65 @@ export class UnicomChatWithSidebar extends LitElement {
     this.requestUpdate();
   }
 
+  _hasDraggedFiles(e) {
+    return Array.from(e.dataTransfer?.types || []).includes('Files');
+  }
+
+  _handleChatDragEnter(e) {
+    if (!this._hasDraggedFiles(e) || this.sending) return;
+    e.preventDefault();
+    this._chatDragDepth += 1;
+    this.chatDragActive = true;
+  }
+
+  _handleChatDragOver(e) {
+    if (!this._hasDraggedFiles(e) || this.sending) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  _handleChatDragLeave(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    this._chatDragDepth = Math.max(0, this._chatDragDepth - 1);
+    if (this._chatDragDepth === 0) this.chatDragActive = false;
+  }
+
+  _handleChatDrop(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    e.preventDefault();
+    this._chatDragDepth = 0;
+    this.chatDragActive = false;
+    const file = Array.from(e.dataTransfer?.files || [])[0];
+    const input = this.shadowRoot.querySelector('message-input');
+    if (file && input) input.attachFile(file);
+  }
+
+  async _handleAttachmentSelected(e) {
+    const file = e.detail?.file;
+    if (!file) return;
+    const uploadId = ++this._attachmentUploadId;
+    this.attachmentUploading = true;
+    this.stagedUploadToken = null;
+    this.uploadProgress = 0;
+    try {
+      const result = await this.client.uploadMedia(file, progress => {
+        if (uploadId === this._attachmentUploadId) this.uploadProgress = progress;
+      });
+      if (uploadId === this._attachmentUploadId) this.stagedUploadToken = result.upload_token;
+    } catch (err) {
+      if (uploadId === this._attachmentUploadId) this.error = err.message;
+    } finally {
+      if (uploadId === this._attachmentUploadId) this.attachmentUploading = false;
+    }
+  }
+
+  _handleAttachmentRemoved() {
+    this._attachmentUploadId += 1;
+    this.attachmentUploading = false;
+    this.stagedUploadToken = null;
+    this.uploadProgress = null;
+  }
+
   render() {
     const isEmptyChat = !this.loading && this.processedMessages.length === 0;
     return html`
@@ -823,7 +910,15 @@ export class UnicomChatWithSidebar extends LitElement {
             </button>
           ` : ''}
 
-          <div class="chat-main">
+          <div
+            class="chat-main"
+            @dragenter=${this._handleChatDragEnter}
+            @dragover=${this._handleChatDragOver}
+            @dragleave=${this._handleChatDragLeave}
+            @drop=${this._handleChatDrop}>
+            ${this.chatDragActive ? html`
+              <div class="chat-drop-overlay">Drop image or audio to attach</div>
+            ` : ''}
             ${!this._showSidebar ? html`
               <button class="mobile-menu-btn" @click=${this._showSidebarMobile} aria-label="Open chat list">
                 <span></span><span></span><span></span>
@@ -846,6 +941,10 @@ export class UnicomChatWithSidebar extends LitElement {
               .sending=${this.sending}
               .sendAck=${this.sendAck}
               .uploadProgress=${this.uploadProgress}
+              .attachmentUploading=${this.attachmentUploading}
+              .stagedUploadToken=${this.stagedUploadToken}
+              @attachment-selected=${this._handleAttachmentSelected}
+              @attachment-removed=${this._handleAttachmentRemoved}
               @send-message=${this._handleSendMessage}>
             </message-input>
           </div>

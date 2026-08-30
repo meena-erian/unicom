@@ -23,10 +23,13 @@ export class UnicomChat extends LitElement {
     sending: { type: Boolean, state: true },
     sendAck: { type: Number, state: true },
     uploadProgress: { type: Number, state: true },
+    attachmentUploading: { type: Boolean, state: true },
+    stagedUploadToken: { type: String, state: true },
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     deleting: { type: Boolean, state: true },
     emptyPrompt: { type: String, attribute: 'empty-prompt' },
+    chatDragActive: { type: Boolean, state: true },
   };
 
   static styles = [
@@ -60,6 +63,23 @@ export class UnicomChat extends LitElement {
         opacity: 0.6;
         cursor: not-allowed;
       }
+
+      .chat-drop-overlay {
+        position: absolute;
+        z-index: 30;
+        inset: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px dashed var(--primary-color);
+        border-radius: calc(var(--control-radius) + 8px);
+        background: color-mix(in srgb, var(--background-color) 82%, transparent);
+        color: var(--text-color);
+        font-size: clamp(1rem, 3vw, 1.25rem);
+        font-weight: 600;
+        pointer-events: none;
+        backdrop-filter: blur(6px);
+      }
     `
   ];
 
@@ -77,10 +97,15 @@ export class UnicomChat extends LitElement {
     this.sending = false;
     this.sendAck = 0;
     this.uploadProgress = null;
+    this.attachmentUploading = false;
+    this.stagedUploadToken = null;
+    this._attachmentUploadId = 0;
     this.error = null;
     this.hasMore = false;
     this.deleting = false;
     this.emptyPrompt = 'Try sending a message';
+    this.chatDragActive = false;
+    this._chatDragDepth = 0;
 
     this.api = null;
     this._refreshInterval = null;
@@ -157,16 +182,17 @@ export class UnicomChat extends LitElement {
    * Send a message
    */
   async _handleSendMessage(e) {
-    const { text, file } = e.detail;
+    const { text, file, stagedUploadToken } = e.detail;
 
     if (this.sending) return;
-    if (!text && !file) return;
+    if (!text && !file && !stagedUploadToken) return;
 
     this.sending = true;
     this.error = null;
 
     try {
       const options = {};
+      if (stagedUploadToken) options.stagedUploadToken = stagedUploadToken;
       if (file) {
         this.uploadProgress = 0;
         options.onUploadProgress = progress => {
@@ -187,6 +213,7 @@ export class UnicomChat extends LitElement {
 
       // Signal input to clear after confirmed send
       this.sendAck += 1;
+      this.stagedUploadToken = null;
 
       // Trigger a refresh to get bot response
       setTimeout(() => this._refreshMessages(), 500);
@@ -278,10 +305,77 @@ export class UnicomChat extends LitElement {
     }
   }
 
+  _hasDraggedFiles(e) {
+    return Array.from(e.dataTransfer?.types || []).includes('Files');
+  }
+
+  _handleChatDragEnter(e) {
+    if (!this._hasDraggedFiles(e) || this.sending) return;
+    e.preventDefault();
+    this._chatDragDepth += 1;
+    this.chatDragActive = true;
+  }
+
+  _handleChatDragOver(e) {
+    if (!this._hasDraggedFiles(e) || this.sending) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  _handleChatDragLeave(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    this._chatDragDepth = Math.max(0, this._chatDragDepth - 1);
+    if (this._chatDragDepth === 0) this.chatDragActive = false;
+  }
+
+  _handleChatDrop(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    e.preventDefault();
+    this._chatDragDepth = 0;
+    this.chatDragActive = false;
+    const file = Array.from(e.dataTransfer?.files || [])[0];
+    const input = this.shadowRoot.querySelector('message-input');
+    if (file && input) input.attachFile(file);
+  }
+
+  async _handleAttachmentSelected(e) {
+    const file = e.detail?.file;
+    if (!file) return;
+    const uploadId = ++this._attachmentUploadId;
+    this.attachmentUploading = true;
+    this.stagedUploadToken = null;
+    this.uploadProgress = 0;
+    try {
+      const result = await this.api.uploadMedia(file, progress => {
+        if (uploadId === this._attachmentUploadId) this.uploadProgress = progress;
+      });
+      if (uploadId === this._attachmentUploadId) this.stagedUploadToken = result.upload_token;
+    } catch (err) {
+      if (uploadId === this._attachmentUploadId) this.error = err.message;
+    } finally {
+      if (uploadId === this._attachmentUploadId) this.attachmentUploading = false;
+    }
+  }
+
+  _handleAttachmentRemoved() {
+    this._attachmentUploadId += 1;
+    this.attachmentUploading = false;
+    this.stagedUploadToken = null;
+    this.uploadProgress = null;
+  }
+
   render() {
     const isEmptyChat = !this.loading && this.messages.length === 0;
     return html`
-      <div class="unicom-chat-container ${this.theme}">
+      <div
+        class="unicom-chat-container ${this.theme}"
+        @dragenter=${this._handleChatDragEnter}
+        @dragover=${this._handleChatDragOver}
+        @dragleave=${this._handleChatDragLeave}
+        @drop=${this._handleChatDrop}>
+        ${this.chatDragActive ? html`
+          <div class="chat-drop-overlay">Drop image or audio to attach</div>
+        ` : ''}
         ${this.error ? html`
           <div class="error-banner">${this.error}</div>
         ` : ''}
@@ -309,6 +403,10 @@ export class UnicomChat extends LitElement {
           .sending=${this.sending}
           .sendAck=${this.sendAck}
           .uploadProgress=${this.uploadProgress}
+          .attachmentUploading=${this.attachmentUploading}
+          .stagedUploadToken=${this.stagedUploadToken}
+          @attachment-selected=${this._handleAttachmentSelected}
+          @attachment-removed=${this._handleAttachmentRemoved}
           @send-message=${this._handleSendMessage}>
         </message-input>
       </div>

@@ -11,6 +11,32 @@ from unicom.services.webchat.save_webchat_message import save_webchat_message
 from unicom.services.webchat.get_or_create_account import get_or_create_account
 from unicom.models import CallbackExecution
 from unicom.signals import interactive_button_clicked
+from django.core import signing
+from django.core.files.storage import default_storage
+from django.core.files import File
+from django.utils import timezone
+from datetime import timedelta
+import uuid
+
+STAGED_UPLOAD_SALT = 'unicom.webchat.staged-upload'
+STAGED_UPLOAD_MAX_AGE = 60 * 60
+ALLOWED_MEDIA_TYPES = {
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/mp4',
+}
+
+
+def _cleanup_expired_staged_uploads():
+    """Best-effort cleanup for uploads abandoned before Send."""
+    try:
+        _, filenames = default_storage.listdir('webchat_staging')
+        cutoff = timezone.now() - timedelta(seconds=STAGED_UPLOAD_MAX_AGE)
+        for filename in filenames:
+            name = f'webchat_staging/{filename}'
+            if default_storage.get_modified_time(name) < cutoff:
+                default_storage.delete(name)
+    except Exception:
+        pass
 
 
 def _get_webchat_channel(channel_id=None):
@@ -32,6 +58,38 @@ def _ensure_session(request):
         middleware = SessionMiddleware(lambda req: None)
         middleware.process_request(request)
         request.session.save()
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stage_webchat_upload_api(request):
+    """Upload and validate media before the user sends their message."""
+    try:
+        _ensure_session(request)
+        _cleanup_expired_staged_uploads()
+        media_file = request.FILES.get('media')
+        if not media_file:
+            return JsonResponse({'error': 'No media file provided'}, status=400)
+        if media_file.content_type not in ALLOWED_MEDIA_TYPES:
+            return JsonResponse({'error': 'Please select a valid image or audio file'}, status=400)
+        if media_file.size > 10 * 1024 * 1024:
+            return JsonResponse({'error': 'File size must be less than 10MB'}, status=400)
+
+        storage_name = default_storage.save(
+            f'webchat_staging/{uuid.uuid4().hex}', media_file
+        )
+        payload = {
+            'storage_name': storage_name,
+            'filename': media_file.name,
+            'content_type': media_file.content_type,
+            'session_key': request.session.session_key,
+        }
+        return JsonResponse({
+            'success': True,
+            'upload_token': signing.dumps(payload, salt=STAGED_UPLOAD_SALT),
+        })
+    except Exception as e:
+        return JsonResponse({'error': f'Upload failed: {str(e)}'}, status=500)
 
 
 @csrf_exempt  # We'll handle CSRF manually to support both session and token auth
@@ -80,12 +138,29 @@ def send_webchat_message_api(request):
             reply_to_message_id = data.get('reply_to_message_id')
             is_editing = data.get('is_editing', False)
             media_file = None
+            staged_upload_token = data.get('staged_upload_token')
         else:
             text = request.POST.get('text', '').strip()
             chat_id = request.POST.get('chat_id')
             reply_to_message_id = request.POST.get('reply_to_message_id')
             is_editing = request.POST.get('is_editing', 'false').lower() == 'true'
             media_file = request.FILES.get('media')
+            staged_upload_token = request.POST.get('staged_upload_token')
+
+        staged_storage_name = None
+        staged_handle = None
+        if not media_file and staged_upload_token:
+            payload = signing.loads(
+                staged_upload_token,
+                salt=STAGED_UPLOAD_SALT,
+                max_age=STAGED_UPLOAD_MAX_AGE,
+            )
+            if payload.get('session_key') != request.session.session_key:
+                return JsonResponse({'error': 'Upload does not belong to this session'}, status=403)
+            staged_storage_name = payload['storage_name']
+            staged_handle = default_storage.open(staged_storage_name, 'rb')
+            media_file = File(staged_handle, name=payload['filename'])
+            media_file.content_type = payload['content_type']
 
         # Validate
         if not text and not media_file:
@@ -126,6 +201,10 @@ def send_webchat_message_api(request):
 
         # Save message
         message = save_webchat_message(channel, message_data, request, user=request.user if request.user.is_authenticated else None)
+        if staged_handle:
+            staged_handle.close()
+        if staged_storage_name:
+            default_storage.delete(staged_storage_name)
 
         if not message:
             return JsonResponse({'error': 'Message could not be sent (account blocked)'}, status=403)

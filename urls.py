@@ -8,6 +8,7 @@ from unicom.views.inline_image import serve_template_inline_image
 from unicom.views.chat_history_view import message_as_llm_chat
 from unicom.views.webchat_views import (
     send_webchat_message_api,
+    stage_webchat_upload_api,
     get_webchat_messages_api,
     list_webchat_chats_api,
     update_webchat_chat_api,
@@ -28,6 +29,7 @@ urlpatterns = [
     path('t/<str:shortid>/', serve_template_inline_image, name='template_inline_image'),
     # WebChat API endpoints
     path('webchat/send/', send_webchat_message_api, name='webchat_send'),
+    path('webchat/upload/', stage_webchat_upload_api, name='webchat_upload'),
     path('webchat/messages/', get_webchat_messages_api, name='webchat_messages'),
     path('webchat/chats/', list_webchat_chats_api, name='webchat_chats'),
     path('webchat/chat/<str:chat_id>/', update_webchat_chat_api, name='webchat_update_chat'),

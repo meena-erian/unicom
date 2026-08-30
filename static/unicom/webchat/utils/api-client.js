@@ -37,6 +37,7 @@ export class WebChatAPI {
     formData.append('text', text);
     if (chatId) formData.append('chat_id', chatId);
     if (mediaFile) formData.append('media', mediaFile);
+    if (options.stagedUploadToken) formData.append('staged_upload_token', options.stagedUploadToken);
     const effectiveChannelId = options.channelId ?? this.channelId;
     if (effectiveChannelId) formData.append('channel_id', effectiveChannelId);
     
@@ -63,6 +64,35 @@ export class WebChatAPI {
       throw new Error(errorData.error || 'Failed to send message');
     }
     return await response.json();
+  }
+
+  async uploadMedia(mediaFile, onUploadProgress = () => {}) {
+    const formData = new FormData();
+    formData.append('media', mediaFile);
+    const csrfToken = await this.getCSRFToken();
+    return await new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', `${this.baseURL}/upload/`);
+      request.withCredentials = true;
+      if (csrfToken) request.setRequestHeader('X-CSRFToken', csrfToken);
+      request.upload.addEventListener('progress', event => {
+        if (event.lengthComputable) {
+          onUploadProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+        }
+      });
+      request.addEventListener('load', () => {
+        let data = {};
+        try { data = JSON.parse(request.responseText || '{}'); } catch (_) {}
+        if (request.status >= 200 && request.status < 300) {
+          onUploadProgress(100);
+          resolve(data);
+        } else {
+          reject(new Error(data.error || 'Upload failed'));
+        }
+      });
+      request.addEventListener('error', () => reject(new Error('Upload failed')));
+      request.send(formData);
+    });
   }
 
   async _sendWithUploadProgress(formData, onUploadProgress) {

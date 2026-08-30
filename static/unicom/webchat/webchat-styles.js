@@ -914,6 +914,7 @@ export const inputStyles = css`
   }
 
   .composer-shell {
+    position: relative;
     width: min(100%, var(--content-max-width));
     margin: 0 auto;
     display: flex;
@@ -925,6 +926,29 @@ export const inputStyles = css`
     overflow: hidden;
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
     pointer-events: auto;
+  }
+
+  .composer-shell.drag-active {
+    border-color: var(--primary-color);
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.2), 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  }
+
+  .composer-shell.drag-active::after {
+    content: 'Drop image or audio to attach';
+    position: absolute;
+    z-index: 20;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--background-color) 88%, transparent);
+    color: var(--text-color);
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
+    backdrop-filter: blur(5px);
   }
 
   .composer-shell:focus-within {

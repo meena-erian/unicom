@@ -196,6 +196,10 @@ export class RealTimeWebChatClient {
     return await this.api.sendMessage(text, chatId, mediaFile, { ...options, channelId: options.channelId ?? this.channelId });
   }
 
+  async uploadMedia(mediaFile, onUploadProgress) {
+    return await this.api.uploadMedia(mediaFile, onUploadProgress);
+  }
+
   /**
    * Get list of chats (REST).
    */

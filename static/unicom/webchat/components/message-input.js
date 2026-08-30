@@ -18,7 +18,10 @@ export class MessageInput extends LitElement {
     previewFile: { type: Object, state: true },
     isRecording: { type: Boolean, state: true },
     expanded: { type: Boolean, state: true },
+    dragActive: { type: Boolean, state: true },
     uploadProgress: { type: Number, attribute: false },
+    attachmentUploading: { type: Boolean, attribute: false },
+    stagedUploadToken: { type: String, attribute: false },
     emptyPrompt: { type: String, attribute: 'empty-prompt' },
   };
 
@@ -34,7 +37,11 @@ export class MessageInput extends LitElement {
     this.previewFile = null;
     this.isRecording = false;
     this.expanded = false;
+    this.dragActive = false;
+    this._dragDepth = 0;
     this.uploadProgress = null;
+    this.attachmentUploading = false;
+    this.stagedUploadToken = null;
     this.emptyPrompt = '';
   }
 
@@ -91,7 +98,8 @@ export class MessageInput extends LitElement {
     this.dispatchEvent(new CustomEvent('send-message', {
       detail: {
         text: text,
-        file: this.previewFile,
+        file: this.stagedUploadToken ? null : this.previewFile,
+        stagedUploadToken: this.stagedUploadToken,
         replyToMessageId: this.editingMessageId, // Include for editing/branching
       },
       bubbles: true,
@@ -101,7 +109,13 @@ export class MessageInput extends LitElement {
 
   _handleFileSelect(e) {
     const file = e.target.files[0];
-    if (!file) return;
+    if (file) this.attachFile(file);
+    // Clear the input so the same file can be selected again
+    e.target.value = '';
+  }
+
+  attachFile(file) {
+    if (!file || this.disabled || this.sending) return false;
 
     // Validate file type
     const validTypes = [
@@ -117,22 +131,67 @@ export class MessageInput extends LitElement {
     ];
     if (!validTypes.includes(file.type)) {
       alert('Please select a valid image or audio file');
-      return;
+      return false;
     }
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       alert('File size must be less than 10MB');
-      return;
+      return false;
     }
 
     this.previewFile = file;
-    // Clear the input so the same file can be selected again
-    e.target.value = '';
+    this.dispatchEvent(new CustomEvent('attachment-selected', {
+      detail: { file }, bubbles: true, composed: true,
+    }));
+    return true;
+  }
+
+  _handlePaste(e) {
+    const file = Array.from(e.clipboardData?.files || [])[0];
+    if (file && this.attachFile(file)) {
+      e.preventDefault();
+    }
+  }
+
+  _hasDraggedFiles(e) {
+    return Array.from(e.dataTransfer?.types || []).includes('Files');
+  }
+
+  _handleDragEnter(e) {
+    if (!this._hasDraggedFiles(e) || this.disabled || this.sending) return;
+    e.preventDefault();
+    this._dragDepth += 1;
+    this.dragActive = true;
+  }
+
+  _handleDragOver(e) {
+    if (!this._hasDraggedFiles(e) || this.disabled || this.sending) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  _handleDragLeave(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    e.preventDefault();
+    this._dragDepth = Math.max(0, this._dragDepth - 1);
+    if (this._dragDepth === 0) this.dragActive = false;
+  }
+
+  _handleDrop(e) {
+    if (!this._hasDraggedFiles(e)) return;
+    e.preventDefault();
+    this._dragDepth = 0;
+    this.dragActive = false;
+    const file = Array.from(e.dataTransfer?.files || [])[0];
+    if (file) this.attachFile(file);
   }
 
   _handleRemoveFile() {
     this.previewFile = null;
+    this.dispatchEvent(new CustomEvent('attachment-removed', {
+      bubbles: true, composed: true,
+    }));
   }
 
   _openFilePicker() {
@@ -205,7 +264,7 @@ export class MessageInput extends LitElement {
     const hasAttachment = Boolean(this.previewFile);
     const showSend = !this.isRecording && (hasText || hasAttachment);
     const isEditing = Boolean(this.editingMessageId);
-    const isDisabled = this.disabled || this.sending;
+    const isDisabled = this.disabled || this.sending || this.attachmentUploading;
 
     return html`
       ${this.emptyPrompt ? html`
@@ -219,7 +278,12 @@ export class MessageInput extends LitElement {
           @change=${this._handleFileSelect}
           style="display: none;">
 
-        <div class="composer-shell ${isEditing ? 'editing' : ''}">
+        <div
+          class="composer-shell ${isEditing ? 'editing' : ''} ${this.dragActive ? 'drag-active' : ''}"
+          @dragenter=${this._handleDragEnter}
+          @dragover=${this._handleDragOver}
+          @dragleave=${this._handleDragLeave}
+          @drop=${this._handleDrop}>
         ${isEditing ? html`
           <div class="edit-mode-indicator">
             <span>
@@ -234,7 +298,8 @@ export class MessageInput extends LitElement {
           <media-preview
             .file=${this.previewFile}
             .progress=${this.uploadProgress}
-            .uploading=${this.sending}
+            .uploading=${this.attachmentUploading}
+            .uploaded=${Boolean(this.stagedUploadToken)}
             @remove=${this._handleRemoveFile}>
           </media-preview>
         ` : ''}
@@ -252,6 +317,7 @@ export class MessageInput extends LitElement {
             <textarea
               .value=${this.inputText}
               @input=${this._handleInput}
+              @paste=${this._handlePaste}
               @keydown=${this._handleKeyDown}
               placeholder=${isEditing ? "Edit your message..." : "Type a message..."}
               ?disabled=${isDisabled}

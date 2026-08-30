@@ -11,6 +11,7 @@ export class MediaPreview extends LitElement {
     file: { type: Object },
     progress: { type: Number },
     uploading: { type: Boolean },
+    uploaded: { type: Boolean },
   };
 
   static styles = [iconStyles, previewStyles];
@@ -20,6 +21,7 @@ export class MediaPreview extends LitElement {
     this.file = null;
     this.progress = null;
     this.uploading = false;
+    this.uploaded = false;
     this._objectUrl = null;
   }
 
@@ -76,10 +78,10 @@ export class MediaPreview extends LitElement {
           <div class="preview-meta">
             <span>${extension}</span><span aria-hidden="true">·</span>
             <span>${this._formatFileSize(this.file.size)}</span><span aria-hidden="true">·</span>
-            <span>${this.uploading ? `${progress}%` : 'Ready'}</span>
+            <span>${this.uploading ? `Uploading ${progress}%` : (this.uploaded ? 'Uploaded' : 'Waiting to upload')}</span>
           </div>
           <div class="preview-progress" aria-label=${this.uploading ? `Upload ${progress}%` : 'Ready to upload'}>
-            <span style=${`width:${this.uploading ? progress : 0}%`}></span>
+            <span style=${`width:${this.uploaded ? 100 : (this.uploading ? progress : 0)}%`}></span>
           </div>
         </div>
         <button class="preview-remove" @click=${this._handleRemove} ?disabled=${this.uploading} title="Remove file" aria-label="Remove attachment">
