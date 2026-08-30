@@ -34,6 +34,16 @@ test('reveals small deltas one word at a time', () => {
   assert.equal(h.updates.at(-1), 'Hello smooth world');
 });
 
+test('buffers raw non-cumulative delta chunks', () => {
+  const h = harness();
+  h.controller.setTarget('Hello ');
+  h.frame();
+  h.controller.setTarget('world');
+  h.frame();
+  while (h.callbacks.size) h.frame();
+  assert.equal(h.updates.at(-1), 'Hello world');
+});
+
 test('accelerates through a burst while preserving exact source text', () => {
   const h = harness();
   const burst = Array.from({ length: 35 }, (_, i) => `word${i}`).join(' ');

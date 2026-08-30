@@ -24,12 +24,18 @@ export class StreamingTextController {
     if (this._disposed) return;
     const next = text || '';
 
+    // Some deployments forward raw response.text.delta chunks instead of a
+    // cumulative snapshot. While streaming, append those chunks to the target
+    // buffer; terminal snapshots always replace it authoritatively.
+    const isDelta = !finished && this.target && !next.startsWith(this.target);
+    const resolved = isDelta ? this.target + next : next;
+
     // A non-prefix update is a persisted-message reconciliation (or a server
     // correction), not a delta. Apply it atomically so stale text never leaks.
-    if (!next.startsWith(this.displayed)) {
-      this._publish(next);
+    if (!resolved.startsWith(this.displayed)) {
+      this._publish(resolved);
     }
-    this.target = next;
+    this.target = resolved;
 
     if (finished || this.prefersReducedMotion()) {
       this.flush();
