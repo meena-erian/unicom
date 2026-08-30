@@ -879,7 +879,12 @@ export const messageStyles = css`
 export const inputStyles = css`
   :host {
     display: block;
-    flex-shrink: 0;
+    position: absolute;
+    z-index: 10;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    pointer-events: none;
   }
 
   .message-input-container {
@@ -887,6 +892,7 @@ export const inputStyles = css`
     background: transparent;
     padding: 10px clamp(12px, 3vw, 28px) 16px;
     box-sizing: border-box;
+    pointer-events: none;
   }
 
   .composer-shell {
@@ -900,6 +906,7 @@ export const inputStyles = css`
     box-shadow: 0 10px 35px rgba(0, 0, 0, 0.16);
     overflow: hidden;
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    pointer-events: auto;
   }
 
   .composer-shell:focus-within {
@@ -1127,9 +1134,11 @@ export const listStyles = css`
     box-sizing: border-box;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-    padding: 20px 0 12px;
+    /* The composer overlays this viewport, so messages can remain visible
+       through the transparent space surrounding its floating surface. */
+    padding: 20px 0 104px;
     overscroll-behavior: contain;
-    scroll-padding-block: 20px;
+    scroll-padding-block: 20px 104px;
   }
 
   .message-list::-webkit-scrollbar {
