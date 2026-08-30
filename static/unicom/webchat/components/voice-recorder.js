@@ -42,8 +42,8 @@ export class VoiceRecorder extends LitElement {
     }
 
     .record-btn {
-      width: 38px;
-      height: 38px;
+      width: 34px;
+      height: 34px;
       border-radius: 999px;
       font-size: 1.1em;
       color: var(--text-color, currentColor);

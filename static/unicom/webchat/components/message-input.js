@@ -53,7 +53,8 @@ export class MessageInput extends LitElement {
   }
 
   _handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    const isCompactLayout = window.matchMedia('(max-width: 768px)').matches;
+    if (e.key === 'Enter' && !e.shiftKey && !isCompactLayout && !e.isComposing) {
       e.preventDefault();
       this._handleSend();
     }
@@ -208,8 +209,16 @@ export class MessageInput extends LitElement {
           </media-preview>
         ` : ''}
 
-          <div class="composer-content">
-          ${this.isRecording ? html`` : html`
+          <div class="composer-row">
+            <button
+              class="composer-icon-btn attach-btn"
+              @click=${this._openFilePicker}
+              ?disabled=${isDisabled}
+              title="Attach media"
+              aria-label="Attach media">
+              <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+            </button>
+            ${this.isRecording ? html`<span class="recording-spacer"></span>` : html`
             <textarea
               .value=${this.inputText}
               @input=${this._handleInput}
@@ -217,19 +226,20 @@ export class MessageInput extends LitElement {
               placeholder=${isEditing ? "Edit your message..." : "Type a message..."}
               ?disabled=${isDisabled}
               rows="1"></textarea>
-          `}
-          </div>
-          <div class="composer-toolbar">
-            <div class="toolbar-left">
-              <button
-                class="composer-icon-btn attach-btn"
-                @click=${this._openFilePicker}
-                ?disabled=${isDisabled}
-                title="Attach media"
-                aria-label="Attach media">
-                <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
-              </button>
-              ${!showSend ? html`
+            `}
+            <div class="composer-primary-action">
+              ${showSend ? html`
+                <button
+                  class="send-btn"
+                  @click=${this._handleSend}
+                  ?disabled=${isDisabled || (!hasText && !hasAttachment)}
+                  title=${isEditing ? 'Update message' : 'Send message'}
+                  aria-label=${isEditing ? 'Update message' : 'Send message'}>
+                  ${this.sending
+                    ? html`<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>`
+                    : html`<i class="fa-solid fa-arrow-up" aria-hidden="true"></i>`}
+                </button>
+              ` : html`
                 <voice-recorder
                   @voice-recording-started=${this._handleVoiceRecordingStarted}
                   @voice-recording-stopped=${this._handleVoiceRecordingStopped}
@@ -237,21 +247,7 @@ export class MessageInput extends LitElement {
                   @voice-recorder-error=${this._handleVoiceRecorderError}
                   ?disabled=${isDisabled}>
                 </voice-recorder>
-              ` : ''}
-            </div>
-            <div class="toolbar-right">
-              ${showSend ? html`
-              <button
-                class="send-btn"
-                @click=${this._handleSend}
-                ?disabled=${isDisabled || (!hasText && !hasAttachment)}
-                title=${isEditing ? 'Update message' : 'Send message'}
-                aria-label=${isEditing ? 'Update message' : 'Send message'}>
-                ${this.sending
-                  ? html`<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>`
-                  : html`<i class="fa-solid fa-arrow-up" aria-hidden="true"></i>`}
-              </button>
-              ` : ''}
+              `}
             </div>
           </div>
         </div>

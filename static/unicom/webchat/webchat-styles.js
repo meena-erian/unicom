@@ -907,25 +907,22 @@ export const inputStyles = css`
     box-shadow: 0 12px 38px rgba(0, 0, 0, 0.2), 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
   }
 
-  .composer-content {
-    display: flex;
-    min-width: 0;
-  }
-
-  .composer-toolbar {
-    min-height: 44px;
-    padding: 2px 8px 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .toolbar-left,
-  .toolbar-right {
-    display: flex;
-    align-items: center;
+  .composer-row {
+    min-height: 48px;
+    padding: 6px 8px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    align-items: end;
     gap: 4px;
+    box-sizing: border-box;
+  }
+
+  .composer-primary-action {
+    width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .composer-icon-btn {
@@ -997,11 +994,11 @@ export const inputStyles = css`
     background-color: rgba(255, 193, 7, 0.2);
   }
 
-  .composer-content textarea {
-    flex: 1;
+  .composer-row textarea {
     width: 100%;
-    padding: 16px 16px 6px;
-    min-height: 54px;
+    height: 36px;
+    padding: 7px 6px;
+    min-height: 36px;
     border: 0;
     border-radius: 0;
     font-family: inherit;
@@ -1015,7 +1012,7 @@ export const inputStyles = css`
     box-sizing: border-box;
   }
 
-  .composer-content textarea:focus {
+  .composer-row textarea:focus {
     outline: none;
   }
 

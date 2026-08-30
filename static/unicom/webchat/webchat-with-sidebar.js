@@ -13,7 +13,7 @@ import './components/message-input.js';
 // Bump when any imported webchat module changes. The entry module is served
 // with an immutable content hash, so this ensures existing browser tabs load
 // a new dependency graph after a deployment.
-const WEBCHAT_UI_VERSION = '2026.08.30-messages.2';
+const WEBCHAT_UI_VERSION = '2026.08.30-composer.1';
 console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
