@@ -81,7 +81,13 @@ export class MessageItem extends LitElement {
       const animatesText = this.message.media_type === 'text' && this.message.is_outgoing === true;
       if (animatesText) {
         const terminal = this.message.stream_status === 'finished' || this.message.stream_status === 'failed';
-        this._streamingText.setTarget(this.message.text || '', { finished: terminal });
+        // The durable stream projection uses this sentinel before the first
+        // provider delta. It belongs in the status affordance, never in the
+        // assistant's Markdown source.
+        const text = (!terminal && /^(Thinking…|Thinking\.\.\.)$/.test(this.message.text || ''))
+          ? ''
+          : (this.message.text || '');
+        this._streamingText.setTarget(text, { finished: terminal });
       }
     }
   }
