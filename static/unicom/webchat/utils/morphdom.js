@@ -60,6 +60,10 @@ function morphChildren(fromParent, toParent) {
     const fromChild = fromParent.childNodes[i];
     const toChild = toChildren[i];
 
+    if (!fromChild && !toChild) {
+      continue;
+    }
+
     if (!fromChild && toChild) {
       fromParent.appendChild(toChild.cloneNode(true));
       continue;
@@ -81,4 +85,3 @@ export function morphdom(fromNode, toNode, options = {}) {
   morphNode(fromNode, toNode);
   return fromNode;
 }
-
