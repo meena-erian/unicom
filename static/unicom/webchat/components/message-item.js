@@ -28,6 +28,9 @@ export class MessageItem extends LitElement {
     this._streamingText = new StreamingTextController({
       onUpdate: (text) => {
         this._displayedText = text;
+        // Animation ticks do not change the message property; update the
+        // existing Markdown DOM immediately so each scheduled word is visible.
+        this._morphMessageHtml();
         this.requestUpdate();
       },
     });
