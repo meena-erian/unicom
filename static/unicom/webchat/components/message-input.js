@@ -47,17 +47,19 @@ export class MessageInput extends LitElement {
 
   _resizeTextarea(textarea) {
     if (!textarea) return;
+    textarea.style.height = 'auto';
     const rowWidth = this.shadowRoot.querySelector('.composer-row')?.clientWidth || textarea.clientWidth + 88;
     const compactTextWidth = Math.max(40, rowWidth - 100);
     const context = document.createElement('canvas').getContext('2d');
-    context.font = getComputedStyle(textarea).font;
-    const needsFullWidth = textarea.value.includes('\n') || textarea.value.split('\n')
+    const computed = getComputedStyle(textarea);
+    context.font = `${computed.fontStyle} ${computed.fontWeight} ${computed.fontSize} ${computed.fontFamily}`;
+    const compactHasWrapped = !this.expanded && textarea.scrollHeight > 40;
+    const needsFullWidth = textarea.value.includes('\n') || compactHasWrapped || textarea.value.split('\n')
       .some(line => context.measureText(line).width > compactTextWidth);
     if (this.expanded !== needsFullWidth) {
       this.expanded = needsFullWidth;
       return;
     }
-    textarea.style.height = 'auto';
     if (!this.expanded) {
       textarea.style.height = '36px';
       textarea.style.overflowY = 'hidden';
