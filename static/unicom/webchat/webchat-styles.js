@@ -887,6 +887,24 @@ export const inputStyles = css`
     pointer-events: none;
   }
 
+  :host(.empty-chat) {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  .empty-prompt {
+    width: min(100%, var(--content-max-width));
+    margin: 0 auto;
+    padding: 0 clamp(12px, 3vw, 28px);
+    color: var(--secondary-color);
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    font-weight: 500;
+    text-align: center;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
   .message-input-container {
     border: 0;
     background: transparent;
@@ -1202,6 +1220,10 @@ export const listStyles = css`
     flex-direction: column;
     align-items: center;
     gap: 8px;
+  }
+
+  .empty-state:empty {
+    display: none;
   }
 
   .empty-state-icon {

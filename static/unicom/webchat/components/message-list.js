@@ -113,14 +113,7 @@ export class MessageList extends LitElement {
 
     if (processedMessages.length === 0 && !this.loading) {
       return html`
-        <div class="message-list">
-          <div class="empty-state">
-            <div class="empty-state-icon" aria-hidden="true">
-              <i class="fa-solid fa-message"></i>
-            </div>
-            <div>No messages yet. Start the conversation!</div>
-          </div>
-        </div>
+        <div class="message-list"></div>
       `;
     }
 

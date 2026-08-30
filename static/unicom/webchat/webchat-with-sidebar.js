@@ -13,7 +13,7 @@ import './components/message-input.js';
 // Bump when any imported webchat module changes. The entry module is served
 // with an immutable content hash, so this ensures existing browser tabs load
 // a new dependency graph after a deployment.
-const WEBCHAT_UI_VERSION = '2026.08.30-composer.5';
+const WEBCHAT_UI_VERSION = '2026.08.30-mobile-chat.1';
 console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
@@ -28,6 +28,7 @@ export class UnicomChatWithSidebar extends LitElement {
     metadataDefaults: { type: Object, attribute: 'metadata-defaults' }, // Default metadata to send with every message
     disableWebsocket: { type: Boolean, attribute: 'disable-websocket' },
     enableWebsocketOnly: { type: Boolean, attribute: 'enable-websocket-only' },
+    emptyPrompt: { type: String, attribute: 'empty-prompt' },
 
     // Internal state
     chats: { type: Array, state: true },
@@ -81,35 +82,71 @@ export class UnicomChatWithSidebar extends LitElement {
         overflow: hidden;
       }
 
+      .mobile-menu-btn,
+      .sidebar-dismiss {
+        display: none;
+      }
+
       @container (max-width: 768px) {
         .sidebar {
-          width: 100%;
+          width: calc(100% - 56px);
+          min-width: 0;
           position: absolute;
-          z-index: 1000;
+          z-index: 1001;
+          left: 0;
+          top: 0;
           height: 100%;
+          transform: translateX(0);
+          transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), visibility 240ms;
+          box-shadow: 14px 0 30px rgba(0, 0, 0, 0.28);
         }
 
         .sidebar.hidden {
-          display: none;
+          visibility: hidden;
+          transform: translateX(-105%);
+          pointer-events: none;
         }
 
-        .mobile-back-btn {
-          display: block;
-          padding: 12px 16px;
-          background: var(--sidebar-header-bg, var(--primary-color));
-          color: var(--sidebar-header-text, #ffffff);
-          border: none;
-          border-bottom: 1px solid var(--sidebar-border-color, var(--border-color));
+        .mobile-menu-btn {
+          position: absolute;
+          z-index: 20;
+          top: 12px;
+          left: 12px;
+          display: inline-flex;
+          width: 44px;
+          height: 44px;
+          padding: 0;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          gap: 4px;
+          border: 1px solid var(--border-color);
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--background-color) 88%, transparent);
+          color: var(--text-color);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
           cursor: pointer;
-          width: 100%;
-          text-align: left;
-          font-size: 1em;
-          transition: background 0.2s ease;
+          backdrop-filter: blur(10px);
         }
 
-        .mobile-back-btn:hover {
-          background: var(--sidebar-header-bg, var(--primary-color));
-          filter: brightness(0.95);
+        .mobile-menu-btn span {
+          width: 18px;
+          height: 2px;
+          border-radius: 2px;
+          background: currentColor;
+        }
+
+        .sidebar-dismiss {
+          position: absolute;
+          z-index: 1000;
+          inset: 0;
+          display: block;
+          padding: 0;
+          border: 0;
+          background: rgba(0, 0, 0, 0.18);
+          cursor: pointer;
+          opacity: 1;
+          transition: opacity 240ms ease;
         }
       }
 
@@ -145,11 +182,6 @@ export class UnicomChatWithSidebar extends LitElement {
         100% { transform: rotate(360deg); }
       }
 
-      @container (min-width: 769px) {
-        .mobile-back-btn {
-          display: none;
-        }
-      }
     `
   ];
 
@@ -165,6 +197,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.metadataDefaults = {};
     this.disableWebsocket = false;
     this.enableWebsocketOnly = false;
+    this.emptyPrompt = 'Try sending a message';
 
     this.chats = [];
     this.currentChatId = null;
@@ -184,7 +217,7 @@ export class UnicomChatWithSidebar extends LitElement {
     this.retryDelay = 0;
 
     this.client = null;
-    this._showSidebar = true;
+    this._showSidebar = false;
     this._deletingChatId = null;
     this._branchNavigationTimeout = null; // Add debounce timeout
     this._initialUrlChatId = null;
@@ -757,7 +790,13 @@ export class UnicomChatWithSidebar extends LitElement {
     this.requestUpdate();
   }
 
+  _hideSidebarMobile() {
+    this._showSidebar = false;
+    this.requestUpdate();
+  }
+
   render() {
+    const isEmptyChat = !this.loading && this.processedMessages.length === 0;
     return html`
       <div class="unicom-chat-container ${this.theme}">
         ${this.error ? html`
@@ -776,10 +815,18 @@ export class UnicomChatWithSidebar extends LitElement {
             </chat-list>
           </div>
 
+          ${this._showSidebar ? html`
+            <button
+              class="sidebar-dismiss"
+              @click=${this._hideSidebarMobile}
+              aria-label="Close chat list">
+            </button>
+          ` : ''}
+
           <div class="chat-main">
             ${!this._showSidebar ? html`
-              <button class="mobile-back-btn" @click=${this._showSidebarMobile}>
-                ← Back to Chats
+              <button class="mobile-menu-btn" @click=${this._showSidebarMobile} aria-label="Open chat list">
+                <span></span><span></span><span></span>
               </button>
             ` : ''}
 
@@ -793,6 +840,8 @@ export class UnicomChatWithSidebar extends LitElement {
             </message-list>
 
             <message-input
+              class=${isEmptyChat ? 'empty-chat' : ''}
+              .emptyPrompt=${isEmptyChat ? this.emptyPrompt : ''}
               .disabled=${this.sending}
               .sending=${this.sending}
               .sendAck=${this.sendAck}

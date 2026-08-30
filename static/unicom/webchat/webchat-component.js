@@ -26,6 +26,7 @@ export class UnicomChat extends LitElement {
     error: { type: String, state: true },
     hasMore: { type: Boolean, state: true },
     deleting: { type: Boolean, state: true },
+    emptyPrompt: { type: String, attribute: 'empty-prompt' },
   };
 
   static styles = [
@@ -79,6 +80,7 @@ export class UnicomChat extends LitElement {
     this.error = null;
     this.hasMore = false;
     this.deleting = false;
+    this.emptyPrompt = 'Try sending a message';
 
     this.api = null;
     this._refreshInterval = null;
@@ -277,6 +279,7 @@ export class UnicomChat extends LitElement {
   }
 
   render() {
+    const isEmptyChat = !this.loading && this.messages.length === 0;
     return html`
       <div class="unicom-chat-container ${this.theme}">
         ${this.error ? html`
@@ -300,6 +303,8 @@ export class UnicomChat extends LitElement {
         </message-list>
 
         <message-input
+          class=${isEmptyChat ? 'empty-chat' : ''}
+          .emptyPrompt=${isEmptyChat ? this.emptyPrompt : ''}
           .disabled=${this.sending}
           .sending=${this.sending}
           .sendAck=${this.sendAck}

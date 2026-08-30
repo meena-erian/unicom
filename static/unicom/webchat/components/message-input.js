@@ -19,6 +19,7 @@ export class MessageInput extends LitElement {
     isRecording: { type: Boolean, state: true },
     expanded: { type: Boolean, state: true },
     uploadProgress: { type: Number, attribute: false },
+    emptyPrompt: { type: String, attribute: 'empty-prompt' },
   };
 
   static styles = [iconStyles, inputStyles];
@@ -34,6 +35,7 @@ export class MessageInput extends LitElement {
     this.isRecording = false;
     this.expanded = false;
     this.uploadProgress = null;
+    this.emptyPrompt = '';
   }
 
   async firstUpdated() {
@@ -206,6 +208,9 @@ export class MessageInput extends LitElement {
     const isDisabled = this.disabled || this.sending;
 
     return html`
+      ${this.emptyPrompt ? html`
+        <div class="empty-prompt">${this.emptyPrompt}</div>
+      ` : ''}
       <div class="message-input-container">
         <input
           type="file"
