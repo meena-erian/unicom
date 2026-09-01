@@ -18,6 +18,7 @@ from openai import OpenAIError
 from django.conf import settings
 from pydub import AudioSegment
 import io
+import ast
 
 if TYPE_CHECKING:
     from unicom.models import Channel
@@ -30,6 +31,25 @@ MAX_LLM_GITHUB_TOOL_RESPONSE_CHARS = 16_000
 def _bounded_tool_response_content(tool_response_data):
     """Prevent one persisted tool result from multiplying context on every turn."""
     content = str(tool_response_data.get('result', '') or '')
+    decoded = tool_response_data.get('result')
+    for _ in range(3):
+        if isinstance(decoded, str):
+            try:
+                decoded = json.loads(decoded)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                try:
+                    decoded = ast.literal_eval(decoded)
+                except (TypeError, ValueError, SyntaxError):
+                    break
+        elif isinstance(decoded, dict) and 'result' in decoded and '_responses_content' not in decoded:
+            decoded = decoded.get('result')
+        else:
+            break
+    # Multimodal tool output is an intentional model-facing projection. Keep
+    # it while dropping the much larger duplicate raw device response; the
+    # Responses adapter will turn these blocks into function-call output.
+    if isinstance(decoded, dict) and isinstance(decoded.get('_responses_content'), list):
+        return json.dumps({'_responses_content': decoded['_responses_content']})
     tool_name = str(tool_response_data.get('tool_name') or '')
     limit = (
         MAX_LLM_GITHUB_TOOL_RESPONSE_CHARS

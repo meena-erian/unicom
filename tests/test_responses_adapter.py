@@ -8,7 +8,7 @@ from unicom.services.llm.responses import (
     chat_tools_to_responses,
     create_response,
 )
-from unicom.models.message import Message
+from unicom.models.message import Message, _bounded_tool_response_content
 
 
 class _ResponsesEndpoint:
@@ -136,6 +136,25 @@ class ResponsesAdapterTests(SimpleTestCase):
             "type": "input_image",
             "image_url": "data:image/png;base64,AAAA",
         }])
+
+    def test_large_tool_image_survives_history_bounding_and_reaches_responses(self):
+        image_url = "data:image/jpeg;base64," + ("A" * 40_000)
+        wrapped = {
+            "result": str({
+                "result": '{"screenshots":[{"data":"duplicate-large-raw"}],'
+                          '"_responses_content":[{"type":"input_text","text":"Screenshot captured."},'
+                          '{"type":"input_image","image_url":"' + image_url + '"}]}' ,
+                "status": "SUCCESS",
+            }),
+            "tool_name": "dashboard_browser_run",
+        }
+        bounded = _bounded_tool_response_content(wrapped)
+        self.assertNotIn("OMITTED_FROM_HISTORY", bounded)
+        _instructions, items = chat_history_to_responses([{
+            "role": "tool", "tool_call_id": "call_browser", "content": bounded,
+        }])
+        self.assertEqual(items[0]["output"][1]["type"], "input_image")
+        self.assertEqual(items[0]["output"][1]["image_url"], image_url)
 
     def test_converts_chat_function_schema_without_mutating_source(self):
         source = [
