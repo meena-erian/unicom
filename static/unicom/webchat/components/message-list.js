@@ -9,6 +9,7 @@ import './message-item.js';
 
 export class MessageList extends LitElement {
   static properties = {
+    presentationRenderers: { attribute: false },
     messages: { type: Array },
     loading: { type: Boolean },
     hasMore: { type: Boolean },
@@ -141,6 +142,7 @@ export class MessageList extends LitElement {
 
         ${processedMessages.map(msg => html`
           <message-item 
+            .presentationRenderers=${this.presentationRenderers}
             .message=${msg} 
             @edit-message=${this._handleEditMessage}
             @branch-navigation=${this._handleBranchNavigation}>

@@ -40,12 +40,22 @@ def _result_payload(raw):
     return value
 
 
-def extract_tool_presentation(raw):
+def extract_tool_presentation(raw, *, custom_types=None):
     """Return a validated presentation descriptor from tool-response metadata."""
     payload = _result_payload(raw)
     if not isinstance(payload, Mapping):
         return None
     presentation = payload.get("_unicom_presentation")
+    if isinstance(presentation, Mapping) and isinstance(presentation.get("type"), str) and custom_types:
+        validator = custom_types.get(presentation.get("type"))
+        if validator is not None:
+            validated = validator(dict(presentation))
+            if validated is not None and (
+                not isinstance(validated, dict)
+                or validated.get("type") != presentation.get("type")
+            ):
+                raise ValueError("A presentation validator must preserve its type")
+            return validated
     if isinstance(presentation, Mapping) and presentation.get("type") == "image":
         url = presentation.get("url")
         if isinstance(url, str) and (_SAFE_IMAGE_DATA_URL.match(url) or url.startswith(("https://", "http://", "/"))):

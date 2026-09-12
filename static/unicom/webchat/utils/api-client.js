@@ -36,7 +36,9 @@ export class WebChatAPI {
     const formData = new FormData();
     formData.append('text', text);
     if (chatId) formData.append('chat_id', chatId);
-    if (mediaFile) formData.append('media', mediaFile);
+    if (Array.isArray(mediaFile)) {
+      mediaFile.forEach(file => formData.append('files', file));
+    } else if (mediaFile) formData.append('media', mediaFile);
     const effectiveChannelId = options.channelId ?? this.channelId;
     if (effectiveChannelId) formData.append('channel_id', effectiveChannelId);
     

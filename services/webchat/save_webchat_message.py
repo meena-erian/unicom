@@ -4,11 +4,33 @@ Save incoming WebChat messages and create Request objects.
 from django.apps import apps
 from django.utils import timezone
 from django.core.files.base import ContentFile
+from django.db import transaction
 from unicom.services.webchat.get_or_create_account import get_or_create_account
 from unicom.services.chat_handoff import chat_allows_automation
 
 
 def save_webchat_message(channel, message_data, request, user=None):
+    messages = save_webchat_messages(channel, message_data, request, user=user)
+    return messages[-1] if messages else None
+
+
+def save_webchat_messages(channel, message_data, request, user=None):
+    stored_files = []
+    try:
+        with transaction.atomic():
+            return _save_webchat_messages(channel, message_data, request, user, stored_files)
+    except Exception:
+        for media in stored_files:
+            try:
+                media.storage.delete(media.name)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception("Failed to clean up an aborted WebChat upload")
+        raise
+
+
+def _save_webchat_messages(channel, message_data, request, user, stored_files):
     """
     Save a WebChat message and create Request for processing.
 
@@ -39,6 +61,12 @@ def save_webchat_message(channel, message_data, request, user=None):
     Request = apps.get_model('unicom', 'Request')
 
     platform = 'WebChat'
+    if channel.platform != platform:
+        raise ValueError("Use the appropriate adapter for this channel")
+    if message_data.get('files'):
+        from unicom.services.webchat.attachments import validate_webchat_attachments
+
+        validate_webchat_attachments(channel, message_data['files'])
 
     # Get or create account
     account = get_or_create_account(channel, request)
@@ -85,7 +113,8 @@ def save_webchat_message(channel, message_data, request, user=None):
     # Extract message details
     text = message_data.get('text', '').strip()
     media_type = message_data.get('media_type', 'text')
-    media_file = message_data.get('file')
+    media_files = message_data.get('files') or ([message_data['file']] if message_data.get('file') else [])
+    media_file = media_files[0] if media_files else None
     reply_to_message_id = message_data.get('reply_to_message_id')
 
     # Generate message ID
@@ -141,14 +170,35 @@ def save_webchat_message(channel, message_data, request, user=None):
     # Handle media file
     if media_file:
         message.media.save(media_file.name, media_file, save=False)
+        stored_files.append(message.media)
 
-    message.save()
+    messages = [message]
+    for media_file in media_files[1:]:
+        content_type = getattr(media_file, 'content_type', '')
+        part_type = 'image' if content_type.startswith('image/') else 'audio' if content_type.startswith('audio/') else 'text'
+        part = Message(
+            id=f"webchat_{chat_id}_{uuid.uuid4()}", channel=channel,
+            platform=platform, sender=account, user=user, chat=chat,
+            is_outgoing=False, sender_name=account.name, text='',
+            media_type=part_type, timestamp=timezone.now(),
+            raw=dict(message.raw),
+        )
+        part.media.save(media_file.name, media_file, save=False)
+        stored_files.append(part.media)
+        messages.append(part)
+    if message_data.get('files'):
+        from unicom.services.message_batches import save_incoming_message_batch
+
+        save_incoming_message_batch(messages)
+    else:
+        message.save()
+    message = messages[-1]
 
     # Update chat cache fields
     if not chat.first_message:
-        chat.first_message = message
+        chat.first_message = messages[0]
     if not chat.first_incoming_message:
-        chat.first_incoming_message = message
+        chat.first_incoming_message = messages[0]
     chat.last_message = message
     chat.last_incoming_message = message
     chat.save(update_fields=[
@@ -187,7 +237,7 @@ def save_webchat_message(channel, message_data, request, user=None):
         from django.db import transaction
         transaction.on_commit(lambda: _process_request_async(request_obj.id))
 
-    return message
+    return messages
 
 
 def _process_request_async(request_id):

@@ -15,6 +15,8 @@ console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
   static properties = {
+    presentationRenderers: { attribute: false },
+    maxAttachments: { type: Number, attribute: 'max-attachments' },
     apiBase: { type: String, attribute: 'api-base' },
     wsUrl: { type: String, attribute: 'ws-url' },
     channelId: { type: Number, attribute: 'channel-id' },
@@ -589,10 +591,11 @@ export class UnicomChatWithSidebar extends LitElement {
    * Send a message
    */
   async _handleSendMessage(e) {
-    const { text, file, replyToMessageId } = e.detail;
+    const { text, file, files, replyToMessageId } = e.detail;
+    const media = files?.length > 1 ? files : file;
 
     if (this.sending) return;
-    if (!text && !file) return;
+    if (!text && !media) return;
 
     this.sending = true;
     this.error = null;
@@ -622,7 +625,7 @@ export class UnicomChatWithSidebar extends LitElement {
         }
       }
 
-      const response = await this.client.sendMessage(text, this.currentChatId, file, options);
+      const response = await this.client.sendMessage(text, this.currentChatId, media, options);
 
       // Update or set current chat ID
       if (response.chat_id) {
@@ -639,9 +642,10 @@ export class UnicomChatWithSidebar extends LitElement {
       // Add the sent message to the list (if not already added by real-time update)
       // Skip immediate addition for edits - let real-time update handle branching logic
       if (response.message && !options.reply_to_message_id) {
-        const messageExists = this.messages.some(m => m.id === response.message.id);
-        if (!messageExists) {
-          this.messages = [...this.messages, response.message];
+        const sent = response.messages || [response.message];
+        const existing = new Set(this.messages.map(message => message.id));
+        if (sent.some(message => !existing.has(message.id))) {
+          this.messages = [...this.messages, ...sent.filter(message => !existing.has(message.id))];
           this.processedMessages = this._processMessagesWithBranching(this.messages);
         }
       }
@@ -804,6 +808,7 @@ export class UnicomChatWithSidebar extends LitElement {
             ` : ''}
 
             <message-list
+            .presentationRenderers=${this.presentationRenderers}
               .messages=${this.processedMessages}
               .loading=${this.loading}
               .hasMore=${this.hasMore}
@@ -813,6 +818,7 @@ export class UnicomChatWithSidebar extends LitElement {
             </message-list>
 
             <message-input
+            .maxAttachments=${this.maxAttachments || 1}
               .disabled=${this.sending}
               .sending=${this.sending}
               .sendAck=${this.sendAck}

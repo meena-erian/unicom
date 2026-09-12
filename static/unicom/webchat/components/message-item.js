@@ -10,6 +10,7 @@ import { morphdom } from '../utils/morphdom.js';
 
 export class MessageItem extends LitElement {
   static properties = {
+    presentationRenderers: { attribute: false },
     message: { type: Object },
     loadingButtons: { type: Set },
   };
@@ -256,6 +257,13 @@ export class MessageItem extends LitElement {
   }
 
   _renderMessageContent(message) {
+    const descriptor = message._toolResponse?.tool_presentation || message.tool_presentation || message.tool_ui;
+    const renderer = descriptor && Object.hasOwn(this.presentationRenderers || {}, descriptor.type)
+      ? this.presentationRenderers[descriptor.type] : null;
+    if (typeof renderer === 'function') {
+      const rendered = renderer(descriptor, { message });
+      if (rendered !== undefined) return rendered;
+    }
     switch (message.media_type) {
       case 'text':
         return html`<div class="message-text">${message.text}</div>`;

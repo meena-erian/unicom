@@ -70,6 +70,12 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
 
     poll_interval_seconds = 1
     warm_cache_limit = 100
+    message_presenter = None
+
+    def get_message_presenter(self):
+        from unicom.services.webchat.presentation import get_message_presenter
+
+        return self.message_presenter or get_message_presenter(self.channel)
 
     def __init__(self, *args, **kwargs):
         if not CHANNELS_AVAILABLE:  # pragma: no cover - handled above
@@ -142,6 +148,12 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
         chat_id = event.get("chat_id") or self.chat_id
         if not message_payload:
             return
+        if str(chat_id) != str(self.chat_id):
+            return
+        if self.get_message_presenter() is not None:
+            message_payload = await self._present_updated_message(message_payload.get("id"))
+            if message_payload is None:
+                return
         await self.send_json(
             {
                 "type": "message_updated",
@@ -149,6 +161,13 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
                 "message": message_payload,
             }
         )
+
+    @database_sync_to_async
+    def _present_updated_message(self, message_id):
+        from unicom.models import Message
+
+        message = Message.objects.filter(pk=message_id, chat_id=self.chat_id).first()
+        return self._serialize_message(message) if message is not None else None
 
     async def unicom_stream(self, event):
         """Forward an ephemeral LLM stream event published by a worker."""
@@ -327,7 +346,11 @@ class WebChatConsumer(AsyncJsonWebsocketConsumer):
     def _serialize_message(self, message) -> dict:
         """Convert a Message model instance into the JSON payload expected by JS."""
         from unicom.services.message_serialization import serialize_message
-        return serialize_message(message)
+        return serialize_message(
+            message,
+            presenter=self.get_message_presenter(),
+            viewer=getattr(self, "scope", {}).get("user"),
+        )
 
 
 def is_channels_available() -> bool:

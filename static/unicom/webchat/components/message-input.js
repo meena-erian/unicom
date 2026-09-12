@@ -10,6 +10,8 @@ import './voice-recorder.js';
 
 export class MessageInput extends LitElement {
   static properties = {
+    maxAttachments: { type: Number, attribute: 'max-attachments' },
+    selectedFiles: { type: Array, state: true },
     disabled: { type: Boolean },
     editingMessageId: { type: String, attribute: 'editing-message-id' },
     sending: { type: Boolean },
@@ -23,6 +25,8 @@ export class MessageInput extends LitElement {
 
   constructor() {
     super();
+    this.maxAttachments = 1;
+    this.selectedFiles = [];
     this.disabled = false;
     this.sending = false;
     this.sendAck = 0;
@@ -60,6 +64,7 @@ export class MessageInput extends LitElement {
       detail: {
         text: text,
         file: this.previewFile,
+        files: this.selectedFiles,
         replyToMessageId: this.editingMessageId, // Include for editing/branching
       },
       bubbles: true,
@@ -68,39 +73,39 @@ export class MessageInput extends LitElement {
   }
 
   _handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file type
-    const validTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'audio/mpeg',
-      'audio/ogg',
-      'audio/wav',
-      'audio/webm',
-      'audio/mp4',
-    ];
-    if (!validTypes.includes(file.type)) {
-      alert('Please select a valid image or audio file');
-      return;
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB');
-      return;
-    }
-
-    this.previewFile = file;
-    // Clear the input so the same file can be selected again
+    this.attachFiles(Array.from(e.target.files || []));
     e.target.value = '';
   }
 
-  _handleRemoveFile() {
-    this.previewFile = null;
+  attachFiles(files) {
+    if (this.disabled || this.sending) return;
+    const next = this.maxAttachments === 1 ? files : [...this.selectedFiles, ...files];
+    if (next.length > this.maxAttachments) {
+      alert(`Select at most ${this.maxAttachments} attachments`);
+      return;
+    }
+    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/mp4'];
+    if (files.some(file => file.size > 10 * 1024 * 1024 || !supported.includes(file.type))) {
+      alert('Select image or audio files no larger than 10MB');
+      return;
+    }
+    this.selectedFiles = next;
+    this.previewFile = next[0] || null;
+  }
+
+  _handleDrop(event) {
+    if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
+    event.preventDefault();
+    this.attachFiles(Array.from(event.dataTransfer.files));
+  }
+
+  _handleDragOver(event) {
+    if (Array.from(event.dataTransfer?.types || []).includes('Files')) event.preventDefault();
+  }
+
+  _handleRemoveFile(file) {
+    this.selectedFiles = this.selectedFiles.filter(item => item !== file);
+    this.previewFile = this.selectedFiles[0] || null;
   }
 
   _openFilePicker() {
@@ -125,7 +130,7 @@ export class MessageInput extends LitElement {
     const file = e.detail?.file;
     if (!file) return;
 
-    this.previewFile = file;
+    this.attachFiles([file]);
     this.requestUpdate();
   }
 
@@ -140,6 +145,7 @@ export class MessageInput extends LitElement {
   }
 
   _clearInput() {
+    this.selectedFiles = [];
     this.inputText = '';
     this.previewFile = null;
     this.editingMessageId = null;
@@ -150,6 +156,7 @@ export class MessageInput extends LitElement {
   }
 
   _handleCancelEdit() {
+    this.selectedFiles = [];
     this.editingMessageId = null;
     this.inputText = '';
     this.previewFile = null;
@@ -169,7 +176,7 @@ export class MessageInput extends LitElement {
     const isDisabled = this.disabled || this.sending;
 
     return html`
-      <div class="message-input-container">
+      <div class="message-input-container" @drop=${this._handleDrop} @dragover=${this._handleDragOver}>
         ${isEditing ? html`
           <div class="edit-mode-indicator">
             <span>
@@ -180,17 +187,18 @@ export class MessageInput extends LitElement {
           </div>
         ` : ''}
 
-        ${this.previewFile ? html`
+        ${this.selectedFiles.map(file => html`
           <media-preview
-            .file=${this.previewFile}
-            @remove=${this._handleRemoveFile}>
+            .file=${file}
+            @remove=${() => this._handleRemoveFile(file)}>
           </media-preview>
-        ` : ''}
+        `)}
 
         <input
           type="file"
           id="media-upload"
           accept="image/*,audio/*"
+          ?multiple=${this.maxAttachments > 1}
           @change=${this._handleFileSelect}
           style="display: none;">
 
@@ -206,6 +214,7 @@ export class MessageInput extends LitElement {
           `}
 
           <div class="actions">
+            ${showSend && this.maxAttachments > 1 ? html`<button type="button" class="icon-btn attach-btn" @click=${this._openFilePicker} ?disabled=${isDisabled} aria-label="Attach more files"><i class="fa-solid fa-paperclip" aria-hidden="true"></i></button>` : ''}
             ${showSend ? html`
               <button
                 class="send-btn"

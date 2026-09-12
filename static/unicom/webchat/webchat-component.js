@@ -10,6 +10,8 @@ import './components/message-input.js';
 
 export class UnicomChat extends LitElement {
   static properties = {
+    presentationRenderers: { attribute: false },
+    maxAttachments: { type: Number, attribute: 'max-attachments' },
     apiBase: { type: String, attribute: 'api-base' },
     chatId: { type: String, attribute: 'chat-id' },
     channelId: { type: Number, attribute: 'channel-id' },
@@ -153,16 +155,17 @@ export class UnicomChat extends LitElement {
    * Send a message
    */
   async _handleSendMessage(e) {
-    const { text, file } = e.detail;
+    const { text, file, files, replyToMessageId } = e.detail;
+    const media = files?.length > 1 ? files : file;
 
     if (this.sending) return;
-    if (!text && !file) return;
+    if (!text && !media) return;
 
     this.sending = true;
     this.error = null;
 
     try {
-      const response = await this.api.sendMessage(text, this.chatId, file);
+      const response = await this.api.sendMessage(text, this.chatId, media, { reply_to_message_id: replyToMessageId });
 
       // Update chat_id if this was the first message
       if (response.chat_id && !this.chatId) {
@@ -170,9 +173,9 @@ export class UnicomChat extends LitElement {
       }
 
       // Add the sent message to the list
-      if (response.message) {
-        this.messages = [...this.messages, response.message];
-      }
+      const sent = response.messages || (response.message ? [response.message] : []);
+      const existing = new Set(this.messages.map(message => message.id));
+      this.messages = [...this.messages, ...sent.filter(message => !existing.has(message.id))];
 
       // Signal input to clear after confirmed send
       this.sendAck += 1;
@@ -283,6 +286,7 @@ export class UnicomChat extends LitElement {
         </div>
 
         <message-list
+            .presentationRenderers=${this.presentationRenderers}
           .messages=${this.messages}
           .loading=${this.loading}
           .hasMore=${this.hasMore}
@@ -290,6 +294,7 @@ export class UnicomChat extends LitElement {
         </message-list>
 
         <message-input
+            .maxAttachments=${this.maxAttachments || 1}
           .disabled=${this.sending}
           .sending=${this.sending}
           .sendAck=${this.sendAck}

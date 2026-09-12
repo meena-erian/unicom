@@ -7,11 +7,13 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.middleware import SessionMiddleware
 from unicom.models import Channel, Message, Chat, AccountChat
-from unicom.services.webchat.save_webchat_message import save_webchat_message
+from unicom.services.webchat.save_webchat_message import save_webchat_message, save_webchat_messages
+from unicom.services.webchat.attachments import validate_webchat_attachments
 from unicom.services.webchat.get_or_create_account import get_or_create_account
 from unicom.models import CallbackExecution
 from unicom.signals import interactive_button_clicked
 from unicom.services.message_serialization import serialize_message
+from unicom.services.webchat.presentation import serialize_webchat_message
 
 
 def _get_webchat_channel(channel_id=None):
@@ -81,12 +83,21 @@ def send_webchat_message_api(request):
             reply_to_message_id = data.get('reply_to_message_id')
             is_editing = data.get('is_editing', False)
             media_file = None
+            media_files = []
         else:
             text = request.POST.get('text', '').strip()
             chat_id = request.POST.get('chat_id')
             reply_to_message_id = request.POST.get('reply_to_message_id')
             is_editing = request.POST.get('is_editing', 'false').lower() == 'true'
             media_file = request.FILES.get('media')
+            media_files = request.FILES.getlist('files')
+            if media_files and request.FILES.getlist('media'):
+                return JsonResponse({'error': 'Use files or media, not both'}, status=400)
+            if not media_files and len(request.FILES.getlist('media')) > 1:
+                media_files = request.FILES.getlist('media')
+            if media_files:
+                validate_webchat_attachments(channel, media_files)
+                media_file = media_files[0]
 
         # Validate
         if not text and not media_file:
@@ -126,7 +137,13 @@ def send_webchat_message_api(request):
         }
 
         # Save message
-        message = save_webchat_message(channel, message_data, request, user=request.user if request.user.is_authenticated else None)
+        if media_files:
+            message_data['files'] = media_files
+            messages = save_webchat_messages(channel, message_data, request, user=request.user if request.user.is_authenticated else None)
+            message = messages[-1] if messages else None
+        else:
+            message = save_webchat_message(channel, message_data, request, user=request.user if request.user.is_authenticated else None)
+            messages = [message] if message else []
 
         if not message:
             return JsonResponse({'error': 'Message could not be sent (account blocked)'}, status=403)
@@ -135,16 +152,8 @@ def send_webchat_message_api(request):
         return JsonResponse({
             'success': True,
             'chat_id': message.chat_id,
-            'message': {
-                'id': message.id,
-                'text': message.text,
-                'timestamp': message.timestamp.isoformat(),
-                'chat_id': message.chat_id,
-                'media_type': message.media_type,
-                'media_url': message.media.url if message.media else None,
-                'is_outgoing': message.is_outgoing,
-                'sender_name': message.sender_name,
-            }
+            'message': {**serialize_webchat_message(message, viewer=request.user), 'chat_id': message.chat_id},
+            **({'messages': [serialize_webchat_message(item, viewer=request.user) for item in messages]} if media_files else {}),
         })
 
     except ValueError as e:
@@ -348,7 +357,7 @@ def get_webchat_messages_api(request):
         messages_list.reverse()
 
         # Serialize messages
-        messages_data = [serialize_message(msg) for msg in messages_list]
+        messages_data = [serialize_webchat_message(msg, viewer=request.user) for msg in messages_list]
 
         return JsonResponse({
             'success': True,

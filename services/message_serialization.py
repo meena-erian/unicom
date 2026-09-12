@@ -3,7 +3,7 @@
 from unicom.services.tool_presentations import extract_tool_presentation
 
 
-def serialize_message(message) -> dict:
+def serialize_message(message, *, presenter=None, viewer=None, presentation_types=None) -> dict:
     """Return the transport-neutral public representation of a Message."""
     raw = message.raw or {}
     tool_call = raw.get("tool_call", {}) if message.media_type == "tool_call" else {}
@@ -13,7 +13,7 @@ def serialize_message(message) -> dict:
         if message.media_type == "tool_call"
         else None
     )
-    return {
+    payload = {
         "id": message.pk,
         "text": message.text,
         "html": message.html,
@@ -38,8 +38,14 @@ def serialize_message(message) -> dict:
             else None
         ),
         "tool_presentation": (
-            extract_tool_presentation(raw)
+            extract_tool_presentation(raw, custom_types=presentation_types)
             if message.media_type == "tool_response"
             else None
         ),
     }
+    if presenter is not None:
+        presented = presenter(message, payload, viewer=viewer)
+        if not isinstance(presented, dict) or presented.get("id") != message.pk:
+            raise ValueError("A message presenter must return a dict with the original id")
+        return presented
+    return payload
