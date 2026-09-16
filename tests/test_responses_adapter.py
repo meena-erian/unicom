@@ -241,6 +241,20 @@ class ResponsesAdapterTests(SimpleTestCase):
         self.assertEqual(published[0]["type"], "response.started")
         self.assertEqual(published[-1]["type"], "response.finished")
 
+    def test_incomplete_stream_does_not_return_partial_tool_calls(self):
+        events = [
+            {"type": "response.output_item.done", "item": {
+                "type": "function_call", "call_id": "call_1",
+                "name": "dangerous_action", "arguments": "{}",
+            }},
+            {"type": "response.failed", "error": {"type": "server_error"}},
+        ]
+        with self.assertRaisesRegex(RuntimeError, "response.failed"):
+            create_response(
+                client=_Client(events), model="test-model",
+                messages=[{"role": "user", "content": "do it"}], stream=True,
+            )
+
     def test_streaming_preserves_generated_image_from_completed_output_item(self):
         events = [
             {

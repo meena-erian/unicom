@@ -318,6 +318,12 @@ def create_response(
                     streamed_content.append(item_content)
             elif event_type == "response.completed":
                 completed_response = getattr(event, "response", None) or data.get("response")
+            elif event_type in {"response.failed", "response.incomplete"}:
+                error = data.get("error") or getattr(event, "error", None) or data
+                raise RuntimeError(f"Responses stream {event_type}: {error}")
+
+        if completed_response is None:
+            raise RuntimeError("Responses stream ended without response.completed")
 
         base = _result_from_response(completed_response) if completed_response is not None else ResponsesResult(text="")
         result = ResponsesResult(
