@@ -538,7 +538,20 @@ class Message(models.Model):
                 if endpoint_request:
                     active_root_message_id = endpoint_request.message_id
 
-            def request_execution(request, include_late_interrupted=False):
+            projected_preamble_ids = set()
+            execution_cutoffs = {}
+            preceding_root_id = None
+            preceding_assistant = None
+            for chain_message in chain:
+                if chain_message.pk in selected_roots:
+                    if preceding_root_id is not None and preceding_assistant is not None:
+                        execution_cutoffs[preceding_root_id] = preceding_assistant.timestamp
+                    preceding_root_id = chain_message.pk
+                    preceding_assistant = None
+                elif chain_message.is_outgoing is True:
+                    preceding_assistant = chain_message
+            def request_execution(request, include_late_interrupted=False, cutoff=None):
+                cutoff = self.timestamp if cutoff is None else cutoff
                 projected = []
                 children = list(type(request).objects.filter(
                     parent_request_id=request.pk,
@@ -550,47 +563,74 @@ class Message(models.Model):
                     .select_related('tool_call_message')
                     .prefetch_related('response_messages').order_by('created_at')
                 )
+                followups = []
                 for call in calls:
                     responses = [
-                        response for response in call.response_messages.all()
-                        if response.timestamp <= self.timestamp
+                        response for response in sorted(
+                            call.response_messages.all(), key=lambda item: item.timestamp,
+                        )
+                        if response.timestamp <= cutoff
                     ]
+                    interrupted = call.status == 'INTERRUPTED' and (
+                        call.created_at <= cutoff or include_late_interrupted
+                    )
+                    preamble_id = (call.tool_call_message.raw or {}).get(
+                        'assistant_preamble_message_id'
+                    )
+                    if (
+                        isinstance(preamble_id, str)
+                        and preamble_id not in projected_preamble_ids
+                        and call.tool_call_message.timestamp <= cutoff
+                    ):
+                        preamble = type(self).objects.filter(
+                            pk=preamble_id,
+                            chat_id=request.message.chat_id,
+                            is_outgoing=True,
+                            media_type='text',
+                            raw__assistant_phase='tool_preamble',
+                            reply_to_message_id=request.message_id,
+                            timestamp__gte=request.message.timestamp,
+                            timestamp__lte=min(cutoff, call.tool_call_message.timestamp),
+                        ).first()
+                        if preamble is not None:
+                            projected.append(preamble)
+                            projected_preamble_ids.add(preamble.pk)
+                    if not responses and not interrupted:
+                        continue
                     if responses:
                         # The first response participates in the original batch.
                         projected.extend([call.tool_call_message, responses[0]])
-                    elif call.status == 'INTERRUPTED' and (
-                        call.created_at <= self.timestamp or include_late_interrupted
-                    ):
+                    elif interrupted:
                         projected.append(call.tool_call_message)
                         projected.append({
                             'role': 'tool',
                             'tool_call_id': call.call_id,
                             'content': '{"status": "ERROR", "error": "Interrupted by a newer user message."}',
                         })
-                    else:
-                        continue
-
                     for response_index, response in enumerate(responses):
-                        if response_index:
-                            # ACTIVE tools may answer repeatedly. Repeat the call
-                            # declaration so each recurring event remains a valid pair.
-                            projected.extend([call.tool_call_message, response])
-                        child = children_by_message.get(response.pk)
-                        if child:
-                            followed_children.add(child.pk)
-                            projected.extend(request_execution(child, include_late_interrupted))
+                        followups.append((response.timestamp, response_index, call, response))
+
+                for _, response_index, call, response in sorted(followups, key=lambda item: item[0]):
+                    if response_index:
+                        projected.extend([call.tool_call_message, response])
+                    child = children_by_message.get(response.pk)
+                    if child:
+                        followed_children.add(child.pk)
+                        projected.extend(request_execution(child, include_late_interrupted, cutoff))
 
                 # A batch continuation is attached to its final sibling response;
                 # recurse after the complete batch if it was not visited above.
                 for child in children:
-                    if child.pk not in followed_children and child.message.timestamp <= self.timestamp:
-                        projected.extend(request_execution(child, include_late_interrupted))
+                    if child.pk not in followed_children and child.message.timestamp <= cutoff:
+                        projected.extend(request_execution(child, include_late_interrupted, cutoff))
                 return projected
 
             if selected_roots:
                 rebuilt_chain = []
                 for chain_message in chain:
                     if chain_message.media_type in {'tool_call', 'tool_response'}:
+                        continue
+                    if chain_message.pk in projected_preamble_ids:
                         continue
                     rebuilt_chain.append(chain_message)
                     root_request = selected_roots.get(chain_message.pk)
@@ -600,6 +640,7 @@ class Message(models.Model):
                             include_late_interrupted=(
                                 chain_message.pk != active_root_message_id
                             ),
+                            cutoff=execution_cutoffs.get(chain_message.pk, self.timestamp),
                         ))
                 chain = rebuilt_chain
 
