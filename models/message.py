@@ -28,7 +28,7 @@ MAX_LLM_TOOL_RESPONSE_CHARS = 32_000
 MAX_LLM_GITHUB_TOOL_RESPONSE_CHARS = 16_000
 
 
-def _bounded_tool_response_content(tool_response_data):
+def _bounded_tool_response_content(tool_response_data, *, fresh=False):
     """Prevent one persisted tool result from multiplying context on every turn."""
     content = str(tool_response_data.get('result', '') or '')
     decoded = tool_response_data.get('result')
@@ -56,7 +56,7 @@ def _bounded_tool_response_content(tool_response_data):
         if tool_name in {'dashboard_read_github_file', 'dashboard_list_github_directory'}
         else MAX_LLM_TOOL_RESPONSE_CHARS
     )
-    if len(content) <= limit:
+    if fresh or len(content) <= limit:
         return content
     guidance = (
         "Use dashboard_list_github_directory and dashboard_read_github_file with "
@@ -343,6 +343,19 @@ class Message(models.Model):
         - system_instruction: if provided, prepends a system message
         - multimodal: if True, includes media (image/audio) as content or URLs
         """
+        # The endpoint identifies the batch whose results this invocation must
+        # consume. Derive freshness on every serialization (including retries),
+        # never from a persisted "seen" flag or wall-clock age. Older batches
+        # retain the existing history budget. Parallel siblings share a request.
+        fresh_response_ids = set()
+        if self.media_type == "tool_response":
+            fresh_response_ids.add(self.pk)
+            if self.response_to_tool_call_id:
+                fresh_response_ids.update(Message.objects.filter(
+                    response_to_tool_call__request_id=self.response_to_tool_call.request_id,
+                    media_type="tool_response", timestamp__lte=self.timestamp,
+                ).values_list("pk", flat=True))
+
         def msg_to_dict(msg):
             # Determine role
             if msg.is_outgoing is True:
@@ -460,7 +473,9 @@ class Message(models.Model):
                 d = {
                     "role": "tool",
                     "tool_call_id": tool_response_data.get('call_id', ''),
-                    "content": _bounded_tool_response_content(tool_response_data)
+                    "content": _bounded_tool_response_content(
+                        tool_response_data, fresh=msg.pk in fresh_response_ids,
+                    )
                 }
                 return d
             else:
@@ -476,7 +491,7 @@ class Message(models.Model):
             selected = list(qs[start:idx+1])
             
             # Handle user interruption for tool response messages in chat mode
-            if self.media_type == "tool_response" and not selected_roots:
+            if self.media_type == "tool_response":
                 # Find any user message that came chronologically after any tool call in our range
                 tool_call_timestamps = [m.timestamp for m in selected if m.media_type == "tool_call"]
                 if tool_call_timestamps:

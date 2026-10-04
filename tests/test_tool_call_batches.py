@@ -307,6 +307,32 @@ class ToolCallBatchTests(TestCase):
 
     @patch.object(Request, "categorize")
     @patch.object(Request, "identify_member")
+    def test_large_results_are_fresh_for_batch_and_retry_but_not_next_cycle(self, *_mocks):
+        first, second = self._tool_call("large-first"), self._tool_call("large-second")
+        first.respond({"result": "first-marker" + "x" * 40000})
+        response, continuation = second.respond({"result": "second-marker" + "y" * 40000})
+        for mode in ("thread", "chat"):
+            for _ in range(2):
+                outputs = [m["content"] for m in response.as_llm_chat(mode=mode) if m["role"] == "tool"]
+                self.assertEqual(len(outputs), 2)
+                self.assertTrue(all(len(value) > 40000 for value in outputs))
+        next_call = continuation.submit_tool_calls([
+            {"id": "call-next", "name": "test_tool", "arguments": {}},
+        ])[0]
+        next_response, _ = next_call.respond({"result": "next-marker" + "z" * 40000})
+        outputs = [m["content"] for m in next_response.as_llm_chat(mode="thread") if m["role"] == "tool"]
+        self.assertEqual(len(outputs), 3)
+        self.assertTrue(all("OMITTED_FROM_HISTORY" in value for value in outputs[:2]))
+        self.assertIn("next-marker", outputs[2])
+        later = self._user_message("Explain")
+        later.reply_to_message = next_response
+        later.save(update_fields=["reply_to_message"])
+        outputs = [m["content"] for m in later.as_llm_chat(mode="thread") if m["role"] == "tool"]
+        self.assertTrue(outputs)
+        self.assertTrue(all("OMITTED_FROM_HISTORY" in value for value in outputs))
+
+    @patch.object(Request, "categorize")
+    @patch.object(Request, "identify_member")
     def test_later_user_turn_retains_every_parallel_sibling(
         self, _identify_member, _categorize
     ):
