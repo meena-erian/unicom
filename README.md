@@ -4,6 +4,8 @@
 
 ## 📑 Table of Contents
 
+- [Interactive tools and custom presentations](TOOL_INTERACTIONS.md)
+
 - [Quick Start](#-quick-start)
 - [Available Platforms](#-available-platforms)
 - [Core Models & Usage](#-core-models--usage)
@@ -887,6 +889,11 @@ Make sure your app is in `INSTALLED_APPS` in settings.py.
 - **Tool Integration**: When buttons are from tools, handlers can use `tool_call.respond()` to inform the LLM
 
 #### 🌐 Tool-Generated Buttons (Cross-Platform)
+
+For persisted user choices and custom web cards, use
+[`MessageWithButtons` and tool presentations](TOOL_INTERACTIONS.md). These share
+buttons with Telegram, keep tool responses pending until a choice, and update
+the web component with final presentation data.
 
 Tools can create interactive buttons that work on both Telegram and WebChat:
 
