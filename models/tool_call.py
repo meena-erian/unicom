@@ -111,7 +111,15 @@ class ToolCall(models.Model):
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'completed_at'])
     
-    def respond(self, result, status: str = 'SUCCESS'):
+    def respond(self, result, status='SUCCESS'):
+        # Serialize siblings and reject repeated completion before logging a result.
+        from .request import Request
+        with transaction.atomic():
+            Request.objects.select_for_update().get(pk=self.request_id)
+            self.refresh_from_db()
+            return self._respond(result, status)
+
+    def _respond(self, result, status: str = 'SUCCESS'):
         """
         Submit response to this tool call.
         
@@ -170,7 +178,7 @@ class ToolCall(models.Model):
                 self.save(update_fields=['result_status'])
             
             # Check if this is the final response (all PENDING tool calls now COMPLETED)
-            pending_calls = self.request.tool_calls.filter(status='PENDING').count()
+            pending_calls = self.request.tool_calls.filter(status__in=['PENDING', 'IN_PROGRESS']).count()
             
             if pending_calls == 0:
                 # This is the final response - create child request

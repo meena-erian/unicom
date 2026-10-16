@@ -51,15 +51,15 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
     try:
         execution = CallbackExecution.objects.select_related(
             'original_message', 'intended_account'
-        ).get(id=callback_execution_id)
+        ).get(id=callback_execution_id, original_message__channel=channel)
         print(f"✅ CALLBACK DEBUG: Found CallbackExecution: {execution.id}")
-    except CallbackExecution.DoesNotExist:
+    except (CallbackExecution.DoesNotExist, ValueError, TypeError):
         logger.warning(f"CallbackExecution not found: {callback_execution_id}")
         print(f"❌ CALLBACK DEBUG: CallbackExecution not found")
         return False
 
     # Check if expired
-    if execution.is_expired():
+    if execution.is_expired() and not (isinstance(execution.callback_data, dict) and 'interaction' in execution.callback_data):
         logger.info(f"CallbackExecution {execution.id} has expired")
         print(f"⏰ CALLBACK DEBUG: CallbackExecution has expired")
         return False
@@ -82,6 +82,14 @@ def handle_telegram_callback(channel: Channel, callback_query_data: dict):
         print(f"❌ CALLBACK DEBUG: Account {username} is not the intended account")
         return False
     print(f"✅ CALLBACK DEBUG: Account is authorized")
+
+    from unicom.services.interactions import dispatch
+    try:
+        if dispatch(execution, clicking_account) is not None:
+            return True
+    except Exception:
+        logger.exception("Interaction action failed")
+        return False
 
     # Fire signal for project handlers
     try:

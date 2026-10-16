@@ -99,6 +99,9 @@ def migrate_guest_to_user(old_session_key, user):
             account_chat.delete()
 
         # Delete guest account
+        from unicom.models import CallbackExecution, Interaction
+        CallbackExecution.objects.filter(intended_account=guest_account).update(intended_account=user_account)
+        Interaction.objects.filter(account=guest_account).update(account=user_account)
         guest_account.delete()
 
         print(f"Migrated guest account {guest_account_id} to user account {user_account_id}")

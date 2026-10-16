@@ -28,5 +28,7 @@ __all__ = [
     'MemberGroup',
     'MessageTemplate',
     'DraftMessage',
-    'CallbackExecution'
+    'CallbackExecution',
+    'Interaction'
 ]
+from .interaction import Interaction

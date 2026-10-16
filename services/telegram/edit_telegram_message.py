@@ -52,7 +52,7 @@ def edit_telegram_message(channel: Channel, message: Message, params: dict) -> b
     url = f"https://api.telegram.org/bot{TELEGRAM_API_TOKEN}/editMessageText"
 
     try:
-        response = requests.post(url, data=edit_params)
+        response = requests.post(url, data=edit_params, timeout=15)
         result = response.json()
 
         if result.get('ok'):

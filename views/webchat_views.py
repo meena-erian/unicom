@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 """
 WebChat API views.
 Handles REST API endpoints for WebChat functionality.
@@ -425,6 +426,13 @@ def get_webchat_messages_api(request):
         # Reverse to get chronological order for display
         messages_list.reverse()
 
+        # Fetch public interaction projections in one query after chat authorization.
+        from unicom.models import Interaction
+        from unicom.services.interactions import public_state
+        interactions = {
+            item.message_id: public_state(item)
+            for item in Interaction.objects.filter(message_id__in=[msg.pk for msg in messages_list]).select_related('tool_call')
+        }
         # Serialize messages
         messages_data = [{
             'id': msg.id,
@@ -436,7 +444,8 @@ def get_webchat_messages_api(request):
             'media_type': msg.media_type,
             'media_url': msg.media.url if msg.media else None,
             'reply_to_message_id': msg.reply_to_message_id if msg.reply_to_message else None,
-            'interactive_buttons': msg.raw.get('interactive_buttons') if msg.raw else None,
+            'interaction': interactions.get(msg.pk),
+            'interactive_buttons': ([interactions[msg.pk]['buttons']] if interactions[msg.pk]['buttons'] else []) if msg.pk in interactions else (msg.raw.get('interactive_buttons') if msg.raw else None),
             'progress_updates_for_user': (msg.raw or {}).get('tool_call', {}).get('arguments', {}).get('progress_updates_for_user') if msg.media_type == 'tool_call' else None,
             'result_status': (msg.raw or {}).get('tool_response', {}).get('result', {}).get('status') if msg.media_type == 'tool_response' else None,
             'stream_status': (msg.raw or {}).get('stream', {}).get('status'),
@@ -731,6 +740,16 @@ def handle_webchat_button_click(request):
         except CallbackExecution.DoesNotExist:
             return JsonResponse({'error': 'Button not found or expired'}, status=404)
         
+        # Persisted interactions own expiration and idempotent completion.
+        from unicom.services.interactions import dispatch
+        if execution.original_message.channel_id != channel.pk:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+        if account.pk != execution.intended_account_id:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+        interaction = dispatch(execution, account)
+        if interaction is not None:
+            return JsonResponse({'success': True, 'interaction': interaction})
+
         # Check if expired
         if execution.is_expired():
             return JsonResponse({'error': 'Button has expired'}, status=403)
@@ -759,9 +778,9 @@ def handle_webchat_button_click(request):
         
         return JsonResponse({'success': True})
         
-    except ValueError as e:
+    except (ValueError, ValidationError) as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
+        return JsonResponse({'error': 'Could not process this action. Please retry.'}, status=500)

@@ -17,6 +17,7 @@ const WEBCHAT_UI_VERSION = '2026.08.30-streaming-text.1';
 console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
 
 export class UnicomChatWithSidebar extends LitElement {
+  static moduleUrl = import.meta.url;
   static properties = {
     apiBase: { type: String, attribute: 'api-base' },
     wsUrl: { type: String, attribute: 'ws-url' },

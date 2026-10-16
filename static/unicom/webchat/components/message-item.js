@@ -3,6 +3,7 @@
  * Renders individual message with media support
  */
 import { LitElement, html, css } from 'lit';
+import './tool-interaction.js';
 import { iconStyles, messageStyles } from '../webchat-styles.js';
 import { formatTimestamp } from '../utils/datetime-formatter.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
@@ -366,6 +367,15 @@ export class MessageItem extends LitElement {
           ${this._renderMessageContent(message)}
         </div>
       `;
+    }
+
+    if (message.interaction) {
+      return html`<div class="message-item incoming">
+        <div class="sender-name">${message.sender_name}</div>
+        <tool-interaction .state=${message.interaction} @interaction-updated=${event => {
+          this.message = {...this.message, interaction:event.detail};
+        }}></tool-interaction>
+      </div>`;
     }
 
     const alignment = isUserMessage ? 'outgoing' : 'incoming';

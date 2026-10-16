@@ -22,6 +22,7 @@ export class MessageList extends LitElement {
     this.loading = false;
     this.hasMore = false;
     this._shouldScrollToBottom = true;
+    this._followTail = true;
   }
 
   async firstUpdated() {
@@ -73,6 +74,7 @@ export class MessageList extends LitElement {
       const container = this.shadowRoot.querySelector('.message-list');
       if (container) {
         container.scrollTop = container.scrollHeight;
+        this._followTail = true;
       }
     });
   }
@@ -96,8 +98,8 @@ export class MessageList extends LitElement {
   }
 
   _handleScroll(e) {
-    // Detect if user is at the top for "load more"
-    // This is handled by the parent component
+    const container = e.currentTarget;
+    this._followTail = container.scrollHeight - container.clientHeight - container.scrollTop < 80;
   }
 
   _loadMore() {
@@ -118,7 +120,7 @@ export class MessageList extends LitElement {
     }
 
     return html`
-      <div class="message-list" @scroll=${this._handleScroll}>
+      <div class="message-list" @scroll=${this._handleScroll} @interaction-resize=${() => { if (this._followTail && this._shouldScrollToBottom) this._scrollToBottom(); }}>
         ${this.loading ? html`
           <div class="loading-spinner">
             <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>

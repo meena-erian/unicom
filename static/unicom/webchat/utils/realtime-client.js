@@ -489,6 +489,7 @@ export class RealTimeWebChatClient {
       message.stream_status,
       message.stream_error,
       message.result_status,
+      message.interaction,
     ]);
   }
 
