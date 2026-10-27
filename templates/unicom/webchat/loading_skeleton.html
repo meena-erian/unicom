@@ -1,0 +1,5 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'unicom/webchat/loading-skeleton.css' %}">
+<div id="{{ skeleton_id|default:'chat-loading' }}" class="unicom-loading-skeleton unicom-loading-skeleton--cover" role="status" aria-label="Loading conversation">
+  <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+</div>

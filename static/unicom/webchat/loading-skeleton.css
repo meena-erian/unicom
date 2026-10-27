@@ -1,0 +1,11 @@
+/* Shared by native chat components and the server-rendered boot placeholder. */
+.unicom-loading-skeleton { box-sizing:border-box; display:flex; flex-direction:column; gap:20px; padding:28px; width:100%; min-height:180px; }
+.unicom-loading-skeleton[hidden] { display:none !important; }
+.unicom-loading-skeleton--cover { position:absolute; inset:0; z-index:3; background:var(--unicom-background-color, var(--background-color, var(--surface, #fff))); }
+.unicom-loading-skeleton > span { position:relative; display:block; overflow:hidden; flex-shrink:0; width:70%; height:56px; border-radius:14px; background:var(--unicom-skeleton-fill, var(--unicom-border-color, var(--border-color, #e9edf2))); }
+.unicom-loading-skeleton > span:nth-child(2) { align-self:flex-end; width:82%; height:84px; }
+.unicom-loading-skeleton > span:nth-child(3) { width:54%; height:56px; }
+.unicom-loading-skeleton > span::after { content:''; position:absolute; inset:0; background:linear-gradient(105deg, transparent 47.5%, var(--unicom-skeleton-glare, rgba(255,255,255,.9)) 50%, transparent 52.5%); transform:translateX(-110%); animation:unicom-skeleton-glare 4s ease-in-out infinite; }
+@keyframes unicom-skeleton-glare { 0%,15% { transform:translateX(-110%); } 85%,100% { transform:translateX(110%); } }
+@media(prefers-reduced-motion:reduce) { .unicom-loading-skeleton > span::after { animation:none; display:none; } }
+@media(forced-colors:active) { .unicom-loading-skeleton > span { border:1px solid CanvasText; } .unicom-loading-skeleton > span::after { display:none; } }

@@ -6,6 +6,7 @@ import { LitElement, html, css } from 'lit';
 import { formatRelativeTime } from '../utils/datetime-formatter.js';
 import { iconStyles } from '../webchat-styles.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
+import { loadingSkeleton } from './loading-skeleton.js';
 
 export class ChatList extends LitElement {
   static properties = {
@@ -252,13 +253,8 @@ export class ChatList extends LitElement {
           </button>
         </div>
 
-        <div class="chat-list-items">
-          ${this.loading ? html`
-            <div class="loading-spinner">
-              <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
-              <span>Loading chats...</span>
-            </div>
-          ` : ''}
+        <div class="chat-list-items" aria-busy=${this.loading ? 'true' : 'false'}>
+          ${this.loading && this.chats.length === 0 ? loadingSkeleton('Loading conversations') : ''}
 
           ${!this.loading && this.chats.length === 0 ? html`
             <div class="empty-state">

@@ -8,6 +8,10 @@ import { WebChatAPI } from './utils/api-client.js';
 import './components/message-list.js';
 import './components/message-input.js';
 
+// Change the entry hash when a shared child component changes.
+const WEBCHAT_UI_VERSION = '2026.10.27-loading-skeleton.1';
+console.info(`[Unicom WebChat] bundle loaded (v${WEBCHAT_UI_VERSION})`);
+
 export class UnicomChat extends LitElement {
   static properties = {
     apiBase: { type: String, attribute: 'api-base' },

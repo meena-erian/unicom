@@ -6,6 +6,7 @@ import { LitElement, html, css } from 'lit';
 import { iconStyles, listStyles } from '../webchat-styles.js';
 import fontAwesomeLoader from '../utils/font-awesome-loader.js';
 import './message-item.js';
+import { loadingSkeleton } from './loading-skeleton.js';
 
 export class MessageList extends LitElement {
   static properties = {
@@ -118,13 +119,8 @@ export class MessageList extends LitElement {
     }
 
     return html`
-      <div class="message-list" @scroll=${this._handleScroll}>
-        ${this.loading ? html`
-          <div class="loading-spinner">
-            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
-            <span>Loading messages...</span>
-          </div>
-        ` : ''}
+      <div class="message-list" aria-busy=${this.loading ? 'true' : 'false'} @scroll=${this._handleScroll}>
+        ${this.loading && processedMessages.length === 0 ? loadingSkeleton() : ''}
 
         ${this.hasMore && !this.loading ? html`
           <button @click=${this._loadMore} class="load-more-btn">
